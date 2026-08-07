@@ -18,6 +18,9 @@ checklist form.
 
 ## Bugs (see `docs/KNOWN_ISSUES.md` for full detail)
 
+- [x] Bottom safe-area insets (DL-052, 2026-08-08). `Screen`'s non-scrollable branch applied no bottom inset at all despite the header claiming otherwise, so fixed-layout and list screens put content and buttons under the gesture bar; `SettingsScreen` meanwhile reserved it twice and showed a dead gap above the tab bar. Fixed in `Screen.tsx` plus a `screenLayout` on `TabNavigator` that zeroes the inset for tab screens, with no per-screen edits. Verified on device.
+- [ ] Audit remaining screens for **top** inset correctness: `hasAppBar` tells `Screen` the app bar consumed `insets.top`, so any screen passing it without actually rendering an `AppBar` draws under the status bar / camera cutout. `LibraryScreen` is a confirmed case and is being fixed separately; grep `hasAppBar` across `src/features` and check each one renders an `AppBar`.
+
 - [ ] Decide what a due notification's body should show before media exists (currently duplicates the title).
 - [x] JVM unit tests for the backup module's pure-Kotlin pieces (`BackupZipStructuralValidator`, `BackupChecksums`, `BackupFormat`, `BackupManifest`, `BackupScheduleRuleCodec`, `BackupConflictPlanner`) — ~40 cases added 2026-08-07, `android/app/src/test/java/com/aslam/mediareminder/backup/`.
 - [ ] Add instrumentation tests (`android/app/src/androidTest/`, using the already-declared `androidx.test`/`espresso-core`/`room-testing` deps — no new dependency needed) for `SchedulerCoordinator`, `AlarmActionProcessor`, `AlarmDispatchReceiver`, `AlarmRingingService`, and `BackupExporter`/`BackupImporter` — all Room/Context-dependent, can't run as plain JVM tests.
