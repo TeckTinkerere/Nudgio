@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MR-10 "Sharing and privacy": "Completed private exports shared through
+  another app use FileProvider with read-only temporary URI permission."
+  `external-files-path` matches `BackupExporter`'s export directory
+  (`getExternalFilesDir(null)/backups`) exactly — this file grants no other
+  path, so a share intent can never expose anything outside that one folder.
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-files-path name="backups" path="backups/" />
+</paths>

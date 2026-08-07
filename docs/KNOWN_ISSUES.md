@@ -1,0 +1,41 @@
+# Known Issues
+
+Findings from a full multi-perspective review (Android/Kotlin core, React
+Native layer, security, accessibility, battery). Organized by severity.
+"Documented gap" entries were already called out in `docs/decision-log.md`
+before this pass — listed here for visibility, not claimed as newly found.
+
+None of the Kotlin changes below have been compiled or run: no Android
+SDK/JDK 17 toolchain was available in the environment this review ran in
+(same standing limitation as `docs/decision-log.md` DL-004). Verify on a
+real build before shipping.
+
+## Fixed in this pass
+
+- **Notification channels were never created on the real due-alarm path.** `NotificationCoordinator.buildDueNotification()` — used by `AlarmDispatchReceiver` and `AlarmRingingService`, i.e. every real reminder firing — never called `ensureChannels()`. Only `postGenericDueNotification()` (direct-boot) and `postTestNotification()` (Health screen) did. On Android 8+, `NotificationManager.notify()` against a channel ID that was never created is silently dropped: no crash, no log, nothing shown. A user whose first-ever alarm fires before they've tapped "Test reminder" or gone through a locked-boot cycle could get **no notification at all** for a Gentle-profile reminder (notification-only, no ringing to fall back on). Fixed: `ensureChannels()` now runs at the top of `buildDueNotification()`, idempotently. — `android/app/src/main/java/com/aslam/mediareminder/notifications/NotificationCoordinator.kt`
+- **`commitImport` silently defaulted a missing/unrecognized `mode` to `"merge"`.** A caller bug (JS omits the field, sends a typo, or a future mode string this native build doesn't know) would silently mutate the user's reminders under merge semantics instead of failing loudly — in the one code path (backup restore) where a silent wrong default is most costly. Fixed: `mode` is now required and validated against `{inspect, merge, replace}`, rejecting anything else with `MR_VALIDATION_FAILED`. — `android/app/src/main/java/com/aslam/mediareminder/bridge/MediaReminderModule.kt`
+- **Chip components used as static info tags reported `accessibilityRole="button"` with a no-op `onPress`.** `MediaDetailScreen`'s kind/duration/size/category/tag chips had `onPress={() => undefined}` — a TalkBack "double tap to activate" that did nothing. `Chip.onPress` is now optional; a chip without one renders as a non-interactive tag. — `src/design-system/components/Chip.tsx`, `src/features/library/MediaDetailScreen.tsx`
+- **Screen transitions ignored the app's reduced-motion setting entirely.** `RootNavigator` used React Navigation's untouched default animation regardless of `theme.a11y.reduceMotion`, contradicting the MR-04 `navigation` motion token's own declared reduced behavior (`fade`, not "no change"). Fixed. — `src/app/navigation/RootNavigator.tsx`
+- **No Android-native touch feedback (ripple) anywhere.** Every Pressable-based component relied on opacity dimming only — functional, but not what a Material/Android app looks like on the platform this app ships to exclusively. Added `useRippleConfig()` + `android_ripple` across Button, Card, Chip, IconButton, ListRow, MediaCard, RadioCard, SegmentedControl, WeekdaySelector, and the tab bar.
+- **Haptics were spec'd (MR-03/MR-04/MR-13) but entirely unimplemented.** Added a `HapticsService` (RN core `Vibration`, no new dependency/permission), wired into alarm accept/snooze/dismiss and destructive-delete confirmations, plus a real "stronger haptics" toggle + preview in Settings.
+- **The Android Gradle wrapper was never committed.** Only `android/gradle/wrapper/gradle-wrapper.properties` existed — `gradlew`, `gradlew.bat`, and `gradle-wrapper.jar` were all missing, so `./gradlew`/`gradlew.bat` could never run at all (confirms this Android project has never actually been built end-to-end by anyone, consistent with DL-004's standing caution). Fetched the official Gradle 8.10 wrapper files (matching the pinned `distributionUrl`) and confirmed `./gradlew --version` now bootstraps and runs correctly.
+- **`react-native` (0.86+) no longer bundles its own CLI** — `@react-native-community/cli` is a required devDependency the project was missing, so `npm run android`/`npm start` failed immediately. Added it (resolved to 20.2.0). That newer CLI version also tightened its config-file schema: `react-native.config.js`'s `platforms: { ios: null }` (the old way to suppress iOS platform probing) is no longer valid — a `platforms` entry must be a real plugin-descriptor object now, not `null`. Removed the now-invalid block; the CLI's bundled iOS plugin simply finds no `ios/` directory and iOS commands stay unavailable, same practical effect as before.
+
+## Open — Medium
+
+- **Every due-alarm notification currently shows the reminder label twice** (title and body are both `reminder.label` — `mediaTitle` has no real value to source from until media import exists, per DL-012). Visible to any user today, not hypothetical. Fix is a product decision (show nothing in the body until media exists? the schedule summary instead?), not applied here.
+- **Zero automated test coverage on the safety-critical Kotlin logic.** Only `OccurrenceCalculator` and `DevicePresentationState` (the two classes with no Android framework dependency) have unit tests. `SchedulerCoordinator`, `AlarmActionProcessor`, `AlarmDispatchReceiver`, `AlarmRingingService`, `BackupExporter`/`BackupImporter`, and every validator have never been exercised by an automated test — only reasoned about in code comments. For an app whose entire purpose is "the alarm reliably fires," this is the single largest gap for a genuine production-ready claim.
+- **No release tooling exists.** `scripts/` is an empty README stub. `build.gradle` hardcodes `versionCode 1` / `versionName "0.1.0"` directly, contradicting its own comment that these are "stamped by the release script (MR-20), not hand-edited here" — that script does not exist yet. See `docs/APK_RELEASE_CHECKLIST.md`.
+- **`minifyEnabled true` (ProGuard/R8) has never been build-verified.** No Android SDK/JDK 17 has been available in this project's development environment so far (DL-004) — a release build has never actually been produced. `proguard-rules.pro` is empty, relying entirely on React Native's bundled consumer rules, which is plausible but unconfirmed.
+
+## Open — Low / documented gaps (pre-existing, tracked in `docs/decision-log.md`)
+
+- Notification IDs are a 32-bit hash of the session UUID (`sessionId.hashCode() and 0x7fffffff`) — collision-tested only in a comment, never in an instrumentation test (needs a real device). DL entries around notification construction.
+- Backup ZIP validation rejects path traversal, absolute paths, drive prefixes, duplicate/case-variant names, oversized entries, and compression-ratio bombs, but **not symlink-like entries** — `java.util.zip.ZipEntry`'s public API cannot see the Unix external-attributes field a symlink is encoded in; Apache Commons Compress would be needed and was deliberately not added. DL-031.
+- Media import/library persistence, user-defined reminder profiles, and `openCapabilitySettings` are native no-ops (`NativeErrorEnvelope.rejectNotImplemented`) behind fully-built RN screens driven by mock fixtures. DL-012, DL-026.
+- The Import screen's document-picker step is entirely mocked on the JS side (`mockBackupInspection`) — `inspectBackup`/`commitImport` are real native implementations with nothing to feed them a real `content://` URI yet. DL-027.
+- Onboarding is 1 of 3 planned pages; the Health screen shows overall status only, no per-item capability rows yet (both explicitly scoped out in their own file comments, not attempted this pass per user direction).
+
+## Forward-looking, not currently broken
+
+- `AlarmActivity.onBackPressed()` uses the deprecated (non-predictive-back) override. It works correctly today because the manifest does not declare `android:enableOnBackInvokedCallback` (predictive back is off by default). If the app later opts into predictive back, this override needs to migrate to `OnBackPressedDispatcher`/`OnBackInvokedCallback` or the documented "Back collapses to notification" behavior could silently stop firing.

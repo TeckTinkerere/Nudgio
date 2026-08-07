@@ -1,0 +1,87 @@
+{
+  "name": "nudgio",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Offline-first Android adaptive media alarm. React Native UI over a Kotlin reliability core.",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "android": "react-native run-android",
+    "start": "react-native start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,json}\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "verify": "npm run typecheck && npm run lint && npm test",
+    "android:test": "cd android && ./gradlew test lintDebug",
+    "clean": "react-native clean"
+  },
+  "dependencies": {
+    "@react-navigation/bottom-tabs": "^7.3.10",
+    "@react-navigation/native": "^7.1.6",
+    "@react-navigation/native-stack": "^7.3.10",
+    "@tanstack/react-query": "^5.66.0",
+    "react": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-gesture-handler": "^2.24.0",
+    "react-native-safe-area-context": "^5.3.0",
+    "react-native-screens": "^4.10.0",
+    "react-native-svg": "^15.11.2",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/preset-env": "^7.26.0",
+    "@babel/runtime": "^7.26.0",
+    "@react-native-community/cli": "^20.2.0",
+    "@react-native/babel-preset": "0.86.0",
+    "@react-native/eslint-config": "0.86.0",
+    "@react-native/jest-preset": "0.86.0",
+    "@react-native/metro-config": "0.86.0",
+    "@react-native/typescript-config": "0.86.0",
+    "@testing-library/react-native": "^13.1.0",
+    "@types/jest": "^29.5.14",
+    "@types/react": "^19.2.0",
+    "@types/react-test-renderer": "^19.1.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-import": "^2.31.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.5.0",
+    "react-test-renderer": "19.2.3",
+    "typescript": "^5.8.2"
+  },
+  "codegenConfig": {
+    "name": "MediaReminderSpec",
+    "type": "modules",
+    "jsSrcsDir": "src/native-client",
+    "android": {
+      "javaPackageName": "com.aslam.mediareminder.bridge"
+    }
+  },
+  "jest": {
+    "preset": "@react-native/jest-preset",
+    "setupFiles": [
+      "<rootDir>/jest.setup.js"
+    ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.after.js"
+    ],
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1"
+    },
+    "transformIgnorePatterns": [
+      "node_modules/(?!(?:@react-native|react-native|@react-navigation|react-native-svg|react-native-screens|react-native-safe-area-context|react-native-gesture-handler)/)"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.{ts,tsx}",
+      "!src/**/*.d.ts",
+      "!src/testing/**"
+    ]
+  }
+}

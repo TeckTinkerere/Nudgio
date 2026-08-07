@@ -1,0 +1,123 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+// Room's annotation processor. KSP, not kapt: kapt is in maintenance mode
+// and noticeably slower; Room has shipped first-class KSP support since 2.5.
+apply plugin: "com.google.devtools.ksp"
+
+/**
+ * Build variants (MR-07 "Build variants"):
+ *  - debug:   developer tools, synthetic event injector, verbose local log;
+ *  - qa:      release-like signing, test fixtures, controlled diagnostics;
+ *  - release: no debug menus, no Internet permission, minified.
+ *
+ * Signing config is intentionally absent here. MR-18: "Release commands are
+ * scripted and never request signing secrets from source-controlled files" —
+ * a keystore/signing block belongs in `scripts/release`, read from the
+ * environment, not committed alongside this file.
+ */
+android {
+    namespace "com.aslam.mediareminder"
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        applicationId "com.aslam.mediareminder"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        // ADR-019: versionCode/versionName are stamped by the release script
+        // (MR-20), not hand-edited here.
+        versionCode 1
+        versionName "0.1.0"
+    }
+
+    buildTypes {
+        debug {
+            // MR-07: developer tools, synthetic event injector, verbose log.
+            buildConfigField "String", "BUILD_VARIANT", '"debug"'
+        }
+        release {
+            buildConfigField "String", "BUILD_VARIANT", '"release"'
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+
+    // `qa`: release-like signing/optimization with controlled diagnostics and
+    // no remote analytics (MR-07). Declared as a build type, not a flavor,
+    // because it does not vary applicationId or resources — only behavior
+    // flags read from `BuildConfig.BUILD_VARIANT` at runtime
+    // (see `core/config/featureFlags.ts` on the JS side, and
+    // `bridge/BuildVariant.kt` on this side).
+    buildTypes {
+        qa {
+            initWith release
+            buildConfigField "String", "BUILD_VARIANT", '"qa"'
+            matchingFallbacks = ["release"]
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    packagingOptions {
+        // ADR-015: no automatic cloud backup of app data. `dataExtractionRules`
+        // (API 31+) and `fullBackupContent` (legacy) both live in
+        // src/main/res/xml and are wired below; this block only trims
+        // duplicate native libs pulled in by transitive dependencies.
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+}
+
+react {
+    // Standard React Native New Architecture autolinking; no per-project
+    // overrides needed yet.
+}
+
+dependencies {
+    implementation("com.facebook.react:react-android")
+    implementation("com.facebook.react:hermes-android")
+
+    // AndroidX baseline the design system and startup snapshot rely on today.
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    // MR-06 presentation slice: `AlarmActivity`'s Material buttons and the
+    // `Theme.Material3.*` parent `styles.xml` already declares. Made
+    // explicit rather than relying on it arriving transitively through
+    // `react-android`.
+    implementation("com.google.android.material:material:1.12.0")
+    // MR-07: "Theme and lightweight preferences" -> DataStore, not Room.
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    // MR-09: Room is the logical source of truth for reminders/schedules/
+    // occurrences (ADR-004). `room-ktx` brings the coroutine `suspend` DAO
+    // surface so no `Executor`/callback plumbing is needed.
+    implementation("androidx.room:room-runtime:$rootProject.ext.roomVersion")
+    implementation("androidx.room:room-ktx:$rootProject.ext.roomVersion")
+    ksp("androidx.room:room-compiler:$rootProject.ext.roomVersion")
+
+    // AlarmManager scheduling (this slice) needs no extra AndroidX artifact —
+    // it is a platform API. Media3 and the alarm/notification UI (full-screen
+    // activity, ringing service, media playback) are a later slice; see
+    // docs/decision-log.md for the explicit scope cut.
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation("androidx.room:room-testing:$rootProject.ext.roomVersion")
+}

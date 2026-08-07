@@ -1,0 +1,24 @@
+document_id,title,pdf_file,pages,binder_start,binder_end,bytes,text_chars
+MR-00,Document Map and Executive Summary,00_Document_Map_and_Executive_Summary.pdf,7,1,7,184584,11646
+MR-01,Vision and Product Charter,01_Vision_and_Product_Charter.pdf,7,8,14,186668,12451
+MR-02,Product Requirements Document,02_Product_Requirements_Document.pdf,7,15,21,214392,14005
+MR-03,User Experience and Interaction Specification,03_User_Experience_and_Interaction_Specification.pdf,9,22,30,245953,16462
+MR-04,Visual Design System,04_Visual_Design_System.pdf,7,31,37,214782,11855
+MR-05,Functional Feature Specification,05_Functional_Feature_Specification.pdf,7,38,44,150143,13455
+MR-06,"Android Alarm, Notification and Battery Specification",06_Android_Alarm_Notification_and_Battery_Specification.pdf,10,45,54,357973,19421
+MR-07,Technical Architecture,07_Technical_Architecture.pdf,8,55,62,257399,13409
+MR-08,Internal Module and Data Contracts,08_Internal_Module_and_Data_Contracts.pdf,7,63,69,269869,12815
+MR-09,Database and Local Storage Specification,09_Database_and_Local_Storage_Specification.pdf,8,70,77,252205,13126
+MR-10,"Backup, Export and Import Specification",10_Backup_Export_and_Import_Specification.pdf,7,78,84,216366,13700
+MR-11,"Edge Cases, Failure Recovery and Conflict Handling",11_Edge_Cases_Failure_Recovery_and_Conflict_Handling.pdf,8,85,92,150268,15124
+MR-12,"Security, Privacy and Threat Model",12_Security_Privacy_and_Threat_Model.pdf,8,93,100,178585,15920
+MR-13,"Accessibility, Localization and Inclusive Design",13_Accessibility_Localization_and_Inclusive_Design.pdf,6,101,106,131592,12302
+MR-14,"Testing, Quality and Device Matrix",14_Testing_Quality_and_Device_Matrix.pdf,8,107,114,168287,12815
+MR-15,"Performance, Battery and Operational Budgets",15_Performance_Battery_and_Operational_Budgets.pdf,7,115,121,161013,11407
+MR-16,"Roadmap, Release and Success Metrics",16_Roadmap_Release_and_Success_Metrics.pdf,6,122,127,174597,10849
+MR-17,Architecture Decision Records,17_Architecture_Decision_Records.pdf,7,128,134,121732,14505
+MR-18,Contribution Guide and Engineering Standards,18_Contribution_Guide_and_Engineering_Standards.pdf,7,135,141,166495,11791
+MR-19,AI Agent Guide and Master Loop Prompt,19_AI_Agent_Guide_and_Master_Loop_Prompt.pdf,7,142,148,151723,13220
+MR-20,"Release, Distribution, Portfolio and Maintenance Guide",20_Release_Distribution_Portfolio_and_Maintenance_Guide.pdf,7,149,155,203243,13164
+MR-21,Requirements Traceability and Acceptance Catalog,21_Requirements_Traceability_and_Acceptance_Catalog.pdf,23,156,178,488492,27348
+MR-22,Research Baseline and Official Sources,22_Research_Baseline_and_Official_Sources.pdf,9,179,187,168052,13227
