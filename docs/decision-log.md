@@ -847,3 +847,361 @@ rewrote all three call sites to use it.
 **Consequence:** Adding a fourth backup record codec (a future media-import
 slice, per DL-026) now reuses this helper instead of a fourth copy of the
 same try/catch.
+
+## DL-041 — `compileSdk` dropped from 37 to 36 after the first real Gradle build
+
+**Date:** 2026-08-07
+**Context:** `android/build.gradle`'s ADR-019 baseline pinned `compileSdkVersion = 37`,
+carrying the file's own caution to "confirm... before the first build, not
+assume." This environment's first-ever `./gradlew assembleDebug` (DL-004 had
+never been possible before now) failed: `sdkmanager` could install a package
+named `platforms;android-37.0`, but its `source.properties` was internally
+inconsistent (`Pkg.Desc: "Android SDK Platform 17"`, `Platform.Version=17`,
+`AndroidVersion.ApiLevel=37.0`) and AGP could not resolve the target hash
+`android-37` it needs. Android 16 (API 36) is the actual latest normal stable
+release as of this date.
+**Decision:** Changed `compileSdkVersion`/the platform baseline to 36 in
+`android/build.gradle`. `targetSdkVersion` was already 36, so this also
+removes the (until-now unexercised) gap between `compileSdk` and `targetSdk`.
+**Consequence:** The build gets past SDK resolution. Revisit only once a real
+API 37 stable platform is confirmed installable in a real environment — do
+not re-bump from a spec baseline assumption alone, per this same file's own
+standing warning.
+
+## DL-042 — Codegen actually run for the first time; DL-004's "mechanical follow-up" assumption was wrong
+
+**Date:** 2026-08-07
+**Context:** DL-004 assumed switching from the hand-registered `TurboModule`
+to generated Codegen output would be "a mechanical follow-up... the method
+names, argument shapes and promise/reject semantics were written to match
+what Codegen would produce" — untested, because no environment before now
+could run `generateCodegenSchemaFromJavaScript`. Running it for the first
+time (after DL-041) surfaced three real defects in
+`src/native-client/NativeMediaReminder.ts`, two mechanical and one not:
+1. Codegen requires the `TurboModule`-extending interface to be named
+   exactly `Spec` — it was `MediaReminderSpec`.
+2. Codegen requires `TurboModuleRegistry.get<Spec>()`'s call to use the
+   literal type `Spec` (not a type alias) and a string-literal argument (not
+   an identifier), even a same-file top-level `const`.
+3. **Not mechanical:** past those two, codegen failed a third time with
+   `UnsupportedGenericParserError` on `PreferencePatch` (`= Partial<PreferencesSnapshot>`).
+   Codegen's TypeScript parser only understands plain object-literal
+   interfaces, primitives, arrays and string-literal unions — it cannot
+   resolve `Partial<>`, generics (`Page<T>`), or the branded/intersection
+   types (`UUID = Brand<string, 'UUID'>`) used throughout
+   `src/native-client/types.ts`'s Spec-referenced types. This is not a
+   syntax slip; the bridge's entire data-contract layer, as authored, is not
+   codegen-shaped.
+**Decision:** Fixed (1) and (2) directly — low-risk, mechanical, no
+behavioral change (`MediaReminderSpec` kept as a type alias so no consumer
+file needed touching). Did **not** attempt (3): making the Spec interface
+codegen-compatible means introducing flat "wire DTO" types alongside the
+richer domain types `types.ts` already exports and are used throughout
+`src/`, which is a real redesign of MR-08's data-contract layer, not a
+build fix — raised to the user rather than done unilaterally, per AGENTS.md's
+"architectural dependency... usually an ADR" rule. User direction: stop and
+document rather than attempt the redesign in this pass.
+**Consequence:** `android/app/src/main/java/.../bridge/MediaReminderModule.kt`
+still implements `TurboModule` by hand and is *not* verified to match what
+real Codegen output would require — DL-004's original caveat stands, now
+with a concrete reason it might not be "mechanical" when someone does
+attempt it. See `docs/KNOWN_ISSUES.md` for the actionable writeup. This also
+means `./gradlew assembleDebug` still does not produce a working APK — and,
+confirmed separately, neither does `./gradlew testDebugUnitTest`:
+`generateCodegenSchemaFromJavaScript` is wired into `:app:preBuild`, so it
+blocks every `:app` Gradle task, not just `assembleDebug`. No Kotlin file in
+this repo, old or new, has ever actually been compiled by Gradle.
+
+## DL-043 — Release version/signing tooling reads properties files, not hardcoded/env-only
+
+**Date:** 2026-08-07
+**Context:** MR-20 requires monotonic `versionCode` stamping and env-var-driven
+signing that never touches source-controlled files (MR-18). `scripts/` was an
+empty stub; `android/app/build.gradle` hardcoded `versionCode 1`/`versionName
+"0.1.0"` despite its own comment claiming otherwise (`docs/KNOWN_ISSUES.md`),
+and had no signing config at all (`assembleRelease` produced an unsigned APK
+with no way to change that short of hand-editing the build file).
+**Decision:** Added `scripts/release/stamp-version.js` (validates semver
+strictly-increasing, `versionCode` strictly increasing, writes
+`android/version.properties`) and `scripts/release/checksums.js`
+(`sha256sum`-compatible `SHA256SUMS.txt` for a release directory) — both
+plain Node, no Gradle/Android dependency, and both directly tested (bad
+input rejected, good input verified byte-for-byte against the real
+`sha256sum` binary) before being considered done. `android/app/build.gradle`
+now reads `versionCode`/`versionName` from `version.properties` (committed,
+starts at `1`/`0.1.0`) and a signing config from `RELEASE_STORE_FILE`+3 env
+vars first, `android/keystore.properties` (gitignored,
+`.example` template committed) second, matching the `local.properties`
+pattern this repo already used for the SDK path.
+**Consequence:** No behavior change for anyone who sets neither — `assembleDebug`
+is untouched and `assembleRelease` still produces an unsigned APK exactly as
+before. The full MR-20 build pipeline (SBOM, third-party notices, mapping
+files, reference-device signature verification) is still unscripted — see
+`docs/APK_RELEASE_CHECKLIST.md`. None of this tooling could be exercised
+through an actual `assembleRelease` run — that task is blocked by the
+Codegen contract issue (DL-042) — so it is verified in isolation (direct
+Node execution) but not yet proven correct end-to-end inside a real Gradle
+invocation.
+
+## DL-044 — AGP dropped from 8.12.0 to 8.10.0 for Android Studio IDE compatibility
+
+**Date:** 2026-08-07
+**Context:** `./gradlew` (command-line Gradle, its own bundled distribution)
+had no trouble with AGP 8.12.0 — DL-041/DL-042 were both found through it.
+Opening this project's `android/` folder in an actual Android Studio
+install surfaced a different problem command-line Gradle can't see: that
+Android Studio's own bundled AGP-compatibility table only supports up to
+AGP 8.10.0, so Gradle sync failed before populating a single module (Run
+Configuration's Module dropdown showed only `<no module>`, and the
+IDE reported it directly: "The project is using an incompatible version...
+Latest supported version is AGP 8.10.0").
+**Decision:** Downgraded `android/build.gradle`'s AGP classpath pin from
+8.12.0 to 8.10.0. Confirmed with `./gradlew help` (project configuration
+only, no compile/codegen) that the downgrade itself introduces no new
+failure — build succeeds at that phase, same as it did at 8.12.0.
+`compileSdk 36` (DL-041) is well within AGP 8.10.0's supported range.
+**Consequence:** This is a distinct, IDE-only compatibility constraint from
+the Codegen contract problem (DL-042) — fixing this unblocks Gradle *sync*
+inside Android Studio, but a synced project still cannot build or run until
+DL-042 is resolved. Revisit this pin if/when the installed Android Studio is
+upgraded to a version whose AGP-compatibility table covers a newer AGP.
+
+## DL-045 — TurboModule bridge contract redesigned to be Codegen-compatible; `assembleDebug` succeeds for the first time
+
+**Date:** 2026-08-07
+**Context:** DL-042 found the bridge's TypeScript contract genuinely
+incompatible with Codegen (`Partial<>`, generics, branded/intersection
+types) and stopped short of fixing it, since a real redesign was out of
+scope for a build-verification pass. With explicit user direction to
+proceed, attempted it. Two more empirical findings shaped the actual
+design, neither obvious in advance:
+1. Codegen's TypeScript parser **does not support type imports from other
+   files** for a `Spec` module. A type imported from a sibling file and
+   used as a method *return* type is silently swallowed — the generated
+   schema gets `VoidTypeAnnotation` instead of the real shape, no error at
+   all — while the same import used as a *parameter* type throws
+   `UnsupportedGenericParserError` outright. Confirmed by direct,
+   repeated probing against `@react-native/codegen`'s real parser
+   (`node node_modules/@react-native/codegen/lib/cli/combine/combine-js-to-schema-cli.js`
+   — far faster than a full Gradle invocation per iteration). This ruled
+   out an initial `wireTypes.ts` file split; every DTO `Spec` references
+   has to be declared in `NativeMediaReminder.ts` itself.
+2. `Object` (bare, capital-O) is Codegen's generic-passthrough escape
+   hatch — also confirmed by direct probing, alongside string-literal
+   unions, nullable (`| null`), optional fields, arrays and nested objects
+   all working correctly when declared locally.
+**Decision:** `NativeMediaReminder.ts` now declares ~30 `*Wire` interfaces
+inline (branded types -> plain `string`, `Page<T>` -> per-entity page
+types, `ScheduleRuleDto`'s 6-variant union -> one flattened
+`ScheduleRuleWire` with every variant field optional, `Partial<>` ->
+spelled out explicitly, `unknown` -> `Object`) alongside `Spec` itself.
+New `mapping.ts` provides `decodeWire<T>()` (a documented, safe
+type-level cast — wire and domain types are runtime-identical, JSON in/out;
+only TypeScript's structural checks differ) and `decodeScheduleRule()`
+(the one case needing real narrowing logic, since a flat object can't be
+discriminated back into a union by a cast alone). `MediaReminderClient.ts`
+decodes every native call's result through this boundary; the domain->wire
+direction needed no helper at all, since a domain value's branded/narrow
+fields already upcast for free into the wider wire shape. `mockNativeModule.ts`
+required zero changes (its object literals already upcast correctly);
+`demoNativeModule.ts` needed `decodeWire`/`as UUID` at the handful of spots
+where it reads a wire-typed incoming id/request field back into its own
+domain-typed internal `Map`.
+**Consequence:** `npm run verify` (typecheck/lint/test) stayed fully green
+throughout — this was a type-boundary change with zero runtime behavior
+change, verified the same way DL-034-style fixes in this log always have
+been: by reading the actual diff, not trusting a green build alone. Codegen
+schema generation now succeeds for all 27 `Spec` methods (spot-checked
+every method's resolved type against the raw schema JSON to rule out the
+same silent-`void` failure mode this fix exists to prevent). This, chained
+with DL-046/DL-047 below, is what took `./gradlew assembleDebug` from
+"has never once succeeded in this project's history" to producing a real,
+installable `app-debug.apk`.
+
+## DL-046 — Five real Kotlin bugs found by the first-ever successful compile
+
+**Date:** 2026-08-07
+**Context:** Once DL-045 got `generateCodegenSchemaFromJavaScript` passing,
+`:app:compileDebugKotlin` ran for the first time in this project's history
+(every prior Kotlin change in this log, DL-004 onward, was "written
+carefully, reasoned through, not compiled"). It surfaced five real,
+previously invisible bugs, none related to the bridge redesign:
+1. **`BackupRecords.kt`'s doc comment broke Kotlin's own comment parser.**
+   Line 11 read `` `data/*.json` `` as plain documentation text — but
+   Kotlin, unlike Java/C, nests block comments, so the literal `/*`
+   inside that KDoc block opened an unintended *nested* comment. Every
+   symbol the file defines (`BackupReminderProfileCodec`,
+   `BackupReminderCodec`, `BackupSettingsCodec`, `decodeBackupRecord`)
+   became `Unresolved reference` everywhere they're used, and the parser
+   only reported the eventual imbalance as "Syntax error: Unclosed
+   comment" at EOF (line 143) — nowhere near the actual cause (line 11).
+   Fixed by rephrasing the comment to avoid a literal `/*` sequence.
+2. **`AlarmActionReceiver.kt`**: `intent.action` (`String?`) was checked
+   with `action !in setOf(...)`, which Kotlin's smart-cast does not
+   recognize as a null-narrowing pattern the way an explicit
+   `action == null` check is. `handle(...)`'s `action: String` parameter
+   then genuinely failed to typecheck once actually compiled. Fixed with
+   an explicit `action == null ||` in the same guard clause.
+3. **`MediaReminderModule.kt`**: called `ReminderDtoWriter.writeOccurrence(...)`
+   with no `import com.aslam.mediareminder.reminders.ReminderDtoWriter` —
+   a plain missing import, `Unresolved reference` once compiled.
+4. **`BackupOperationEmitter.kt` and `ReminderEventEmitter.kt`** both wrote
+   `app.reactHost.currentReactContext` — but `ReactApplication.reactHost`
+   is itself nullable (`ReactHost?`) in the installed RN 0.86, a fact no
+   environment before now could verify by actually compiling against the
+   real AAR. Fixed with `app.reactHost?.currentReactContext`.
+**Decision:** Fixed all five directly — each is a small, mechanical, clearly
+scoped correctness fix (a documentation-comment escaping bug, a
+null-safety gap, a missing import, and two real API-surface facts about
+the installed RN version), not a design decision requiring a spec update.
+**Consequence:** `:app:compileDebugKotlin` succeeds. This is exactly the
+risk DL-032's "written carefully, reasoned through, but not compiled"
+caveat existed to flag — now resolved for these five files; every other
+Kotlin file in this repo has now also been compiled at least once as a
+side effect of the same build.
+
+## DL-047 — `:app` never actually depended on its autolinked native modules
+
+**Date:** 2026-08-07
+**Context:** Past DL-046's Kotlin fixes, `:app:compileDebugJavaWithJavac`
+failed on the Codegen-*generated* `PackageList.java`: `error: package
+com.swmansion.gesturehandler does not exist` (and three siblings —
+`safeareacontext`, `rnscreens`, `horcrux.svg`), even though
+`:react-native-gesture-handler:assembleDebug` and the other modules had
+already built successfully earlier in the very same invocation. Ruled out
+build-cache staleness first (`./gradlew --stop`, manually deleted every
+`build`/`.cxx` output directory under `android/app` and each native
+module's `node_modules/.../android/`, reran from a genuinely clean state —
+identical failure). `settings.gradle`'s
+`ex.autolinkLibrariesFromCommand()` only makes the native modules
+*includeable* as Gradle subprojects; it does not make `:app` depend on
+them. `node_modules/@react-native/gradle-plugin/.../ReactExtension.kt`'s
+`autolinkLibrariesWithApp()` is the actual dependency-wiring step, and its
+own doc comment says exactly that: "This function should be invoked
+inside the `react {}` block in the app's build.gradle and is necessary
+for libraries to be linked correctly." `android/app/build.gradle`'s
+`react {}` block was empty.
+**Decision:** Added the `autolinkLibrariesWithApp()` call to `android/app/build.gradle`'s
+`react {}` block.
+**Consequence:** `:app:compileDebugJavaWithJavac` succeeds —
+`PackageList.java`'s references now resolve because `:app` actually
+depends on `:react-native-gesture-handler` etc. at the Gradle level, not
+just at the generated-source level. This, on top of DL-045/DL-046, is what
+finally produced a real `app-debug.apk` (`android/app/build/outputs/apk/debug/`)
+— confirmed to exist on disk, not just inferred from a green exit code.
+
+## DL-048 — `OccurrenceCalculatorTest`'s leap-year case asserted the wrong thing
+
+**Date:** 2026-08-07
+**Context:** `./gradlew test` ran for the first time (blocked until
+DL-045/046/047) and found 69/70 Kotlin unit tests passing — the one
+failure was `` `yearly uses Feb 29 itself in a leap year` ``, not a
+production bug. `nextYearly()` (`OccurrenceCalculator.kt`) searches
+starting from `after`'s *own* year first. The failing test started
+`after` at 2027-01-01 (not a leap year) — so the calculator correctly
+clamped to 2027's Feb 28 and returned immediately, exactly matching the
+already-passing, adjacent `` `yearly clamps Feb 29 to Feb 28 in a
+non-leap year` `` case's verified behavior. The test never actually
+reached 2028 to exercise "Feb 29 used literally" the way its name claims.
+**Decision:** Changed the test's `after` to 2028-01-01 (itself a leap
+year, before Feb 29), so the calculator's first candidate correctly
+resolves to that same year's real Feb 29 with no clamping — actually
+exercising the behavior the test name describes. Did not touch
+`OccurrenceCalculator.kt` — verified its behavior is correct and
+self-consistent before changing anything, per this log's standing
+discipline (DL-017, DL-034, DL-035) of re-verifying before acting rather
+than assuming a failing test means production code is wrong.
+**Consequence:** All 70 Kotlin unit tests pass. Combined with DL-045
+through DL-047, `./gradlew assembleDebug test` is fully green — the
+first time in this project's history.
+
+## DL-049 — `SoLoader.init(this, false)` cannot resolve React Native's merged `.so`
+
+**Date:** 2026-08-08
+**Context:** First real launch on a physical device (V2446, Android 16 /
+API 36, arm64-v8a) after DL-041..048 produced an installable APK. The app
+died instantly — before any Activity or JS — with
+`java.lang.UnsatisfiedLinkError: dlopen failed: library
+"libreact_featureflagsjni.so" not found`, thrown from
+`DefaultNewArchitectureEntryPoint.load()` in `MainApplication.onCreate`.
+Ruled out the obvious candidates first: the ABI is not mismatched (the
+universal APK carries all 16 `.so` per ABI including `arm64-v8a`), and
+`com.facebook.react:react-android` resolves to exactly `0.86.0`, matching
+`node_modules`. The actual cause is visible in the stack trace's
+`com.facebook.soloader.nativeloader.SystemDelegate.loadLibrary` frame:
+`SystemDelegate` is SoLoader's fallback, which calls `System.loadLibrary()`
+verbatim. React Native 0.76+ merges every core native library into a single
+`libreactnative.so` (present in the APK; `libreact_featureflagsjni.so`
+deliberately is not — 0 matches in the archive), and
+`com.facebook.react.soloader.OpenSourceMergedSoMapping.mapLibName()` is
+what rewrites `react_featureflagsjni` (and `reactnativejni`,
+`turbomodulejsijni`, `fabricjni`, `yoga`, ...) to `reactnative`.
+`SoLoader.init(this, false)` is the pre-0.76 signature and installs no
+mapping at all, so the very first core library touched failed to open.
+**Decision:** `SoLoader.init(this, OpenSourceMergedSoMapping)` in
+`MainApplication.onCreate`, with the reasoning inline so it is not
+"simplified" back to the old two-arg form.
+**Consequence:** Process survives `Application.onCreate`; launch proceeds
+to the React host. This was a pure startup blocker — no amount of JS-side
+work could have run before it.
+
+## DL-050 — the debug variant had no source set, so it could never reach Metro
+
+**Date:** 2026-08-08
+**Context:** With DL-049 fixed the process stayed alive but still failed at
+launch, now with `Unable to load script` and a fatal `ReactHostImpl`
+exception. The real message was one line earlier in logcat:
+`CLEARTEXT communication to localhost not permitted by network security
+policy`, and `isMetroRunning(): Async result = false`. `android/app/src/`
+contained only `main` and `test` — there was no `debug` source set at all.
+ADR-015 correctly keeps `INTERNET` out of the manifest, and
+`src/main/AndroidManifest.xml` honours it; what was missing is that a debug
+build legitimately needs it to fetch the bundle from the dev server.
+Release is unaffected: `getUseDeveloperSupport()` is `BuildConfig.DEBUG`,
+so a release build reads its bundle from assets and opens no socket.
+**Decision:** Added `android/app/src/debug/AndroidManifest.xml` declaring
+`INTERNET`, plus
+`android/app/src/debug/res/xml/network_security_config_debug.xml`.
+Deliberately *not* the RN template's blanket
+`android:usesCleartextTraffic="true"` — the config whitelists cleartext for
+`localhost`/`127.0.0.1`/`10.0.2.2`/`10.0.3.2` only and leaves the default
+base-config denying everything else, so MR-12 still means something while
+debugging. No ADR filed: ADR-015 scopes its prohibition to the
+*production* manifest, and this permission cannot reach a release APK.
+**Consequence:** `isMetroRunning(): Async result = true`, bundle loads, and
+`Running "MediaReminder" with {"fabric":true}` — New Architecture confirmed
+live on device. **Release-manifest verification is still owed**: confirm
+`INTERNET` is absent from the merged release manifest
+(`./gradlew :app:processReleaseManifest`) before any signed build ships.
+
+## DL-051 — `Intl.PluralRules` is not in Hermes, and it was called at module scope
+
+**Date:** 2026-08-08
+**Context:** With the bundle finally loading, the app rendered the error
+boundary instead of the UI: `TypeError: Cannot read property
+'MediaDetailScreen' of undefined` at `RootNavigator.tsx:65`, preceded by two
+`undefined cannot be used as a constructor` errors. The import was not
+circular. `LibraryScreen.tsx` ran `new Intl.PluralRules('en')` at *module
+scope*; Hermes' Android `Intl` surface provides `Collator`,
+`DateTimeFormat` and `NumberFormat` but not `PluralRules`, so the
+expression threw at import time, aborted the module, and left the entire
+`features/library` barrel `undefined` — which is why the symptom surfaced
+two files away as a missing `MediaDetailScreen` export. Both
+`LibraryScreen.tsx` and `localization/format.ts` carried comments
+asserting PluralRules was "built into Hermes"; that claim was the root
+cause and is now corrected in place. `npm run typecheck` cannot catch this
+— the API is correctly typed, it simply is not implemented at runtime.
+**Decision:** Added `formatEnglishUnit` to `src/localization/format.ts` and
+pointed `LibraryScreen` at it. Placed in the localization module, not the
+screen, because plural selection is a localization concern and
+`formatDurationAccessible` already injects the unit formatter precisely so
+no screen owns a plural rule. For integer counts it is exactly the CLDR
+English rule, so output is identical to what the `Intl` call would have
+produced.
+**Consequence:** App launches to the Today screen and the Library tab (the
+module that was failing) renders its search, filter, category, sort and
+empty states with no JS errors. `npm run verify` green: typecheck clean,
+44/44 Jest tests pass. Standing lesson: an `Intl` member being typed is not
+evidence Hermes implements it, and a module-scope constructor turns a
+missing API into a whole-barrel failure — prefer lazy construction inside
+the function that needs it.

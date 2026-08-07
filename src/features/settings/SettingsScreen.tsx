@@ -24,6 +24,7 @@ import {
   Icon,
   ListRow,
   Screen,
+  SegmentedControl,
   Stack,
   StatusPill,
   Text,
@@ -76,18 +77,28 @@ export function SettingsScreen() {
         <Stack gap="sm">
           <SectionHeader label={t('settings.appearance.title')} />
 
+          {/*
+            Segmented buttons, not a Chip row. System/Light/Dark is one
+            mutually-exclusive value, which is exactly `SegmentedControl`'s
+            radiogroup semantics — a row of `Chip`s announces three
+            independently-selectable filters to TalkBack and gives no visual
+            affordance that picking one clears the others (MR-13 ACC: the
+            control's role must match its behavior). Reuses the component the
+            reminder editor's repeat type already uses rather than adding a
+            fourth way to express a single choice.
+          */}
           <Stack gap="xxs">
             <Text variant="labelLarge">{t('settings.appearance.theme')}</Text>
-            <Stack direction="row" gap="xs" wrap testID={testIds.settings.themeRow}>
-              {THEME_OPTIONS.map(option => (
-                <Chip
-                  key={option.value}
-                  label={t(option.labelKey)}
-                  selected={appearance.preference === option.value}
-                  onPress={() => appearance.setPreference(option.value)}
-                />
-              ))}
-            </Stack>
+            <SegmentedControl
+              testID={testIds.settings.themeRow}
+              accessibilityLabel={t('settings.appearance.theme')}
+              value={appearance.preference}
+              onChange={appearance.setPreference}
+              options={THEME_OPTIONS.map(option => ({
+                value: option.value,
+                label: t(option.labelKey),
+              }))}
+            />
           </Stack>
 
           <Divider spacing="xs" />

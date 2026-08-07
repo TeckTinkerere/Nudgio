@@ -20,7 +20,9 @@
     "test:coverage": "jest --coverage",
     "verify": "npm run typecheck && npm run lint && npm test",
     "android:test": "cd android && ./gradlew test lintDebug",
-    "clean": "react-native clean"
+    "clean": "react-native clean",
+    "release:stamp-version": "node scripts/release/stamp-version.js",
+    "release:checksums": "node scripts/release/checksums.js"
   },
   "dependencies": {
     "@react-navigation/bottom-tabs": "^7.3.10",
@@ -75,6 +77,14 @@
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1"
     },
+    "modulePathIgnorePatterns": [
+      "<rootDir>/.claude/",
+      "<rootDir>/android/"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/.claude/"
+    ],
     "transformIgnorePatterns": [
       "node_modules/(?!(?:@react-native|react-native|@react-navigation|react-native-svg|react-native-screens|react-native-safe-area-context|react-native-gesture-handler)/)"
     ],

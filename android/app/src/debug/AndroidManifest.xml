@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEBUG SOURCE SET ONLY — this file is not part of a release build, so nothing
+  it declares reaches a shipped APK.
+
+  ADR-015 says the *production* manifest has no INTERNET permission, and
+  src/main/AndroidManifest.xml honours that (verify with
+  `./gradlew :app:processReleaseManifest` and read the merged output). Loading
+  JS from Metro during development is a dev-tooling need, not a product
+  capability: `getUseDeveloperSupport()` is `BuildConfig.DEBUG` in
+  MainApplication, so the release build reads its bundle from app assets and
+  never opens a socket.
+
+  Without this file the debug build cannot reach Metro at all. It failed with
+  "CLEARTEXT communication to localhost not permitted by network security
+  policy", which surfaced as "Unable to load script" and a fatal
+  ReactHostImpl exception at launch — the app appeared to simply not open.
+
+  MR-18's "a permission arrives with the receiver/service/ADR that needs it"
+  is satisfied here by scope rather than by a new ADR: the permission is
+  confined to the debug variant and paired with a network security config that
+  only whitelists loopback. Logged in docs/decision-log.md.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Metro dev server + Chrome/Hermes debugger websocket. Debug only. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:networkSecurityConfig="@xml/network_security_config_debug" />
+</manifest>

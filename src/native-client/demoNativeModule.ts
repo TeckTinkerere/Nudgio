@@ -24,6 +24,7 @@
  * provides. Never mistake this file's estimate for that engine.
  */
 
+import {decodeWire} from './mapping';
 import {createMockNativeModule, mockProfiles} from './mockNativeModule';
 import {
   __setNativeMediaReminderOverride,
@@ -175,7 +176,10 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
     ...base,
 
     getStartupSnapshot: async (): Promise<StartupSnapshot> => {
-      const snapshot = await base.getStartupSnapshot();
+      // `base` is Spec-typed (wire) now that MediaReminderSpec is an alias
+      // for it (DL-042/DL-045) — decode before spreading so the rest of
+      // this module keeps working with the rich domain shape it always has.
+      const snapshot = decodeWire<StartupSnapshot>(await base.getStartupSnapshot());
       return {
         ...snapshot,
         mediaCount: mockMedia.length,
@@ -224,7 +228,10 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
       paginate([...reminders.values()].map(toSummary), 0, 100),
 
     getReminder: async id => {
-      const found = reminders.get(id);
+      // `id` arrives wire-shaped (plain string); the demo module's own
+      // Map is keyed by the branded domain UUID (DL-042/DL-045) — safe to
+      // assert, native always sends a real UUID string here.
+      const found = reminders.get(id as UUID);
       return found ?? (await notFound('demo-getReminder'));
     },
 
@@ -276,7 +283,9 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
     },
 
     setReminderEnabled: async (id, enabled): Promise<EnableResult> => {
-      const existing = reminders.get(id);
+      // See `getReminder` above: `id` is wire-shaped, cast once and reuse.
+      const reminderId = id as UUID;
+      const existing = reminders.get(reminderId);
       if (!existing) {
         return notFound('demo-setReminderEnabled');
       }
@@ -287,7 +296,7 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
         nextOccurrence: enabled
           ? {
               id: randomId(),
-              reminderId: id,
+              reminderId,
               kind: 'base',
               scheduledAt: estimateNextOccurrence(existing.schedule),
               state: 'pending',
@@ -296,12 +305,12 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
         updatedAt: new Date().toISOString() as Instant,
         entityVersion: existing.entityVersion + 1,
       };
-      reminders.set(id, updated);
+      reminders.set(reminderId, updated);
       return {reminder: toSummary(updated), nextOccurrence: updated.nextOccurrence};
     },
 
     deleteReminder: async (id): Promise<MutationResult> => {
-      const existed = reminders.delete(id);
+      const existed = reminders.delete(id as UUID);
       return {status: 'ok', affectedCount: existed ? 1 : 0};
     },
 

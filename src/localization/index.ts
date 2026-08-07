@@ -1,4 +1,9 @@
-export {formatLocalDate, formatLocalTime, interpolate} from './format';
+export {
+  formatEnglishUnit,
+  formatLocalDate,
+  formatLocalTime,
+  interpolate,
+} from './format';
 export {en} from './resources/en';
 export {TranslationContext} from './TranslationContext';
 export {TranslationProvider} from './TranslationProvider';

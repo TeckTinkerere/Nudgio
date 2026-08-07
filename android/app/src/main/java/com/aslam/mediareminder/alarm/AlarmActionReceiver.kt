@@ -27,7 +27,11 @@ class AlarmActionReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
-        if (action !in setOf(AlarmIds.ACTION_PLAY, AlarmIds.ACTION_SNOOZE, AlarmIds.ACTION_DISMISS)) return
+        // `in`/`!in` against a Set doesn't smart-cast away the nullability of
+        // `Intent.getAction()`'s `String?` — an explicit null check does, and
+        // is what actually narrows `action` to `String` for the rest of this
+        // method (needed at the `handle(...)` call below).
+        if (action == null || action !in setOf(AlarmIds.ACTION_PLAY, AlarmIds.ACTION_SNOOZE, AlarmIds.ACTION_DISMISS)) return
 
         val sessionId = intent.getStringExtra(AlarmIds.EXTRA_SESSION_ID)
         val nonce = intent.getStringExtra(AlarmIds.EXTRA_NONCE)
