@@ -3,9 +3,16 @@
  *
  * Used where MR-03 asks for a small, mutually-exclusive choice presented
  * inline rather than as a picker sheet — the reminder editor's repeat type
- * ("Once, Every day, Selected days"). Radio semantics (`accessibilityRole=
- * "radio"` per segment, `radiogroup` on the container), not tabs: selecting
- * a segment changes a value, it does not navigate.
+ * ("Once, Every day, Selected days") and Settings' theme preference
+ * ("System, Light, Dark"). Radio semantics (`accessibilityRole="radio"` per
+ * segment, `radiogroup` on the container), not tabs: selecting a segment
+ * changes a value, it does not navigate.
+ *
+ * Prefer this over a row of `Chip`s whenever exactly one option can be
+ * active. `Chip` carries checkbox/filter semantics, so a chip row tells
+ * TalkBack the options are independently selectable — wrong for a single
+ * value, and it also drops the shared border that visually groups segments
+ * into one control.
  */
 import {Pressable, View} from 'react-native';
 

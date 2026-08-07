@@ -131,11 +131,17 @@ class OccurrenceCalculatorTest {
     @Test
     fun `yearly uses Feb 29 itself in a leap year`() {
         val rule = ScheduleRule.Yearly(LocalTime.of(8, 0), 2, 29)
-        val after = instantAt(LocalDate.of(2027, 1, 1), LocalTime.of(0, 0))
+        // `nextYearly` searches starting from `after`'s own year first — a
+        // non-leap starting year (e.g. 2027) resolves to *that* year's
+        // clamped Feb 28 immediately (see the "clamps... in a non-leap year"
+        // case above) without ever reaching a later leap year. To actually
+        // exercise "Feb 29 used literally," `after` must itself fall inside
+        // a leap year, before Feb 29 of that same year.
+        val after = instantAt(LocalDate.of(2028, 1, 1), LocalTime.of(0, 0))
 
         val next = OccurrenceCalculator.nextOccurrence(rule, zone, after)
 
-        // 2028 is a leap year.
+        // 2028 is a leap year — no clamping, resolves within the same year.
         assertEquals(instantAt(LocalDate.of(2028, 2, 29), LocalTime.of(8, 0)), next)
     }
 

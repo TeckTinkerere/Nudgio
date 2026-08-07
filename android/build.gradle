@@ -1,17 +1,24 @@
 /**
  * Root Gradle build file.
  *
- * Versions below are the ADR-019 baseline (minSdk 26 / compileSdk 37 /
- * targetSdk 36, React Native 0.86.x). Confirm the exact Android Gradle
+ * Versions below are the ADR-019 baseline (minSdk 26 / compileSdk 36 /
+ * targetSdk 36, React Native 0.86.x). `compileSdkVersion` was originally
+ * pinned to 37, but the first real build against a real Android SDK
+ * (docs/decision-log.md DL-041) found no resolvable `android-37` platform
+ * target — API 36 (Android 16) is the latest normal stable release. AGP was
+ * originally pinned to 8.12.0, but the locally installed Android Studio
+ * only supports up to AGP 8.10.0 (DL-044) — downgraded so IDE sync works,
+ * not just the command-line `./gradlew`. Confirm the exact Android Gradle
  * Plugin / Kotlin / Gradle wrapper trio against the installed
- * `react-native` version before the first build — MR-18 requires current
- * platform facts to be refreshed from MR-22, not assumed from this file.
+ * `react-native` version and your actual Android Studio install before
+ * bumping either again — MR-18 requires current platform facts to be
+ * refreshed from MR-22, not assumed from this file.
  */
 buildscript {
     ext {
-        buildToolsVersion = "36.0.0"
+        buildToolsVersion = "37.0.0"
         minSdkVersion = 26
-        compileSdkVersion = 37
+        compileSdkVersion = 36
         targetSdkVersion = 36
         kotlinVersion = "2.1.20"
         ndkVersion = "27.1.12297006"
@@ -27,8 +34,9 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("com.android.tools.build:gradle:8.12.0")
+        classpath('com.android.tools.build:gradle:8.10.0')
         classpath("com.facebook.react:react-native-gradle-plugin")
+
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
         classpath("com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:$kspVersion")
     }

@@ -11,11 +11,35 @@ apply plugin: "com.google.devtools.ksp"
  *  - qa:      release-like signing, test fixtures, controlled diagnostics;
  *  - release: no debug menus, no Internet permission, minified.
  *
- * Signing config is intentionally absent here. MR-18: "Release commands are
- * scripted and never request signing secrets from source-controlled files" —
- * a keystore/signing block belongs in `scripts/release`, read from the
- * environment, not committed alongside this file.
+ * versionCode/versionName (ADR-019) are stamped by `scripts/release/stamp-version.js`
+ * (MR-20) into `../version.properties`, not hand-edited here — see that
+ * file's own header comment for why versionCode must only ever increase.
+ *
+ * Signing: MR-18 "Release commands are scripted and never request signing
+ * secrets from source-controlled files." `RELEASE_STORE_FILE`/
+ * `RELEASE_STORE_PASSWORD`/`RELEASE_KEY_ALIAS`/`RELEASE_KEY_PASSWORD`
+ * environment variables (CI, MR-20 "CI signing uses protected secret storage")
+ * take priority; `../keystore.properties` (gitignored, MR-20 "local/offline
+ * signing is acceptable for early releases") is the fallback. Neither is
+ * committed. With neither present, `release`/`qa` build unsigned — the
+ * pre-existing behavior before this file's signing block existed.
  */
+def versionPropsFile = rootProject.file('version.properties')
+def versionProps = new Properties()
+if (versionPropsFile.exists()) {
+    versionPropsFile.withInputStream { versionProps.load(it) }
+}
+
+def releaseSigningEnvVars = ['RELEASE_STORE_FILE', 'RELEASE_STORE_PASSWORD', 'RELEASE_KEY_ALIAS', 'RELEASE_KEY_PASSWORD']
+def hasReleaseSigningEnv = releaseSigningEnvVars.every { System.getenv(it) != null }
+def keystorePropsFile = rootProject.file('keystore.properties')
+def hasKeystorePropsFile = keystorePropsFile.exists()
+def keystoreProps = new Properties()
+if (hasKeystorePropsFile) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def hasReleaseSigning = hasReleaseSigningEnv || hasKeystorePropsFile
+
 android {
     namespace "com.aslam.mediareminder"
     ndkVersion rootProject.ext.ndkVersion
@@ -26,10 +50,26 @@ android {
         applicationId "com.aslam.mediareminder"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // ADR-019: versionCode/versionName are stamped by the release script
-        // (MR-20), not hand-edited here.
-        versionCode 1
-        versionName "0.1.0"
+        versionCode versionProps.getProperty('versionCode', '1').toInteger()
+        versionName versionProps.getProperty('versionName', '0.1.0')
+    }
+
+    if (hasReleaseSigning) {
+        signingConfigs {
+            release {
+                if (hasReleaseSigningEnv) {
+                    storeFile file(System.getenv('RELEASE_STORE_FILE'))
+                    storePassword System.getenv('RELEASE_STORE_PASSWORD')
+                    keyAlias System.getenv('RELEASE_KEY_ALIAS')
+                    keyPassword System.getenv('RELEASE_KEY_PASSWORD')
+                } else {
+                    storeFile file(keystoreProps.getProperty('storeFile'))
+                    storePassword keystoreProps.getProperty('storePassword')
+                    keyAlias keystoreProps.getProperty('keyAlias')
+                    keyPassword keystoreProps.getProperty('keyPassword')
+                }
+            }
+        }
     }
 
     buildTypes {
@@ -41,6 +81,9 @@ android {
             buildConfigField "String", "BUILD_VARIANT", '"release"'
             minifyEnabled true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
@@ -84,7 +127,18 @@ android {
 
 react {
     // Standard React Native New Architecture autolinking; no per-project
-    // overrides needed yet.
+    // overrides needed yet. `autolinkLibrariesWithApp()` reads
+    // build/generated/autolinking/autolinking.json and adds the actual
+    // `implementation project(...)` dependencies (react-native-gesture-handler,
+    // react-native-screens, etc.) to :app — required (RN Gradle plugin's own
+    // doc comment on `ReactExtension.autolinkLibrariesWithApp()`: "necessary
+    // for libraries to be linked correctly"), not automatic. Without it,
+    // `settings.gradle`'s `autolinkLibrariesFromCommand()` only makes these
+    // modules includeable as Gradle subprojects — it does not make :app
+    // depend on them, so `PackageList.java` (which does get generated
+    // correctly either way) fails to compile with "package does not exist"
+    // for every autolinked native module.
+    autolinkLibrariesWithApp()
 }
 
 dependencies {
@@ -117,6 +171,11 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    // android.jar's org.json classes are stubs ("Stub!") on the plain JVM
+    // unit-test classpath — the backup module's manifest/record codecs use
+    // org.json directly, so JVM tests need a real implementation. Test-only
+    // (testImplementation), never packaged into the app.
+    testImplementation("org.json:json:20240303")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
     androidTestImplementation("androidx.room:room-testing:$rootProject.ext.roomVersion")

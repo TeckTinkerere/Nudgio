@@ -38,6 +38,11 @@ android/app/build/generated/
 .DS_Store
 Thumbs.db
 
+# Agent/tooling scratch output — plans and run artifacts are session state,
+# not source. Never part of a release tag (MR-18).
+.artifacts/
+**/.artifacts/
+
 # Local secrets and signing material (MR-12, MR-18)
 *.jks
 *.p12

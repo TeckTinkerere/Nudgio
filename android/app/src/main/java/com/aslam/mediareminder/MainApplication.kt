@@ -9,6 +9,7 @@ import com.facebook.react.ReactPackage
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
+import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
 import com.aslam.mediareminder.bridge.MediaReminderPackage
 
@@ -45,7 +46,24 @@ class MainApplication : Application(), ReactApplication {
 
     override fun onCreate() {
         super.onCreate()
-        SoLoader.init(this, false)
+        // MUST pass OpenSourceMergedSoMapping, not the pre-0.76 `false` flag.
+        //
+        // React Native 0.76+ merges every core native library
+        // (`react_featureflagsjni`, `reactnativejni`, `turbomodulejsijni`,
+        // `fabricjni`, `yoga`, ...) into a single `libreactnative.so`. The
+        // individual `.so` files no longer exist in the APK.
+        // `OpenSourceMergedSoMapping.mapLibName()` is what rewrites a request
+        // for one of those old names to `reactnative`.
+        //
+        // `SoLoader.init(this, false)` installs no mapping, so NativeLoader
+        // falls back to `SystemDelegate`, which calls `System.loadLibrary()`
+        // verbatim. The first thing the New Architecture entry point below
+        // touches is ReactNativeFeatureFlags, so startup died in
+        // Application.onCreate with:
+        //   UnsatisfiedLinkError: dlopen failed:
+        //   library "libreact_featureflagsjni.so" not found
+        // i.e. an immediate launch crash, before any JS or Activity ran.
+        SoLoader.init(this, OpenSourceMergedSoMapping)
         if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
             // If you opted-in for the New Architecture, we load the native
             // entry point for this app.

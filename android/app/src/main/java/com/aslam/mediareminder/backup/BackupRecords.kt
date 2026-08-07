@@ -8,7 +8,11 @@ import java.time.Instant
 
 /**
  * Room entity <-> MR-10 portable JSON record. Field names mirror the
- * `data/*.json` example shapes in MR-10, not raw Room column names — the
+ * `data/`-directory JSON example shapes in MR-10 (not written as `data/*.json`
+ * here — Kotlin block comments nest, so a literal `/` immediately followed by
+ * `*` inside this doc comment opens an unintended nested comment and silently
+ * breaks parsing of everything after it until the next stray `*/` happens to
+ * rebalance it), not raw Room column names — the
  * whole point of a logical export format ("independent of internal Room
  * layout") is that it does not need to change just because a Room migration
  * renames or restructures a column.

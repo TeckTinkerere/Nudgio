@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEBUG SOURCE SET ONLY. Never merged into a release APK.
+
+  Metro (the React Native dev server) is reached over plain HTTP on
+  localhost:8081 via `adb reverse`, and Android blocks cleartext by default
+  from API 28 on. Rather than the RN template's blanket
+  `android:usesCleartextTraffic="true"` — which would permit cleartext to
+  *every* host in debug builds — this permits it only for the loopback
+  addresses a dev server can actually live on, keeping the MR-12 threat model
+  meaningful while debugging:
+
+    localhost  - physical device with `adb reverse tcp:8081 tcp:8081`
+    10.0.2.2   - AVD host loopback
+    10.0.3.2   - Genymotion host loopback
+
+  The default base-config is left untouched, so cleartext to any other host
+  stays denied even here.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">10.0.3.2</domain>
+    </domain-config>
+</network-security-config>

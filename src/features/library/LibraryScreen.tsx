@@ -29,20 +29,14 @@ import {
   VirtualizedList,
   useResponsive,
 } from '../../design-system';
-import {useTranslation, type TranslationKey} from '../../localization';
+import {
+  formatEnglishUnit,
+  useTranslation,
+  type TranslationKey,
+} from '../../localization';
 import {mockCategories} from '../../mocks/fixtures';
 import type {MediaKind, MediaQuery, MediaSummary, UUID} from '../../native-client/types';
 import {formatDurationAccessible, formatDurationCompact} from '../../utils';
-
-/**
- * MR-13 TalkBack example: "1 minute 33 seconds". English-only (MR-13 "V1
- * ships English", same precedent as `RepeatSummaryFormatter.kt` on the
- * native side) — `Intl.PluralRules` still drives correct singular/plural
- * selection rather than hardcoding an "s" suffix.
- */
-const durationUnitPluralRules = new Intl.PluralRules('en');
-const formatDurationUnit = (value: number, unit: 'minute' | 'second'): string =>
-  `${value} ${unit}${durationUnitPluralRules.select(value) === 'one' ? '' : 's'}`;
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
@@ -104,7 +98,7 @@ export function LibraryScreen() {
           kindLabel={t(KIND_LABEL_KEY[item.kind])}
           durationLabel={item.durationMs ? formatDurationCompact(item.durationMs) : undefined}
           durationAccessibleLabel={
-            item.durationMs ? formatDurationAccessible(item.durationMs, formatDurationUnit) : undefined
+            item.durationMs ? formatDurationAccessible(item.durationMs, formatEnglishUnit) : undefined
           }
           activeReminderCount={item.activeReminderCount}
           activeReminderCountLabel={

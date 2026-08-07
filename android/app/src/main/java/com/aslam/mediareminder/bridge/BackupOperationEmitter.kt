@@ -24,7 +24,9 @@ object BackupOperationEmitter {
 
     fun emit(context: Context, operationId: String, kind: String, progress: BackupProgress, cancellable: Boolean) {
         val app = context.applicationContext as? ReactApplication ?: return
-        val reactContext = app.reactHost.currentReactContext ?: return
+        // `ReactApplication.reactHost` is itself nullable in RN 0.86 (never
+        // compiled against the real AAR before now — docs/decision-log.md).
+        val reactContext = app.reactHost?.currentReactContext ?: return
 
         val sequence = sequenceCounters.getOrPut(operationId) { AtomicLong(0) }.incrementAndGet()
         val payload = Arguments.createMap().apply {

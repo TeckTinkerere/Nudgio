@@ -12,7 +12,8 @@
  *
  * Every method returns `Result` — nothing here throws for an expected failure.
  */
-import {getNativeMediaReminder, type MediaReminderSpec} from './NativeMediaReminder';
+import {decodeWire} from './mapping';
+import {getNativeMediaReminder, type Spec} from './NativeMediaReminder';
 import type {
   ActionResult,
   BackupInspection,
@@ -98,10 +99,14 @@ export const createMediaReminderClient = (
   /**
    * Runs `operation` against the module, or fails with a typed
    * bridge-unavailable error when there is no module to run it against.
+   * `operation` returns the raw wire-shaped payload; `decodeWire` casts it
+   * to `T` (see `mapping.ts` for why that's safe) so every method below
+   * still returns a domain-typed `Result` exactly as it did before the
+   * wire/domain split (DL-042/DL-045).
    */
   const call = async <T>(
     name: string,
-    operation: (native: MediaReminderSpec) => Promise<T>,
+    operation: (native: Spec) => Promise<unknown>,
   ): Promise<Result<T, AppError>> => {
     const native = getNativeMediaReminder();
     if (native === null) {
@@ -112,7 +117,7 @@ export const createMediaReminderClient = (
 
     const started = Date.now();
     const result = await attempt(
-      () => operation(native),
+      async () => decodeWire<T>(await operation(native)),
       cause =>
         toAppError(cause, {
           fallbackCorrelationId: newCorrelationId(),
@@ -170,7 +175,7 @@ export const createMediaReminderClient = (
     isAvailable: () => getNativeMediaReminder() !== null,
 
     getStartupSnapshot: async () => {
-      const result = await call('getStartupSnapshot', native =>
+      const result = await call<StartupSnapshot>('getStartupSnapshot', native =>
         native.getStartupSnapshot(),
       );
       return result.ok ? checkContractVersion(result.value) : result;

@@ -40,7 +40,9 @@ object ReminderEventEmitter {
         defaultSnoozeMinutes: Int,
     ) {
         val app = context.applicationContext as? ReactApplication ?: return
-        val reactContext = app.reactHost.currentReactContext ?: return
+        // `ReactApplication.reactHost` is itself nullable in RN 0.86 (never
+        // compiled against the real AAR before now — docs/decision-log.md).
+        val reactContext = app.reactHost?.currentReactContext ?: return
         if (!reactContext.hasCurrentActivity()) return
 
         val occurrence = Arguments.createMap().apply {

@@ -5,10 +5,11 @@ Native layer, security, accessibility, battery). Organized by severity.
 "Documented gap" entries were already called out in `docs/decision-log.md`
 before this pass — listed here for visibility, not claimed as newly found.
 
-None of the Kotlin changes below have been compiled or run: no Android
-SDK/JDK 17 toolchain was available in the environment this review ran in
-(same standing limitation as `docs/decision-log.md` DL-004). Verify on a
-real build before shipping.
+**Update 2026-08-07:** `./gradlew assembleDebug test` now succeeds —
+first time in this project's history. See DL-045 through DL-048. Every
+Kotlin file has now been compiled and every JVM unit test (70) has
+actually run at least once; entries below written before that point are
+marked accordingly where it matters.
 
 ## Fixed in this pass
 
@@ -20,11 +21,21 @@ real build before shipping.
 - **Haptics were spec'd (MR-03/MR-04/MR-13) but entirely unimplemented.** Added a `HapticsService` (RN core `Vibration`, no new dependency/permission), wired into alarm accept/snooze/dismiss and destructive-delete confirmations, plus a real "stronger haptics" toggle + preview in Settings.
 - **The Android Gradle wrapper was never committed.** Only `android/gradle/wrapper/gradle-wrapper.properties` existed — `gradlew`, `gradlew.bat`, and `gradle-wrapper.jar` were all missing, so `./gradlew`/`gradlew.bat` could never run at all (confirms this Android project has never actually been built end-to-end by anyone, consistent with DL-004's standing caution). Fetched the official Gradle 8.10 wrapper files (matching the pinned `distributionUrl`) and confirmed `./gradlew --version` now bootstraps and runs correctly.
 - **`react-native` (0.86+) no longer bundles its own CLI** — `@react-native-community/cli` is a required devDependency the project was missing, so `npm run android`/`npm start` failed immediately. Added it (resolved to 20.2.0). That newer CLI version also tightened its config-file schema: `react-native.config.js`'s `platforms: { ios: null }` (the old way to suppress iOS platform probing) is no longer valid — a `platforms` entry must be a real plugin-descriptor object now, not `null`. Removed the now-invalid block; the CLI's bundled iOS plugin simply finds no `ios/` directory and iOS commands stay unavailable, same practical effect as before.
+- **`compileSdk 37` does not resolve on a real Android SDK.** The ADR-019 baseline assumed API 37 without ever running a real build against it (DL-004). Dropped to `compileSdk 36` — see DL-041. — `android/build.gradle`
+- **The `TurboModule` Spec interface was misnamed and its registry lookup used identifiers Codegen cannot statically resolve.** Two of three Codegen defects found by the first real build; fixed. See DL-042 for the third, unfixed one (**Open — Critical**, above). — `src/native-client/NativeMediaReminder.ts`
+- **Zero JVM unit-test coverage on the backup module's pure-Kotlin pieces.** Added `BackupChecksumsTest`, `BackupZipStructuralValidatorTest`, `BackupManifestTest`, `BackupScheduleRuleCodecTest`, and `BackupConflictPlannerTest` (~40 cases) covering `BackupZipStructuralValidator`, `BackupChecksums`, `BackupFormat`, `BackupManifest`, `BackupScheduleRuleCodec`, and `BackupConflictPlanner` — the parts of the backup engine with no Android/Room/Context dependency. `BackupExporter`/`BackupImporter` themselves (Context/Room-dependent) still have none; see "Zero automated test coverage" below. — `android/app/src/test/java/com/aslam/mediareminder/backup/`
+
+## Fixed — 2026-08-07 build-verification pass
+
+- **The TurboModule bridge contract was not Codegen-compatible; `./gradlew assembleDebug` produced no working APK.** Was **Open — Critical**; now fixed and verified — `app-debug.apk` exists on disk. Redesigned `NativeMediaReminder.ts`'s `Spec` to use ~30 Codegen-shaped wire types declared inline (not importable from another file — see DL-045 for the empirical finding on why), added `mapping.ts` for the wire<->domain boundary. See DL-045.
+- **Five real Kotlin bugs**, invisible until the first successful compile: a nested-comment parsing bug in `BackupRecords.kt`, a smart-cast gap in `AlarmActionReceiver.kt`, a missing import in `MediaReminderModule.kt`, and two `ReactHost` nullability bugs (`BackupOperationEmitter.kt`, `ReminderEventEmitter.kt`). See DL-046.
+- **`:app` never actually depended on its autolinked native modules** — `android/app/build.gradle`'s `react {}` block never called `autolinkLibrariesWithApp()`, the one call the RN Gradle plugin's own docs say is "necessary for libraries to be linked correctly." See DL-047.
+- **One test-authoring bug**, not a production bug: `OccurrenceCalculatorTest`'s leap-year case asserted a value its own chosen inputs couldn't reach — the calculator's actual behavior was already correct and consistent with the adjacent passing test. See DL-048.
 
 ## Open — Medium
 
 - **Every due-alarm notification currently shows the reminder label twice** (title and body are both `reminder.label` — `mediaTitle` has no real value to source from until media import exists, per DL-012). Visible to any user today, not hypothetical. Fix is a product decision (show nothing in the body until media exists? the schedule summary instead?), not applied here.
-- **Zero automated test coverage on the safety-critical Kotlin logic.** Only `OccurrenceCalculator` and `DevicePresentationState` (the two classes with no Android framework dependency) have unit tests. `SchedulerCoordinator`, `AlarmActionProcessor`, `AlarmDispatchReceiver`, `AlarmRingingService`, `BackupExporter`/`BackupImporter`, and every validator have never been exercised by an automated test — only reasoned about in code comments. For an app whose entire purpose is "the alarm reliably fires," this is the single largest gap for a genuine production-ready claim.
+- **Zero automated test coverage on the safety-critical, Room/Context-dependent Kotlin logic.** `SchedulerCoordinator`, `AlarmActionProcessor`, `AlarmDispatchReceiver`, `AlarmRingingService`, `BackupExporter`/`BackupImporter` have never been exercised by an automated test — only reasoned about in code comments. (The pure-Kotlin pieces — `OccurrenceCalculator`, `DevicePresentationState`, and the backup module's validators/codecs — do have unit tests, and as of 2026-08-07 all 70 are confirmed actually running and passing via `./gradlew test`, not just reasoned-through.) The Room/Context-dependent classes above need instrumentation tests (`android/app/src/androidTest/`, using the already-declared `androidx.test`/`espresso-core`/`room-testing` deps) since they can't run as plain JVM tests. For an app whose entire purpose is "the alarm reliably fires," this remains the single largest gap for a genuine production-ready claim.
 - **No release tooling exists.** `scripts/` is an empty README stub. `build.gradle` hardcodes `versionCode 1` / `versionName "0.1.0"` directly, contradicting its own comment that these are "stamped by the release script (MR-20), not hand-edited here" — that script does not exist yet. See `docs/APK_RELEASE_CHECKLIST.md`.
 - **`minifyEnabled true` (ProGuard/R8) has never been build-verified.** No Android SDK/JDK 17 has been available in this project's development environment so far (DL-004) — a release build has never actually been produced. `proguard-rules.pro` is empty, relying entirely on React Native's bundled consumer rules, which is plausible but unconfirmed.
 
