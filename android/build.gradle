@@ -1,0 +1,42 @@
+/**
+ * Root Gradle build file.
+ *
+ * Versions below are the ADR-019 baseline (minSdk 26 / compileSdk 37 /
+ * targetSdk 36, React Native 0.86.x). Confirm the exact Android Gradle
+ * Plugin / Kotlin / Gradle wrapper trio against the installed
+ * `react-native` version before the first build — MR-18 requires current
+ * platform facts to be refreshed from MR-22, not assumed from this file.
+ */
+buildscript {
+    ext {
+        buildToolsVersion = "36.0.0"
+        minSdkVersion = 26
+        compileSdkVersion = 37
+        targetSdkVersion = 36
+        kotlinVersion = "2.1.20"
+        ndkVersion = "27.1.12297006"
+        // Room's Kotlin symbol processor. Must track `kotlinVersion` — KSP
+        // releases as `<kotlin-version>-<ksp-version>`; confirm the exact pin
+        // against the installed Kotlin plugin before the first build (same
+        // "refresh from MR-22, don't assume" rule as the rest of this file).
+        kspVersion = "2.1.20-2.0.1"
+        roomVersion = "2.7.1"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.12.0")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+        classpath("com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:$kspVersion")
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}

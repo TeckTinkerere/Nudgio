@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nudgio</string>
+
+    <!-- AlarmActivity (MR-06 "Full-screen alarm activity"). English-only for
+         v1, matching RepeatSummaryFormatter/NotificationCoordinator's
+         existing native-side precedent (MR-13 "V1 ships English"). -->
+    <string name="alarm_accept">Accept</string>
+    <string name="alarm_snooze">Snooze</string>
+    <string name="alarm_dismiss">Dismiss</string>
+    <string name="alarm_more_options">More options</string>
+    <string name="alarm_silence_sound">Silence sound</string>
+    <string name="alarm_default_label">Reminder</string>
+</resources>

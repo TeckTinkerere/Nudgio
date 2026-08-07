@@ -1,0 +1,52 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.npm/
+
+# Metro / bundler
+.metro-health-check*
+*.jsbundle
+.expo/
+
+# TypeScript / build output
+*.tsbuildinfo
+coverage/
+dist/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.cxx/
+android/app/.cxx/
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+android/keystore.properties
+android/app/src/main/assets/index.android.bundle*
+
+# Generated native artifacts (React Native Codegen)
+android/app/build/generated/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local secrets and signing material (MR-12, MR-18)
+*.jks
+*.p12
+*.pem
+.env
+.env.*
+!.env.example
+
+# Never commit personal media, real archives or private diagnostics (MR-18)
+fixtures/private/
+*.mediareminder.zip
+diagnostics/

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      MR-04: Material 3 provides the interaction foundation. `Theme.Material3.
+      DayNight.NoActionBar` is the platform baseline the RN root view sits in;
+      the actual brand tokens (color, type, shape) are owned by
+      `src/design-system` on the JS side, not by this native theme. This XML
+      theme mainly controls window-level chrome (status bar, splash) before
+      React ever renders.
+    -->
+    <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:editTextStyle">@style/ResetEditText</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="ResetEditText" parent="@android:style/Widget.EditText">
+        <item name="android:padding">0dp</item>
+    </style>
+</resources>

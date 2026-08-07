@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ADR-015: "Data extraction rules and legacy backup rules exclude all app
+  data from system cloud backup and device transfer. Manual ZIP is the
+  migration path." This is the legacy (pre-API 31) backup rule set;
+  data_extraction_rules.xml is its API 31+ counterpart.
+-->
+<full-backup-content>
+    <exclude domain="database" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="sharedpref" path="." />
+</full-backup-content>

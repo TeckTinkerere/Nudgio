@@ -1,0 +1,3 @@
+# Copy to `local.properties` (gitignored) and point at your Android SDK.
+# This file exists only so a fresh checkout knows the expected key name.
+sdk.dir=/path/to/Android/sdk

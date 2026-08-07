@@ -1,0 +1,206 @@
+{
+  "generatedAt": "2026-08-05",
+  "product": "Nudgio",
+  "sources": [
+    {
+      "id": "SRC-001",
+      "title": "Android 17 is here",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/about/versions/17/blog-release",
+      "accessed": "2026-08-05",
+      "fact": "Android 17 was released in June 2026 and is the current platform compatibility baseline.",
+      "impact": "Compile and compatibility test against API 37; do not assume target policy without checking Play requirements.",
+      "refresh": "Before every release or Android QPR compatibility cycle."
+    },
+    {
+      "id": "SRC-002",
+      "title": "React Native Releases Overview",
+      "publisher": "React Native",
+      "url": "https://reactnative.dev/releases/overview",
+      "accessed": "2026-08-05",
+      "fact": "React Native 0.86.x is an active stable series on 2026-08-05; 0.87 stable is scheduled for 2026-08-10 and is not yet the production baseline.",
+      "impact": "Pin 0.86.x for initial implementation and reevaluate after 0.87 stabilizes with native dependency compatibility.",
+      "refresh": "Before repository bootstrap and every RN upgrade."
+    },
+    {
+      "id": "SRC-003",
+      "title": "Meet Google Play target API level requirement",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/google/play/requirements/target-sdk",
+      "accessed": "2026-08-05",
+      "fact": "New apps and updates must target Android 16/API 36 or higher under the published 2026 requirement.",
+      "impact": "Initial targetSdk 36; refresh before Play submission.",
+      "refresh": "Before every store submission."
+    },
+    {
+      "id": "SRC-004",
+      "title": "Schedule alarms",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/develop/background-work/services/alarms",
+      "accessed": "2026-08-05",
+      "fact": "AlarmManager can operate outside the app lifetime; exact alarms require appropriate access on modern Android and setAlarmClock is the most visible critical exact mechanism.",
+      "impact": "Use one next one-shot alarm, request SCHEDULE_EXACT_ALARM contextually, check revocation and avoid polling.",
+      "refresh": "When target SDK or alarm policy changes."
+    },
+    {
+      "id": "SRC-005",
+      "title": "Android 14 behavior changes - exact alarms",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/about/versions/14/changes/schedule-exact-alarms",
+      "accessed": "2026-08-05",
+      "fact": "SCHEDULE_EXACT_ALARM is denied by default for many fresh installs targeting Android 13+ on Android 14.",
+      "impact": "Treat exact access as setup state and restore permissions separately from backup.",
+      "refresh": "When minimum/target policy changes."
+    },
+    {
+      "id": "SRC-006",
+      "title": "Android 14 behavior changes - full-screen intent",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/about/versions/14/behavior-changes-14",
+      "accessed": "2026-08-05",
+      "fact": "For target 34+, full-screen intent eligibility is restricted to calling and alarm use cases and store policy may revoke default access.",
+      "impact": "Use FSI only for genuine locked alarm behavior, probe eligibility and provide notification fallback.",
+      "refresh": "Before Play submission and target SDK update."
+    },
+    {
+      "id": "SRC-007",
+      "title": "Display time-sensitive notifications",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/develop/ui/views/notifications/time-sensitive",
+      "accessed": "2026-08-05",
+      "fact": "Full-screen intents are for urgent time-sensitive cases and are delivered through notifications, not arbitrary app overlays.",
+      "impact": "Native alarm activity is launched by eligible notification only in locked/non-interactive path.",
+      "refresh": "When notification/full-screen APIs change."
+    },
+    {
+      "id": "SRC-008",
+      "title": "About notifications",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/develop/ui/views/notifications",
+      "accessed": "2026-08-05",
+      "fact": "Android controls notification surfaces including heads-up behavior.",
+      "impact": "Do not promise precise heads-up height/duration; design compact content and effective channels.",
+      "refresh": "When Material/notification behavior changes."
+    },
+    {
+      "id": "SRC-009",
+      "title": "Notification runtime permission",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/develop/ui/compose/notifications/notification-permission",
+      "accessed": "2026-08-05",
+      "fact": "Android 13+ uses POST_NOTIFICATIONS runtime permission for nonexempt notifications.",
+      "impact": "Request contextually and never start invisible ringing when blocked.",
+      "refresh": "When target SDK/permission behavior changes."
+    },
+    {
+      "id": "SRC-010",
+      "title": "Optimize for Doze and App Standby",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/training/monitoring-device-state/doze-standby",
+      "accessed": "2026-08-05",
+      "fact": "Doze defers background work and imposes quotas; exact alarm use must be justified.",
+      "impact": "No polling; explicit exact/limited modes; bounded retries.",
+      "refresh": "When Android background policy changes."
+    },
+    {
+      "id": "SRC-011",
+      "title": "Background audio hardening",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/about/versions/17/changes/bg-audio",
+      "accessed": "2026-08-05",
+      "fact": "Android 17 restricts background audio unless a visible activity or compliant foreground service exists; exact-alarm permission plus USAGE_ALARM has a documented exemption for the additional target-37 WIU condition.",
+      "impact": "Use bounded mediaPlayback FGS for ringing, USAGE_ALARM, visible notification and explicit stop lifecycle; test API 37 hardening.",
+      "refresh": "Before targeting API 37 and after QPR changes."
+    },
+    {
+      "id": "SRC-012",
+      "title": "Photo picker",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/training/data-storage/shared/photo-picker",
+      "accessed": "2026-08-05",
+      "fact": "Photo Picker gives access to selected images/videos instead of the whole media library and falls back to ACTION_OPEN_DOCUMENT where unavailable.",
+      "impact": "Avoid broad media permission for visual imports.",
+      "refresh": "When picker/activity dependency changes."
+    },
+    {
+      "id": "SRC-013",
+      "title": "Access documents and other files from shared storage",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/training/data-storage/shared/documents-files",
+      "accessed": "2026-08-05",
+      "fact": "Storage Access Framework supports user-selected documents and create/open flows.",
+      "impact": "Use for audio/general import and ZIP export/import.",
+      "refresh": "When storage policy changes."
+    },
+    {
+      "id": "SRC-014",
+      "title": "Access app-specific files",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/training/data-storage/app-specific",
+      "accessed": "2026-08-05",
+      "fact": "Internal app-specific storage is private, needs no storage permission and is removed on uninstall.",
+      "impact": "Copy media into internal app storage and disclose uninstall behavior.",
+      "refresh": "When storage architecture changes."
+    },
+    {
+      "id": "SRC-015",
+      "title": "Save data in a local database using Room",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/training/data-storage/room",
+      "accessed": "2026-08-05",
+      "fact": "Room provides SQLite abstraction, compile-time query verification and migration support.",
+      "impact": "Use Room as native source of truth with migration tests.",
+      "refresh": "When Room major version changes."
+    },
+    {
+      "id": "SRC-016",
+      "title": "Setting up file sharing",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/training/secure-file-sharing/setup-sharing",
+      "accessed": "2026-08-05",
+      "fact": "FileProvider supports secure content URI sharing with temporary grants.",
+      "impact": "Share completed exports read-only without exposing internal paths.",
+      "refresh": "When provider/share code changes."
+    },
+    {
+      "id": "SRC-017",
+      "title": "Back up user data with Auto Backup",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/identity/data/autobackup",
+      "accessed": "2026-08-05",
+      "fact": "Auto Backup can include cloud and device-to-device data; allowBackup=false alone may not disable D2D on every Android 12+ manufacturer implementation.",
+      "impact": "Provide dataExtractionRules and legacy exclusions for all app data; manual ZIP is the supported transfer.",
+      "refresh": "When target SDK or backup policy changes."
+    },
+    {
+      "id": "SRC-018",
+      "title": "Native Modules: Introduction",
+      "publisher": "React Native",
+      "url": "https://reactnative.dev/docs/next/turbo-native-modules-introduction",
+      "accessed": "2026-08-05",
+      "fact": "Turbo Native Modules and Codegen provide a typed New Architecture bridge to native platform code.",
+      "impact": "Define coarse-grained typed native use cases and keep alarm path native.",
+      "refresh": "With each RN upgrade."
+    },
+    {
+      "id": "SRC-019",
+      "title": "Principles for improving app accessibility",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/guide/topics/ui/accessibility/principles",
+      "accessed": "2026-08-05",
+      "fact": "Android accessibility guidance emphasizes labels, accessible actions, non-color cues and accessible media.",
+      "impact": "TalkBack/alternative action/contrast requirements are P0.",
+      "refresh": "Before accessibility audit."
+    },
+    {
+      "id": "SRC-020",
+      "title": "Test your app accessibility",
+      "publisher": "Android Developers",
+      "url": "https://developer.android.com/guide/topics/ui/accessibility/testing",
+      "accessed": "2026-08-05",
+      "fact": "Effective accessibility testing combines approaches and user-perspective testing.",
+      "impact": "Manual TalkBack/task evidence supplements automated scanning.",
+      "refresh": "Before release."
+    }
+  ]
+}

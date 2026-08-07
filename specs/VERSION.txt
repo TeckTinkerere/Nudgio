@@ -1,0 +1,6 @@
+Nudgio Source-of-Truth Pack
+Version: 1.0
+Generated: 2026-08-05
+Package identifier: com.aslam.mediareminder
+Core documents: 23
+Combined PDF pages: 187

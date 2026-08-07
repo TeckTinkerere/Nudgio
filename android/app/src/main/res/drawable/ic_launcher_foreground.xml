@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MR-04: "a rounded play triangle inside a subtle alarm-ring form,
+     avoiding a literal bell-heavy or social-app appearance." Placeholder
+     geometry pending the real icon export (MR-04 "Brand assets"). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Subtle ring -->
+    <path
+        android:strokeColor="#5EDBC8"
+        android:strokeWidth="4"
+        android:pathData="M54,24 A30,30 0 1 1 53.9,24" />
+    <!-- Rounded play triangle -->
+    <path
+        android:fillColor="#F8FAF9"
+        android:pathData="M46,38 L46,70 L74,54 Z"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round" />
+</vector>

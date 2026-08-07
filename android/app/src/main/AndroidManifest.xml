@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MR-06 "Explicitly excluded": the production manifest MUST NOT declare
+  INTERNET, SYSTEM_ALERT_WINDOW, broad READ_MEDIA_* gallery access,
+  REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, ACCESS_NOTIFICATION_POLICY,
+  READ_PHONE_STATE, location, contacts, microphone or camera. None are
+  declared below.
+
+  MR-18: "a permission arrives with the receiver/service/ADR that needs it."
+  POST_NOTIFICATIONS/RECEIVE_BOOT_COMPLETED/VIBRATE/WAKE_LOCK/SCHEDULE_EXACT_ALARM
+  arrived with the alarm-core slice; USE_FULL_SCREEN_INTENT/FOREGROUND_SERVICE/
+  FOREGROUND_SERVICE_MEDIA_PLAYBACK arrive with this slice's AlarmActivity/
+  AlarmRingingService below, both now real, implemented components.
+
+  android:allowBackup and the two backup-exclusion resources implement
+  ADR-015 ("exclude Android automatic backup") from day one, since that is a
+  manifest-level default that is easy to forget once real data exists.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- MR-06 "Adaptive presentation decision" rule 1: AlarmActivity over a locked keyguard. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- AlarmRingingService: bounded foreground service for active-alert sound/vibration. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <application
+        android:name=".MainApplication"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:allowBackup="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:theme="@style/AppTheme"
+        android:supportsRtl="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:label="@string/app_name"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          MR-07 "Android entry components": every receiver/service/activity
+          below is exported="false" — none is reachable except via a
+          PendingIntent this app itself registered, a same-app explicit
+          Intent, or (SystemEventReceiver only) a system-broadcast
+          intent-filter. MediaPlayerActivity remains undeclared: in-app media
+          playback itself is still out of scope (docs/decision-log.md).
+          Every exported component in this codebase is validated by a
+          manifest test before it is considered done (MR-18) — MainActivity
+          is the only one that is.
+        -->
+        <receiver
+            android:name=".alarm.AlarmDispatchReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".alarm.AlarmActionReceiver"
+            android:exported="false" />
+
+        <!--
+          directBootAware: LOCKED_BOOT_COMPLETED and this receiver's own
+          re-armed direct-boot alarm both fire before first unlock, when only
+          direct-boot-aware components run at all (ADR-017).
+        -->
+        <receiver
+            android:name=".alarm.SystemEventReceiver"
+            android:exported="false"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- MR-06 "Ringing service": foreground, mediaPlayback type, started only by AlarmDispatchReceiver/AlarmActionReceiver/AlarmActivity — see AlarmRingingService's doc comment. -->
+        <service
+            android:name=".alarm.AlarmRingingService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!--
+          MR-06 "Full-screen alarm activity": noHistory/excludeFromRecents —
+          it is a transient alert surface, never something to resume from
+          Recents after being left. Showing over the keyguard itself is a
+          runtime call (`Activity.setShowWhenLocked()`/`setTurnScreenOn()` in
+          `AlarmActivity.applyWindowFlags()`), not a manifest attribute —
+          there is no XML equivalent.
+        -->
+        <activity
+            android:name=".alarm.AlarmActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:noHistory="true"
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize|keyboardHidden|uiMode" />
+
+        <!--
+          MR-10 "Sharing and privacy": "Completed private exports shared
+          through another app use FileProvider with read-only temporary URI
+          permission. The app never grants a whole directory." `grantUriPermissions`
+          is required for `Intent.FLAG_GRANT_READ_URI_PERMISSION` to work at
+          all, but the actual scope is `res/xml/file_paths.xml`, not this flag.
+        -->
+        <provider
+            android:name=".backup.MediaReminderFileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+    </application>
+
+</manifest>
