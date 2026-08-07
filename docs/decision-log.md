@@ -1205,3 +1205,44 @@ empty states with no JS errors. `npm run verify` green: typecheck clean,
 evidence Hermes implements it, and a module-scope constructor turns a
 missing API into a whole-barrel failure — prefer lazy construction inside
 the function that needs it.
+
+## DL-052 — bottom insets: `Screen` never applied one, and Settings applied it twice
+
+**Date:** 2026-08-08
+**Context:** Reported as buttons and content sitting under the gesture bar on a
+real device. `Screen`'s header claimed it "honors status, navigation, cutout
+and gesture insets", but only the `scrollable` branch applied
+`paddingBottom: insets.bottom`. The non-scrollable branch applied none — and
+`scrollable` defaults to `false`, so every fixed-layout and list-owning screen
+put its last row and its action buttons under the gesture/navigation bar.
+`targetSdk 36` forces edge-to-edge, so nothing hides it.
+
+The naive fix (add `paddingBottom` unconditionally) would have introduced the
+opposite bug on the tab screens: `AppTabBar` already pads itself by
+`insets.bottom`, and the tab bar and screen are siblings, so the space would
+be reserved twice and leave a dead gap above the tab bar. `SettingsScreen` —
+the one scrollable tab screen — was already doing exactly that.
+
+**Decision:** Two changes, and deliberately no per-screen edits. (1) `Screen`
+applies `paddingBottom: insets.bottom` in the non-scrollable branch too, on the
+content rather than the outer view so the background still paints to the
+physical edge — the same rule the scrollable branch already used. (2)
+`TabNavigator` supplies `screenLayout` wrapping each tab screen in a
+`SafeAreaInsetsContext.Provider` whose `bottom` is `0`, since the tab bar
+consumed it. `tabBar` is rendered outside `screenLayout`, so `AppTabBar` still
+receives the real insets.
+
+Rejected a `hasTabBar` prop mirroring `hasAppBar`: it would have required
+touching every tab screen, and a screen asking "am I inside a tab?" is
+answering a question its parent already knows. Zeroing the inset at the
+navigator keeps `Screen` unconditional — the value it reads is simply correct
+for wherever it is mounted. It also meant zero edits to feature screens, which
+avoided colliding with concurrent work in `LibraryScreen.tsx`.
+
+**Consequence:** Stack screens (Health, MediaDetail, ReminderDetail,
+Onboarding) now clear the gesture bar; the redundant gap above the tab bar on
+Settings is gone. Verified on device (Android 16 / API 36, 720x1600): Settings
+content runs flush to the tab bar and the new theme `SegmentedControl` renders
+correctly; Health renders with the inset applied; no JS errors. `npm run
+verify` green, 44/44. The context value is memoized because an unmemoized
+object would re-render every inset consumer in the tab subtree.

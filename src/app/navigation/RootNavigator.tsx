@@ -17,15 +17,14 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 
 import {rootRoutes} from '../../constants/routes';
 import {LoadingState, useTheme} from '../../design-system';
-import {AboutScreen} from '../../features/about';
-import {BackupScreen, ImportScreen} from '../../features/backup';
-import {MediaDetailScreen} from '../../features/library';
-import {OnboardingScreen} from '../../features/onboarding';
-import {
-  ReminderDetailScreen,
-  ReminderEditorScreen,
-} from '../../features/reminders';
-import {StatisticsScreen} from '../../features/statistics';
+import {AboutScreen} from '../../features/about/AboutScreen';
+import {BackupScreen} from '../../features/backup/BackupScreen';
+import {ImportScreen} from '../../features/backup/ImportScreen';
+import {MediaDetailScreen} from '../../features/library/MediaDetailScreen';
+import {OnboardingScreen} from '../../features/onboarding/OnboardingScreen';
+import {ReminderDetailScreen} from '../../features/reminders/ReminderDetailScreen';
+import {ReminderEditorScreen} from '../../features/reminders/ReminderEditorScreen';
+import {StatisticsScreen} from '../../features/statistics/StatisticsScreen';
 import {usePreferences} from '../../hooks';
 import {useTranslation} from '../../localization';
 import {HealthScreen} from './placeholders/HealthScreen';
