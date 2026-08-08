@@ -141,6 +141,26 @@ react {
     autolinkLibrariesWithApp()
 }
 
+/**
+ * Room schema export location.
+ *
+ * `MediaReminderDatabase` has always declared `exportSchema = true`, but without
+ * this argument Room silently writes nothing, so the exported schemas the
+ * annotation promises did not exist. That matters beyond tidiness: the exported
+ * JSON is the reference used to check that a hand-written `Migration` produces
+ * exactly the schema Room expects. Without it a migration that is subtly wrong
+ * (a missing DEFAULT, an index name that does not match Room's generated one)
+ * only fails at runtime, on a real user's existing install, with "Room cannot
+ * verify the data integrity" and a database that will not open.
+ *
+ * MR-09 prohibits destructive migration, so a broken migration has no fallback —
+ * this is the check that keeps that promise enforceable. Commit the generated
+ * `schemas/` output; it is a reviewed artifact, not build noise.
+ */
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation("com.facebook.react:react-android")
     implementation("com.facebook.react:hermes-android")

@@ -115,8 +115,14 @@ export function LibraryScreen() {
     [navigation, t],
   );
 
+  // No `hasAppBar` below: that prop means "an AppBar already consumed the top
+  // inset", and this screen deliberately has no AppBar — its title is an
+  // inline large heading that scrolls with the content, the same pattern
+  // TodayScreen uses. Passing it set `paddingTop: 0`, so nothing consumed
+  // `insets.top` and the heading drew underneath the status bar and camera
+  // cutout (confirmed on a 720x1600 device: the title overlapped the clock).
   return (
-    <Screen hasAppBar edgeToEdge testID={testIds.library.screen}>
+    <Screen edgeToEdge testID={testIds.library.screen}>
       <Stack gap="xs" paddingHorizontal="md" paddingVertical="sm">
         <Text variant="headlineMedium" isHeading>
           {t('library.title')}

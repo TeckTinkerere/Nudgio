@@ -49,3 +49,62 @@ val MIGRATION_2_3: Migration = object : Migration(2, 3) {
         )
     }
 }
+
+/**
+ * Adds MR-09's `media_assets` table (see
+ * [com.aslam.mediareminder.data.db.entity.MediaAssetEntity]) — the media
+ * library slice. A new table, so no existing row needs a default.
+ *
+ * The column list and the three indices must stay byte-for-byte consistent with
+ * what Room generates from the entity, or Room's identity-hash check fails at
+ * open time with "Room cannot verify the data integrity" and the app cannot
+ * start. `exportSchema = true` writes the expected schema to
+ * `android/app/schemas/`, which is the reference when editing this.
+ *
+ * Note `reminders.media_id` still has no foreign key to this table. Adding one
+ * requires recreating `reminders` (SQLite cannot add a constraint via ALTER),
+ * and doing that in the same migration that introduces the parent table would
+ * mean rebuilding a table full of live user rows before anything has been
+ * verified against real imported media. It is deliberately deferred to its own
+ * migration once the import pipeline is proven, and tracked in TODO.md — the
+ * gap ReminderEntity's own comment already describes.
+ */
+val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `media_assets` (
+                `id` TEXT NOT NULL,
+                `kind` TEXT NOT NULL,
+                `title` TEXT NOT NULL,
+                `notes` TEXT,
+                `storage_key` TEXT NOT NULL,
+                `mime_type` TEXT NOT NULL,
+                `size_bytes` INTEGER NOT NULL,
+                `sha256` TEXT NOT NULL,
+                `duration_ms` INTEGER,
+                `width_px` INTEGER,
+                `height_px` INTEGER,
+                `category_id` TEXT,
+                `integrity_state` TEXT NOT NULL,
+                `created_at` INTEGER NOT NULL,
+                `updated_at` INTEGER NOT NULL,
+                `entity_version` INTEGER NOT NULL DEFAULT 1,
+                PRIMARY KEY(`id`)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_media_assets_storage_key` " +
+                "ON `media_assets` (`storage_key`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_media_assets_sha256` " +
+                "ON `media_assets` (`sha256`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_media_assets_category_id_updated_at` " +
+                "ON `media_assets` (`category_id`, `updated_at`)",
+        )
+    }
+}

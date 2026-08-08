@@ -31,7 +31,14 @@ checklist form.
 
 ## Features (see `docs/FUTURE_IMPROVEMENTS.md` for full detail)
 
-- [ ] Media import + library persistence (native side) — the largest gap between built UI and working backend.
+- [ ] Media import + library persistence (native side) — the largest gap between built UI and working backend. **Read half landed 2026-08-08 (DL-053):** `media_assets` table + `MediaDao` + `MIGRATION_3_4`, and `listMedia`/`getMedia` now answer from Room instead of a hardcoded empty page. Still outstanding, in order:
+  - [ ] `beginMediaImport`: Photo Picker for visual media / SAF for audio+documents (ADR-011, no broad gallery permission), which needs an `ActivityEventListener` on the module since a TurboModule has no Activity of its own.
+  - [ ] Stream the chosen file into app-private storage under an opaque `<uuid>.<ext>` `storage_key` (ADR-010), computing SHA-256 during the same pass rather than re-reading, and bounding memory so a 2 GB asset does not load into RAM (MR-15).
+  - [ ] Probe metadata (`mime_type`, `duration_ms`, `width_px`/`height_px`) and set `integrity_state`; mark `unsupported` rather than failing the import outright.
+  - [ ] Journal the copy phases in `operation_journal` (ADR-016) so a crash mid-copy rolls back instead of orphaning bytes with no row referencing them, plus `cancelOperation` support.
+  - [ ] Then `updateMedia`/`deleteMedia`, and the delete dependency policy for media a reminder still references.
+  - [ ] Add `reminders.media_id` -> `media_assets` foreign key in its own migration (SQLite cannot add a constraint via ALTER, so `reminders` must be recreated — deliberately not done in `MIGRATION_3_4`, which introduced the parent table).
+- [ ] Commit `android/app/schemas/` output as a reviewed artifact and consider a CI check that fails when an entity changes without a matching migration (DL-053 wired `room.schemaLocation`; the schemas are only useful if they are kept and diffed).
 - [ ] Backup-import document picker — unblocks the already-real `inspectBackup`/`commitImport`.
 - [ ] User-defined reminder profiles (`saveProfile`/`resetBuiltInProfile`).
 - [ ] `openCapabilitySettings` deep-links from Settings/Health.
