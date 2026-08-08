@@ -80,6 +80,17 @@ data class OperationJournalEntity(
         const val EXPORT_WRITING = "export_writing"
         const val EXPORT_FINALIZING = "export_finalizing"
 
+        /**
+         * Media import (ADR-010/ADR-016). Distinct from the backup-import
+         * phases below: a media import copies exactly one file into private
+         * storage and inserts one row, so it has no staging/promote/rollback
+         * pair — the only rollback is deleting the partial file, and the row is
+         * inserted last precisely so a crash can never leave a row pointing at
+         * bytes that were never finished.
+         */
+        const val MEDIA_COPYING = "media_copying"
+        const val MEDIA_PROBING = "media_probing"
+
         // Import (MR-10 "Atomicity and rollback" state machine)
         const val INSPECTED = "inspected"
         const val STAGED = "staged"

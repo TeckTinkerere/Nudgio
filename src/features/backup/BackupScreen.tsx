@@ -6,17 +6,19 @@
  * written. On success: filename, size, hash, Share, Done."
  *
  * `beginExport` is wired to the real bridge call (docs/decision-log.md
- * DL-025 onward) — the export itself needs no user-supplied input, so
- * unlike Import (blocked on a document-picker that does not exist yet)
- * there was nothing standing in the way of wiring this one for real.
- * Progress ticks come from the native `operationProgress` event stream via
- * `useOperationProgress`. "Share" is not yet wired to an OS share sheet
- * (same picker-infrastructure gap as Import) — Done always works.
+ * DL-025 onward) — the export itself needs no user-supplied input, so there
+ * was nothing standing in the way of wiring this one for real. Progress
+ * ticks come from the native `operationProgress` event stream via
+ * `useOperationProgress` (moved to `src/hooks/` once media import needed the
+ * same subscription — see that file's doc). "Share" is not yet wired to an
+ * OS share sheet — Done always works. A document-picker primitive
+ * (`pickDocument`, built for media import) now exists and could unblock
+ * `ImportScreen`'s own "pick a backup archive" gap; not done here, tracked
+ * in TODO.md.
  */
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useState} from 'react';
 
-import {useOperationProgress} from './useOperationProgress';
 import {useAppContainer} from '../../app/di/useAppContainer';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {
@@ -29,6 +31,7 @@ import {
   Stack,
   Text,
 } from '../../design-system';
+import {useOperationProgress} from '../../hooks';
 import {useTranslation} from '../../localization';
 import {demoExportPreview} from '../../native-client';
 import type {ExportResult} from '../../native-client/types';

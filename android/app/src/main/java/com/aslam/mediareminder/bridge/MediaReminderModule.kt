@@ -1,10 +1,15 @@
 package com.aslam.mediareminder.bridge
 
+import android.app.Activity
+import android.content.Intent
+import android.provider.OpenableColumns
+import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.turbomodule.core.interfaces.TurboModule
@@ -25,7 +30,12 @@ import com.aslam.mediareminder.data.PreferencesRepository
 import com.aslam.mediareminder.data.ReminderProfileSeed
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.diagnostics.NativeLogger
+import com.aslam.mediareminder.media.MediaDtoWriter
+import com.aslam.mediareminder.media.MediaImportCancelledException
+import com.aslam.mediareminder.media.MediaImportException
+import com.aslam.mediareminder.media.MediaImporter
 import com.aslam.mediareminder.media.MediaLibraryService
+import com.aslam.mediareminder.media.MediaPicker
 import com.aslam.mediareminder.notifications.NotificationCoordinator
 import com.aslam.mediareminder.reminders.ActionResultWriter
 import com.aslam.mediareminder.reminders.ReminderDtoWriter
@@ -36,6 +46,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * The `MediaReminder` TurboModule (MR-08 "Native module surface").
@@ -56,7 +68,7 @@ import java.util.UUID
  */
 class MediaReminderModule(
     reactContext: ReactApplicationContext,
-) : ReactContextBaseJavaModule(reactContext), TurboModule {
+) : ReactContextBaseJavaModule(reactContext), TurboModule, ActivityEventListener {
 
     private val moduleScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val preferences = PreferencesRepository(reactContext)
@@ -64,7 +76,24 @@ class MediaReminderModule(
     private val reminderMutations = ReminderMutationService(reactContext, database)
     private val mediaLibrary = MediaLibraryService(database)
 
+    /**
+     * [pickDocument]'s in-flight promises, keyed by the `startActivityForResult`
+     * request code that will resolve them.
+     *
+     * A plain map, not a coroutine continuation: `Promise.resolve`/`.reject`
+     * can be called from any callback context RN's bridge threads it through,
+     * so there is nothing here that needs `suspendCancellableCoroutine` — only
+     * a place to find the right promise when [onActivityResult] fires.
+     */
+    private val pendingPickers = ConcurrentHashMap<Int, Promise>()
+    private val nextPickerRequestCode = AtomicInteger(PICKER_REQUEST_CODE_BASE)
+
     init {
+        // ADR-011: the Photo Picker/SAF result arrives through the hosting
+        // Activity's `onActivityResult`, not through this module directly —
+        // this is what lets `onActivityResult` below ever fire.
+        reactContext.addActivityEventListener(this)
+
         // MR-11 "Crash during replace": "Startup sees operation journal...
         // completes rollback/forward recovery." The module is instantiated
         // once, early in the RN host's lifecycle, before any backup bridge
@@ -245,9 +274,121 @@ class MediaReminderModule(
         }
     }
 
+    /**
+     * ADR-011 "Use system pickers": launches the Photo Picker (visual-only
+     * `mimeTypes`, API 33+) or the SAF document picker (everything else,
+     * chosen by [MediaPicker]) and resolves once the user has made a choice
+     * — with `null`, not a rejection, when they back out with none. Separate
+     * from [beginMediaImport] deliberately: picking is a quick, one-shot UI
+     * interaction with no meaningful progress to report, while importing is
+     * the (potentially large, potentially long) streamed copy. Splitting them
+     * means [beginMediaImport] never needs Activity access at all.
+     */
     @ReactMethod
-    fun beginMediaImport(request: ReadableMap, promise: Promise) =
-        NativeErrorEnvelope.rejectNotImplemented(promise, "beginMediaImport")
+    fun pickDocument(mimeTypes: ReadableArray, promise: Promise) {
+        val activity = reactApplicationContext.currentActivity
+        if (activity == null) {
+            NativeErrorEnvelope.reject(
+                promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
+                NativeErrorEnvelope.Category.MEDIA, field = "activity",
+            )
+            return
+        }
+
+        val types = (0 until mimeTypes.size()).mapNotNull { mimeTypes.getString(it) }
+        val intent = MediaPicker.buildIntent(types)
+        val requestCode = nextPickerRequestCode.getAndIncrement()
+        pendingPickers[requestCode] = promise
+        try {
+            activity.startActivityForResult(intent, requestCode)
+        } catch (error: Exception) {
+            pendingPickers.remove(requestCode)
+            NativeErrorEnvelope.reject(
+                promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
+                NativeErrorEnvelope.Category.MEDIA, field = "picker",
+            )
+        }
+    }
+
+    /**
+     * MR-05 "Import transaction". Resolves once the whole file is copied,
+     * hashed, probed and inserted — the same "no large stream to justify a
+     * fire-and-forget `OperationRef`" reasoning [beginExport]'s own comment
+     * gives does not hold here (a media file genuinely can be large), so
+     * unlike that method this one *does* stream `operationProgress` events
+     * throughout, tagged `kind: "import"`; the JS side learns `operationId`
+     * from the first such event, the same way it already does for backup
+     * export/inspection, and can pass it to `cancelOperation`.
+     *
+     * `request.sourceUri` must come from a prior [pickDocument] call in this
+     * same app session — ADR-011 keeps this app from requesting persistable
+     * URI permissions, so the transient read grant SAF/the Photo Picker
+     * attaches to the result is only guaranteed to still be valid promptly
+     * after picking, not indefinitely.
+     */
+    @ReactMethod
+    fun beginMediaImport(request: ReadableMap, promise: Promise) {
+        val sourceUri = request.getString("sourceUri")
+        if (sourceUri.isNullOrBlank()) {
+            NativeErrorEnvelope.reject(
+                promise, "MR_VALIDATION_FAILED", "error.validationFailed",
+                NativeErrorEnvelope.Category.VALIDATION, field = "sourceUri",
+            )
+            return
+        }
+        val mimeType = if (request.hasKey("mimeType")) request.getString("mimeType") else null
+        val displayName = if (request.hasKey("displayName")) request.getString("displayName") else null
+        val declaredSizeBytes = if (request.hasKey("sizeBytes")) {
+            request.getString("sizeBytes")?.toLongOrNull()
+        } else {
+            null
+        }
+
+        val operationId = UUID.randomUUID().toString()
+        OperationRegistry.register(operationId)
+        moduleScope.launch {
+            try {
+                val importer = MediaImporter(reactApplicationContext, database)
+                val asset = importer.import(
+                    operationId = operationId,
+                    sourceUri = sourceUri,
+                    displayName = displayName,
+                    mimeType = mimeType,
+                    declaredSizeBytes = declaredSizeBytes,
+                    onProgress = { phase, completedBytes, totalBytes ->
+                        OperationProgressEmitter.emit(
+                            context = reactApplicationContext,
+                            operationId = operationId,
+                            kind = "import",
+                            phase = phase,
+                            cancellable = true,
+                            completedBytes = completedBytes,
+                            totalBytes = totalBytes,
+                        )
+                    },
+                    isCancelled = { OperationRegistry.isCancelled(operationId) },
+                )
+                // A freshly imported asset cannot yet be referenced by any
+                // reminder — `activeReminderCount` is always 0 here, not a
+                // placeholder; the real count only exists once a reminder is
+                // saved against it.
+                promise.resolve(MediaDtoWriter.writeDetail(asset, activeReminderCount = 0))
+            } catch (cancelled: MediaImportCancelledException) {
+                NativeErrorEnvelope.reject(
+                    promise, "MR_VALIDATION_FAILED", "error.unexpected",
+                    NativeErrorEnvelope.Category.INTERNAL, field = "cancelled",
+                )
+            } catch (mediaError: MediaImportException) {
+                val (code, category, messageKey) = mediaImportErrorEnvelope(mediaError.reasonCode)
+                NativeErrorEnvelope.reject(promise, code, messageKey, category, field = mediaError.reasonCode)
+            } catch (error: Exception) {
+                failSafe(promise, error, "beginMediaImport")
+            } finally {
+                OperationRegistry.clear(operationId)
+                OperationProgressEmitter.clear(operationId)
+            }
+        }
+    }
 
     @ReactMethod
     fun updateMedia(request: ReadableMap, promise: Promise) =
@@ -470,7 +611,11 @@ class MediaReminderModule(
 
     @ReactMethod
     fun cancelOperation(id: String, promise: Promise) {
-        BackupOperationRegistry.requestCancellation(id)
+        // The shared registry (see its own doc comment): one call site for
+        // every operation kind, media import included, not just backup's.
+        OperationRegistry.requestCancellation(id)
+        // Harmless no-op for an id `BackupImporter` does not recognize —
+        // `BackupImporter.cancel()` only logs, it never looks anything up.
         BackupImporter(reactApplicationContext, database, preferences).cancel(id)
         promise.resolve(
             Arguments.createMap().apply {
@@ -552,12 +697,87 @@ class MediaReminderModule(
     }
 
     override fun invalidate() {
+        reactApplicationContext.removeActivityEventListener(this)
+        // A picker left open across module teardown (rare — RN tears the
+        // module down on reload/backgrounding, not the system picker dialog)
+        // would otherwise leak a promise that never resolves. Reject rather
+        // than silently drop it, matching MR-18's "bounded, deterministic
+        // teardown" for every in-flight call, not just DataStore reads.
+        pendingPickers.keys.toList().forEach { requestCode ->
+            pendingPickers.remove(requestCode)?.let { promise ->
+                NativeErrorEnvelope.reject(
+                    promise, "MR_INTERNAL_FAILED_SAFE", "error.unexpected",
+                    NativeErrorEnvelope.Category.INTERNAL, field = "invalidated",
+                )
+            }
+        }
         // MR-18: every scope has a bounded, deterministic teardown. Cancelling
         // here means an in-flight DataStore read simply never resolves its
         // promise rather than touching a torn-down ReactContext.
         moduleScope.cancel()
         super.invalidate()
     }
+
+    // --- ActivityEventListener (ADR-011 picker result delivery) -----------------
+
+    override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
+        val promise = pendingPickers.remove(requestCode) ?: return
+
+        if (resultCode != Activity.RESULT_OK || data?.data == null) {
+            // The user backed out of the picker with no selection — MR-03's
+            // "Import was cancelled. No file was added." is the *expected*
+            // outcome of this path, not a failure to report as one.
+            promise.resolve(null)
+            return
+        }
+
+        val uri = data.data!!
+        val resolver = reactApplicationContext.contentResolver
+        val (displayName, sizeBytes) = queryDisplayNameAndSize(resolver, uri)
+        promise.resolve(
+            Arguments.createMap().apply {
+                putString("uriToken", uri.toString())
+                if (displayName != null) putString("displayName", displayName) else putNull("displayName")
+                putString("mimeType", resolver.getType(uri) ?: "application/octet-stream")
+                if (sizeBytes != null) putString("sizeBytes", sizeBytes.toString()) else putNull("sizeBytes")
+            },
+        )
+    }
+
+    override fun onNewIntent(intent: Intent) = Unit
+
+    private fun queryDisplayNameAndSize(
+        resolver: android.content.ContentResolver,
+        uri: android.net.Uri,
+    ): Pair<String?, Long?> {
+        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                val name = if (nameIndex >= 0) cursor.getString(nameIndex) else null
+                val size = if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) cursor.getLong(sizeIndex) else null
+                return name to size
+            }
+        }
+        // Some providers omit these columns entirely (rare, but documented
+        // ContentResolver behavior) — MediaImporter treats an unknown size as
+        // "check only the running hard cap during copy," not as a fault.
+        return null to null
+    }
+
+    /** Maps a [MediaImportException.reasonCode] to its MR-08 wire code/category. */
+    private fun mediaImportErrorEnvelope(reasonCode: String): Triple<String, NativeErrorEnvelope.Category, String> =
+        when (reasonCode) {
+            MediaImportException.UNSUPPORTED_TYPE ->
+                Triple("MR_MEDIA_UNSUPPORTED_TYPE", NativeErrorEnvelope.Category.MEDIA, "error.mediaUnsupportedType")
+            MediaImportException.SOURCE_UNREADABLE ->
+                Triple("MR_MEDIA_UNAVAILABLE", NativeErrorEnvelope.Category.MEDIA, "error.mediaUnavailable")
+            MediaImportException.STORAGE_INSUFFICIENT, MediaImportException.TOO_LARGE ->
+                Triple("MR_STORAGE_INSUFFICIENT", NativeErrorEnvelope.Category.STORAGE, "error.storageInsufficient")
+            // WRITE_FAILED and anything unrecognized: a genuine internal
+            // fault, not a condition the user caused or can act on directly.
+            else -> Triple("MR_INTERNAL_FAILED_SAFE", NativeErrorEnvelope.Category.INTERNAL, "error.unexpected")
+        }
 
     companion object {
         const val NAME = "MediaReminder"
@@ -570,5 +790,15 @@ class MediaReminderModule(
 
         /** MR-10 "Import modes" — the only values `commitImport`'s `mode` field may carry. */
         private val KNOWN_IMPORT_MODES = setOf("inspect", "merge", "replace")
+
+        /**
+         * An arbitrary, distinctive base for `pickDocument`'s
+         * `startActivityForResult` codes. `onActivityResult` fires for every
+         * `ActivityEventListener` regardless of which one owns a given
+         * request code — [pendingPickers] already ignores codes it does not
+         * recognize, so this only needs to be unlikely to collide by
+         * coincidence, not globally reserved.
+         */
+        private const val PICKER_REQUEST_CODE_BASE = 9100
     }
 }

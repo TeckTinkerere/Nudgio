@@ -97,6 +97,23 @@ export interface MediaQuery {
   readonly limit?: number;
 }
 
+/** A file the user selected via `pickDocument`. */
+export interface PickedDocument {
+  /** Opaque `content://` URI string. Never a filesystem path (ADR-011). */
+  readonly uriToken: string;
+  readonly displayName?: string;
+  readonly mimeType: string;
+  /** Some content providers do not report a size. */
+  readonly sizeBytes?: ByteCount;
+}
+
+export interface ImportRequest {
+  readonly sourceUri: string;
+  readonly displayName?: string;
+  readonly mimeType: string;
+  readonly sizeBytes?: ByteCount;
+}
+
 // --- Reminders (MR-08 "Reminder DTOs") ---------------------------------------
 
 export type ReminderEffectiveState = 'disabled' | 'needs_setup' | 'active' | 'archived';

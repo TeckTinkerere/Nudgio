@@ -154,6 +154,12 @@ export const createMockNativeModule = (
     listReminders: async () => ({items: [], total: 0, offset: 0, hasMore: false}),
     listProfiles: async () => mockProfiles,
 
+    // `null` is a real, always-correct answer for this deliberately-empty
+    // fake: "no file available to pick" needs no synthetic content the way
+    // `beginMediaImport` below would. A test that needs a picked file uses a
+    // Jest mock/spy at a higher level, not this native-module fake.
+    pickDocument: async () => null,
+
     // Declared-but-unimplemented surface. Rejecting with the same envelope the
     // Kotlin stub uses keeps mock and device behavior identical.
     getMedia: notImplemented('getMedia'),

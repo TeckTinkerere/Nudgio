@@ -32,11 +32,13 @@ import {rootRoutes} from '../../constants/routes';
 import {
   Banner,
   Card,
+  Dialog,
   EmptyState,
   ErrorState,
   Icon,
   IconButton,
   LoadingState,
+  ProgressBar,
   Screen,
   Stack,
   StatusPill,
@@ -45,7 +47,14 @@ import {
 } from '../../design-system';
 import type {IconName, StatusKind} from '../../design-system';
 import {spacing} from '../../design-system/tokens';
-import {useStartupSnapshot} from '../../hooks';
+import {
+  importErrorCopy,
+  importPhaseLabelKey,
+  importProgressFraction,
+  STORAGE_INSUFFICIENT_MIN_MB,
+  useImportMedia,
+  useStartupSnapshot,
+} from '../../hooks';
 import {useTranslation, type TranslationKey} from '../../localization';
 import {findMockMedia, mockTodayOccurrences, type TodayEntry} from '../../mocks/fixtures';
 import type {OccurrenceState, ReminderDetail} from '../../native-client/types';
@@ -95,6 +104,7 @@ export function TodayScreen() {
   const t = useTranslation();
   const navigation = useNavigation<Navigation>();
   const startup = useStartupSnapshot();
+  const importMedia = useImportMedia();
 
   // Declared before any early return (Rules of Hooks): this callback does
   // not depend on `startup.data`, so it can be computed unconditionally
@@ -229,17 +239,19 @@ export function TodayScreen() {
             </Stack>
           </Card>
         </Stack>
+      ) : importMedia.isImporting ? (
+        <ProgressBar
+          testID={testIds.today.emptyState}
+          progress={importProgressFraction(importMedia.progress)}
+          label={t(importPhaseLabelKey(importMedia.progress?.phase) ?? 'library.import.copying')}
+        />
       ) : (
         <EmptyState
           testID={testIds.today.emptyState}
           icon="today"
           title={t('today.empty.title')}
           body={t('today.empty.body')}
-          action={{label: t('today.empty.importMedia'), onPress: () => undefined}}
-          secondaryAction={{
-            label: t('today.empty.createTextCard'),
-            onPress: () => undefined,
-          }}
+          action={{label: t('today.empty.importMedia'), onPress: () => importMedia.importMedia()}}
         />
       )}
     </Stack>
@@ -254,6 +266,19 @@ export function TodayScreen() {
         showSeparators={false}
         ListHeaderComponent={header}
       />
+      {importMedia.error ? (
+        <Dialog
+          visible
+          title={t(importErrorCopy(importMedia.error).titleKey)}
+          body={t(
+            importErrorCopy(importMedia.error).bodyKey,
+            importErrorCopy(importMedia.error).bodyKey === 'library.import.errorInsufficientSpace'
+              ? {megabytes: STORAGE_INSUFFICIENT_MIN_MB}
+              : undefined,
+          )}
+          cancel={{label: t('action.close'), onPress: () => importMedia.reset()}}
+        />
+      ) : null}
     </Screen>
   );
 }

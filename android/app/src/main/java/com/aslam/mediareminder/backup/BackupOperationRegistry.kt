@@ -1,32 +1,21 @@
 package com.aslam.mediareminder.backup
 
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
+import com.aslam.mediareminder.bridge.OperationRegistry
 
 /**
- * MR-10 "Cancellation" — an in-memory, process-lifetime cooperative
- * cancellation flag per operation. Cooperative, not a hard interrupt:
- * [BackupExporter]/[BackupImporter] check it at safe boundaries (between
- * entries/records), matching MR-06's precedent for `AlarmRingingService`'s
- * own cooperative cancellation. Deliberately not persisted — an operation
- * cancelled mid-flight simply fails and cleans up; there is nothing to
- * resume, unlike the durable `operation_journal` phase tracking that exists
- * for crash recovery.
+ * Adapts the backup call sites onto the shared [OperationRegistry].
+ *
+ * Kept as its own entry point so `MediaReminderModule`'s backup methods read
+ * in backup terms. The actual cancellation-flag map lives in
+ * [OperationRegistry] — see that object's doc for why one shared registry,
+ * not one per feature, is required: `cancelOperation` accepts any operation
+ * id regardless of kind, media import included, so a second registry would
+ * mean a media-import id and a backup id could never both be outstanding
+ * without one of them silently checking the wrong map.
  */
 object BackupOperationRegistry {
-    private val cancelled = ConcurrentHashMap<String, AtomicBoolean>()
-
-    fun register(operationId: String) {
-        cancelled[operationId] = AtomicBoolean(false)
-    }
-
-    fun requestCancellation(operationId: String) {
-        cancelled[operationId]?.set(true)
-    }
-
-    fun isCancelled(operationId: String): Boolean = cancelled[operationId]?.get() ?: false
-
-    fun clear(operationId: String) {
-        cancelled.remove(operationId)
-    }
+    fun register(operationId: String) = OperationRegistry.register(operationId)
+    fun requestCancellation(operationId: String) = OperationRegistry.requestCancellation(operationId)
+    fun isCancelled(operationId: String): Boolean = OperationRegistry.isCancelled(operationId)
+    fun clear(operationId: String) = OperationRegistry.clear(operationId)
 }

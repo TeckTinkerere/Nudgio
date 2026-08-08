@@ -1292,3 +1292,63 @@ correctly return an empty page until they land. A caught bug worth noting: the
 first draft of `mostScheduled` compared `reminders.effective_state` against a
 *media integrity* constant (`healthy`), which is always true; there is now a
 regression test asserting it counts `active` reminders instead.
+
+## DL-054 — media import: fire-and-forget `beginMediaImport` matches `beginExport`'s established precedent, not MR-08's pre-redesign spec text
+
+**Date:** 2026-08-08
+**Context:** Building the import pipeline (DL-053 landed the read side only)
+required deciding `beginMediaImport`'s call shape. MR-08's markdown still
+declares `beginMediaImport(request: ImportRequest): Promise<OperationRef>` —
+a fire-and-forget id returned immediately, with progress and an implied
+separate completion signal. But `NativeMediaReminder.ts`'s real, *implemented*
+`beginExport` already deviated from that same aspirational shape for a
+documented reason: "today's export has no large media stream to justify a
+fire-and-forget `OperationRef` + separate completion event... Progress still
+streams via `operationProgress` throughout" — i.e. resolve once, at the end,
+with the real result, and let progress events (not the promise) carry
+`operationId` to the UI for cancellation. Backup restore's `inspectBackup`
+confirms the same pattern already works for a real, JS-driven picker flow:
+`uriToken: string` is a plain content URI the JS side already obtained
+somehow, native does everything from there.
+
+**Decision:** `beginMediaImport(request: ImportRequestWire): Promise<MediaDetailWire>`
+— resolves with the finished `MediaDetail` once the copy/hash/probe/insert
+pipeline completes, not an `OperationRef`. Progress streams via
+`operationProgress` tagged `kind: "import"` throughout (this *is* the case
+export's own comment says would justify fire-and-forget — a media file
+genuinely can be large — but the fire-and-forget part specifically means
+returning early; nothing stops a slow operation from also resolving once at
+the end while still emitting progress the whole time, and doing so removes
+an entire completion-event design surface). `OperationRefWire` is left
+declared but now unused anywhere — a harmless, still-valid wire shape for
+some future truly early-returning operation, not deleted speculatively.
+
+Picking is split into its own method, `pickDocument(mimeTypes): Promise<PickedDocumentWire | null>`,
+rather than folded into `beginMediaImport` behind an `ActivityEventListener`
+inside that same call. Two independent reasons: (1) picking is a fast,
+bounded UI interaction with no progress to report, so it does not need the
+long-running-operation machinery `beginMediaImport` has; (2) `inspectBackup`
+already establishes "JS obtains a URI, native does the rest" as this
+codebase's real precedent for picker results crossing the bridge, and
+`ImportScreen`'s own picker gap (`docs/decision-log.md` says the picker UI is
+"a documented follow-up") is the *exact same missing primitive* — building it
+once, generically, means `ImportScreen` can adopt it later instead of
+needing a second, backup-specific picker implementation.
+
+**Consequence:** `MediaReminderModule` gained `ActivityEventListener`
+(register in `init`, unregister — and reject any still-pending picker
+promise — in `invalidate()`), a `ConcurrentHashMap<Int, Promise>` keyed by a
+distinctive request-code base (`9100`) rather than an `ActivityResultRegistry`
+(that Jetpack API requires lifecycle-bound registration and cannot be
+launched on demand from a bridge method call years after `MainActivity`'s
+`onCreate`). `OperationRegistry` and `OperationProgressEmitter` were
+extracted from their backup-only originals (`BackupOperationRegistry`,
+`BackupOperationEmitter`, now thin adapters) because `cancelOperation` and
+the `operationProgress` sequence counter both have to be single, shared, or
+a media-import id and a backup id in flight together would silently corrupt
+each other's state.
+
+**Residual risk:** Not verified on a real device — see TODO.md. `MediaPicker`'s
+photo-picker-vs-SAF *decision* is unit-tested; the `Intent` construction and
+the whole `ActivityEventListener` round trip are not, and can only be
+instrumentation- or device-tested.

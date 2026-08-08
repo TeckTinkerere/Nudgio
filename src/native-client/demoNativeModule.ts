@@ -34,11 +34,15 @@ import type {MediaReminderSpec} from './NativeMediaReminder';
 import type {
   ByteCount,
   EnableResult,
+  ImportRequest,
   Instant,
+  MediaDetail,
+  MediaKind,
   MediaQuery,
   MediaSummary,
   MutationResult,
   Page,
+  PickedDocument,
   ReminderDetail,
   ReminderSummary,
   SaveReminderRequest,
@@ -66,7 +70,7 @@ const notFound = (correlationId: string) =>
     correlationId,
   });
 
-const paginate = <T,>(items: readonly T[], offset: number, limit: number): Page<T> => {
+const paginate = <T>(items: readonly T[], offset: number, limit: number): Page<T> => {
   const slice = items.slice(offset, offset + limit);
   return {
     items: slice,
@@ -79,6 +83,31 @@ const paginate = <T,>(items: readonly T[], offset: number, limit: number): Page<
 const randomId = (): UUID =>
   `demo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}` as UUID;
 
+/** Coarse MIME-group classification, matching `MediaKinds.kindOf` on the Kotlin side. */
+const kindFromMimeType = (mimeType: string): MediaKind => {
+  if (mimeType.startsWith('audio/')) {
+    return 'audio';
+  }
+  if (mimeType.startsWith('image/')) {
+    return 'image';
+  }
+  if (mimeType.startsWith('text/')) {
+    return 'text';
+  }
+  return 'video';
+};
+
+/** A plausible extension/canonical MIME type for a fabricated demo-picked file, by kind. */
+const DEMO_FILE_BY_KIND: Record<
+  MediaKind,
+  {readonly extension: string; readonly mimeType: string}
+> = {
+  video: {extension: 'mp4', mimeType: 'video/mp4'},
+  audio: {extension: 'm4a', mimeType: 'audio/mp4'},
+  image: {extension: 'jpg', mimeType: 'image/jpeg'},
+  text: {extension: 'txt', mimeType: 'text/plain'},
+};
+
 /**
  * Rough, non-authoritative "what would this rule fire next" estimate for the
  * demo module's UI only. Does not resolve DST gaps/overlaps, does not follow
@@ -86,7 +115,10 @@ const randomId = (): UUID =>
  * the day-of-month requested (clamping only at the JS `Date` rollover level).
  * The real semantics live in Kotlin's `OccurrenceCalculator`.
  */
-const estimateNextOccurrence = (schedule: ScheduleRuleDto, from: Date = new Date()): Instant => {
+const estimateNextOccurrence = (
+  schedule: ScheduleRuleDto,
+  from: Date = new Date(),
+): Instant => {
   const next = new Date(from);
 
   const applyTimeOfDay = (localTime: string) => {
@@ -166,9 +198,12 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
   // Seeded, mutable — see the module doc for why this is intentionally not
   // the real engine.
   const reminders = new Map<UUID, ReminderDetail>(mockReminders.map(r => [r.id, r]));
+  const media = new Map<UUID, MediaDetail>(mockMedia.map(m => [m.id, m]));
 
   const currentNextOccurrence = () => {
-    const pending = mockTodayOccurrences.find(entry => entry.occurrence.state === 'pending');
+    const pending = mockTodayOccurrences.find(
+      entry => entry.occurrence.state === 'pending',
+    );
     return pending?.occurrence ?? null;
   };
 
@@ -182,8 +217,9 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
       const snapshot = decodeWire<StartupSnapshot>(await base.getStartupSnapshot());
       return {
         ...snapshot,
-        mediaCount: mockMedia.length,
-        activeReminderCount: [...reminders.values()].filter(r => r.enabledIntent).length,
+        mediaCount: media.size,
+        activeReminderCount: [...reminders.values()].filter(r => r.enabledIntent)
+          .length,
         nextOccurrence: currentNextOccurrence(),
       };
     },
@@ -191,7 +227,7 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
     listMedia: async (query: MediaQuery): Promise<Page<MediaSummary>> => {
       const offset = query.offset ?? 0;
       const limit = query.limit ?? 50;
-      let items: readonly MediaSummary[] = mockMedia;
+      let items: readonly MediaSummary[] = [...media.values()];
       if (query.kinds && query.kinds.length > 0) {
         const kinds = query.kinds;
         items = items.filter(item => kinds.includes(item.kind));
@@ -212,14 +248,65 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
       } else if (query.sort === 'size') {
         items = [...items].sort((a, b) => Number(b.sizeBytes) - Number(a.sizeBytes));
       } else if (query.sort === 'mostScheduled') {
-        items = [...items].sort((a, b) => b.activeReminderCount - a.activeReminderCount);
+        items = [...items].sort(
+          (a, b) => b.activeReminderCount - a.activeReminderCount,
+        );
+      } else {
+        // 'recent' (the default, matching MediaQuerySql.SORT_RECENT on the
+        // real side): newest first. Explicit, not incidental Map insertion
+        // order — a demo import appends to `media`, which would otherwise
+        // put it last instead of first in the Library's default view.
+        items = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       }
       return paginate(items, offset, limit);
     },
 
     getMedia: async id => {
-      const found = mockMedia.find(item => item.id === id);
+      const found = media.get(id as UUID);
       return found ?? (await notFound('demo-getMedia'));
+    },
+
+    pickDocument: async (
+      mimeTypes: readonly string[],
+    ): Promise<PickedDocument | null> => {
+      // Always "picks" something rather than resolving null: this module
+      // exists so a Metro-only dev session can exercise real screen flows
+      // (module doc above), and a picker that always cancels would make the
+      // whole import flow untestable without a device.
+      const kind = kindFromMimeType(mimeTypes[0] ?? 'video/mp4');
+      const {extension, mimeType} = DEMO_FILE_BY_KIND[kind];
+
+      return {
+        uriToken: `demo://picked/${randomId()}.${extension}`,
+        displayName: `Demo import ${new Date().toLocaleTimeString()}.${extension}`,
+        mimeType,
+        sizeBytes: String(4_200_000) as ByteCount,
+      };
+    },
+
+    beginMediaImport: async (request: ImportRequest): Promise<MediaDetail> => {
+      const now = new Date().toISOString() as Instant;
+      const kind = kindFromMimeType(request.mimeType);
+
+      const asset: MediaDetail = {
+        id: randomId(),
+        kind,
+        title: request.displayName?.replace(/\.[^.]+$/, '') || `Imported ${kind}`,
+        notes: undefined,
+        durationMs: kind === 'video' || kind === 'audio' ? 90_000 : undefined,
+        sizeBytes: request.sizeBytes ?? (String(4_200_000) as ByteCount),
+        mimeType: request.mimeType,
+        category: undefined,
+        tags: [],
+        activeReminderCount: 0,
+        integrity: 'healthy',
+        createdAt: now,
+        updatedAt: now,
+        entityVersion: 1,
+      };
+
+      media.set(asset.id, asset);
+      return asset;
     },
 
     listProfiles: async () => mockProfiles,
@@ -238,14 +325,17 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
     saveReminder: async (request: SaveReminderRequest): Promise<SaveReminderResult> => {
       const now = new Date().toISOString() as Instant;
       const existing = request.id ? reminders.get(request.id) : undefined;
-      const media = mockMedia.find(item => item.id === request.mediaId);
+      // Reads the live, mutable `media` map (not the static `mockMedia`
+      // fixture) so a reminder saved against something imported earlier in
+      // this same demo session resolves its real kind, not a 'video' guess.
+      const referencedMedia = media.get(request.mediaId);
       const nextOccurrenceInstant = estimateNextOccurrence(request.schedule);
 
       const reminder: ReminderDetail = {
         id: existing?.id ?? randomId(),
         label: request.label,
         mediaId: request.mediaId,
-        mediaKind: media?.kind ?? 'video',
+        mediaKind: referencedMedia?.kind ?? 'video',
         thumbnailToken: undefined,
         profileId: request.profileId,
         enabledIntent: request.enabledIntent,
@@ -348,7 +438,8 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
 
     commitImport: async request => ({
       status: 'ok',
-      affectedCount: request.mode === 'inspect' ? 0 : mockBackupInspection.reminderCount,
+      affectedCount:
+        request.mode === 'inspect' ? 0 : mockBackupInspection.reminderCount,
     }),
 
     cancelOperation: async () => ({status: 'ok', affectedCount: 0}),

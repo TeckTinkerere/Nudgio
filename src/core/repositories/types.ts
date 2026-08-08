@@ -19,10 +19,13 @@ import type {
   ExportRequest,
   ExportResult,
   ImportCommitRequest,
+  ImportRequest,
+  MediaDetail,
   MediaQuery,
   MediaSummary,
   MutationResult,
   Page,
+  PickedDocument,
   PreferencePatch,
   PreferencesSnapshot,
   ReminderDetail,
@@ -48,6 +51,18 @@ export interface StartupRepository {
 
 export interface MediaRepository {
   list(query: MediaQuery): Promise<Result<Page<MediaSummary>, AppError>>;
+  /** `ok(null)`, not an error, when the user backed out of the picker with no selection. */
+  pickDocument(mimeTypes: readonly string[]): Promise<Result<PickedDocument | null, AppError>>;
+  beginImport(request: ImportRequest): Promise<Result<MediaDetail, AppError>>;
+  /**
+   * Cancels an in-flight `beginImport`. Not `BackupRepository`'s own method
+   * reused across a domain boundary — `cancelOperation` is one generic
+   * native method (`OperationRegistry` doesn't distinguish operation kinds),
+   * and each repository exposes it under the name its own screens call it
+   * by, matching how the rest of this file gives each domain its own
+   * use-case-shaped surface rather than a shared grab-bag.
+   */
+  cancelOperation(id: UUID): Promise<Result<MutationResult, AppError>>;
 }
 
 export interface ReminderRepository {
