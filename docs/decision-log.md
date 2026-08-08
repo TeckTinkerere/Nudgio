@@ -1348,7 +1348,13 @@ the `operationProgress` sequence counter both have to be single, shared, or
 a media-import id and a backup id in flight together would silently corrupt
 each other's state.
 
-**Residual risk:** Not verified on a real device — see TODO.md. `MediaPicker`'s
-photo-picker-vs-SAF *decision* is unit-tested; the `Intent` construction and
-the whole `ActivityEventListener` round trip are not, and can only be
-instrumentation- or device-tested.
+**Residual risk:** Update, same day — verified on a real device (V2446,
+Android 16/API 36): the real system Photo Picker opened on tapping Import
+media (confirmed via `media_grants` SQL activity in logcat, not inferred from
+a screenshot alone), a picked video imported in 451ms end to end, and the
+result appeared in the Library grid sorted newest-first. `MediaPicker`'s
+photo-picker-vs-SAF decision is unit-tested; the `Intent` construction and the
+`ActivityEventListener` round trip now also have one real device confirmation,
+though not an automated instrumentation test — still worth adding per
+TODO.md, since one manual pass doesn't cover cancellation, SAF (audio) or
+error paths.
