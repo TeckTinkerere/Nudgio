@@ -132,6 +132,21 @@ class MediaImporter(
         // Step 5 (the codec-level half): probe the finished file.
         val probe = MediaProbe.probe(finalFile, kind)
 
+        onProgress(ProgressPhase.CREATING_PREVIEW, copiedBytes, copiedBytes)
+
+        // Step 8, moved ahead of the row insert (still after probing) so the
+        // very first read of the new row already carries a thumbnail path
+        // when generation succeeds — no separate "backfill thumbnail" update
+        // needed. A failure here is silent by design (see MediaThumbnailer's
+        // doc): the asset below is inserted either way.
+        val assetId = UUID.randomUUID().toString()
+        val thumbnailFile = storage.thumbnailFileFor(assetId)
+        val thumbnailPath = if (MediaThumbnailer.generate(finalFile, kind, thumbnailFile)) {
+            thumbnailFile.name
+        } else {
+            null
+        }
+
         // Step 7: insert the media record and complete the pending operation.
         // These are not one SQL transaction spanning the journal and
         // media_assets tables — ADR-016's outbox pattern accepts that gap
@@ -142,7 +157,7 @@ class MediaImporter(
         // silently orphaned, unlike the reverse ordering (row before file
         // exists) which would be unrecoverable.
         val asset = MediaAssetEntity(
-            id = UUID.randomUUID().toString(),
+            id = assetId,
             kind = kind,
             title = MediaKinds.titleFrom(displayName, kind),
             notes = null,
@@ -157,6 +172,7 @@ class MediaImporter(
             integrityState = probe.integrityState,
             createdAt = now,
             updatedAt = Instant.now().toEpochMilli(),
+            thumbnailPath = thumbnailPath,
         )
         mediaDao.insert(asset)
 
@@ -168,11 +184,6 @@ class MediaImporter(
                 put("kind", asset.kind)
             }.toString(),
         )
-        // Step 8 (thumbnail generation) is deliberately not implemented here:
-        // MediaDtoWriter already documents that the WebP thumbnail cache does
-        // not exist yet, and MR-05 itself says "thumbnail failure does not
-        // invalidate the source asset" — the row above is already a fully
-        // valid, complete import without one.
         onProgress(ProgressPhase.READY, copiedBytes, copiedBytes)
 
         return asset
@@ -281,6 +292,7 @@ class MediaImporter(
     private object ProgressPhase {
         const val COPYING = "copying"
         const val CHECKING = "checking"
+        const val CREATING_PREVIEW = "creating_preview"
         const val READY = "ready"
     }
 }

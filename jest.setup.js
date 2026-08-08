@@ -7,6 +7,11 @@
  */
 require('react-native-gesture-handler/jestSetup');
 
+// Standard Reanimated jest mock (ships as `react-native-reanimated/mock`):
+// swaps worklet-driven style/gesture APIs for synchronous no-op equivalents
+// so component tests never touch the UI-thread runtime Jest can't provide.
+jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+
 jest.mock('react-native-safe-area-context', () => {
   const inset = {top: 24, right: 0, bottom: 16, left: 0};
   const frame = {x: 0, y: 0, width: 412, height: 915};

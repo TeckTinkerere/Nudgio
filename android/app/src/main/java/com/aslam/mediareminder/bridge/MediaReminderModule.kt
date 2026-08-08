@@ -36,6 +36,7 @@ import com.aslam.mediareminder.media.MediaImportException
 import com.aslam.mediareminder.media.MediaImporter
 import com.aslam.mediareminder.media.MediaLibraryService
 import com.aslam.mediareminder.media.MediaPicker
+import com.aslam.mediareminder.media.MediaStorage
 import com.aslam.mediareminder.notifications.NotificationCoordinator
 import com.aslam.mediareminder.reminders.ActionResultWriter
 import com.aslam.mediareminder.reminders.ReminderDtoWriter
@@ -74,7 +75,7 @@ class MediaReminderModule(
     private val preferences = PreferencesRepository(reactContext)
     private val database = MediaReminderDatabase.getInstance(reactContext)
     private val reminderMutations = ReminderMutationService(reactContext, database)
-    private val mediaLibrary = MediaLibraryService(database)
+    private val mediaLibrary = MediaLibraryService(database, MediaStorage(reactContext))
 
     /**
      * [pickDocument]'s in-flight promises, keyed by the `startActivityForResult`
@@ -348,7 +349,8 @@ class MediaReminderModule(
         OperationRegistry.register(operationId)
         moduleScope.launch {
             try {
-                val importer = MediaImporter(reactApplicationContext, database)
+                val importerStorage = MediaStorage(reactApplicationContext)
+                val importer = MediaImporter(reactApplicationContext, database, importerStorage)
                 val asset = importer.import(
                     operationId = operationId,
                     sourceUri = sourceUri,
@@ -372,7 +374,7 @@ class MediaReminderModule(
                 // reminder — `activeReminderCount` is always 0 here, not a
                 // placeholder; the real count only exists once a reminder is
                 // saved against it.
-                promise.resolve(MediaDtoWriter.writeDetail(asset, activeReminderCount = 0))
+                promise.resolve(MediaDtoWriter.writeDetail(asset, activeReminderCount = 0, importerStorage))
             } catch (cancelled: MediaImportCancelledException) {
                 NativeErrorEnvelope.reject(
                     promise, "MR_VALIDATION_FAILED", "error.unexpected",

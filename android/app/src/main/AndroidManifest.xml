@@ -16,7 +16,18 @@
   ADR-015 ("exclude Android automatic backup") from day one, since that is a
   manifest-level default that is easy to forget once real data exists.
 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      `react-native-video`'s ExoPlayer dependency declares this defensively
+      for adaptive network-streaming sources; this app only ever plays local
+      `file://` sources (the media-preview player), so it is stripped rather
+      than silently allowed to widen the verified permission set (MR-06 "no
+      network access" — the release-manifest check in TODO.md re-verifies
+      this after every dependency change).
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />

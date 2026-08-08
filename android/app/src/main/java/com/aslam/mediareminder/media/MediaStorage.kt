@@ -25,6 +25,17 @@ class MediaStorage(private val context: Context) {
     fun fileFor(storageKey: String): File = File(mediaDir(), storageKey)
 
     /**
+     * MR-09 "File storage": "Derived thumbnails are WebP cache and may be
+     * cleared at any time" — `cacheDir`, not `filesDir`, so the OS is free to
+     * reclaim it under storage pressure without touching a real asset.
+     * Created lazily; `mkdirs` is idempotent.
+     */
+    fun thumbnailsDir(): File = File(context.cacheDir, THUMBNAILS_DIR_NAME).apply { mkdirs() }
+
+    /** Opaque `<uuid>.webp` name, same "no user-supplied segment" rule as [newStorageKey]. */
+    fun thumbnailFileFor(mediaId: String): File = File(thumbnailsDir(), "$mediaId.webp")
+
+    /**
      * Partial-download file used while copying.
      *
      * Copying to `<key>.part` and renaming on success means a crash mid-copy
@@ -52,6 +63,7 @@ class MediaStorage(private val context: Context) {
 
     companion object {
         private const val MEDIA_DIR_NAME = "media"
+        private const val THUMBNAILS_DIR_NAME = "thumbnails"
         private const val PARTIAL_SUFFIX = ".part"
 
         /** MR-09 "Storage limits": individual asset hard limit for v1. */

@@ -6,12 +6,13 @@
  * single source of truth for `@/*` and no chance of tsc and the bundler
  * disagreeing about what a path means.
  *
- * No `plugins` entry: the app has no `react-native-reanimated` worklets (or
- * any other Babel-plugin-requiring library) to rewrite — animation goes
- * through plain `react-native` `Animated` (see `src/app/InAppDueCard.tsx`).
- * A dependency-only entry here would run its transform over every file in
- * the project for zero benefit (docs/decision-log.md).
+ * `react-native-reanimated/plugin` (a thin re-export of
+ * `react-native-worklets/plugin` in Reanimated 4) rewrites `worklet`-tagged
+ * functions to run on the UI thread — required for any `useAnimatedStyle`/
+ * `withSpring`/`withTiming` call to work at all, not an optional perf
+ * add-on. Per Reanimated's own docs this MUST be the last plugin in the list.
  */
 module.exports = {
   presets: ['@react-native/babel-preset'],
+  plugins: ['react-native-reanimated/plugin'],
 };

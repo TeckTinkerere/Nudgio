@@ -108,3 +108,18 @@ val MIGRATION_3_4: Migration = object : Migration(3, 4) {
         )
     }
 }
+
+/**
+ * Adds `media_assets.thumbnail_path` (see
+ * [com.aslam.mediareminder.data.db.entity.MediaAssetEntity.thumbnailPath]) —
+ * the real thumbnail-generation slice. Every pre-existing row defaults to
+ * `NULL` ("no thumbnail yet"), which is exactly correct: nothing imported
+ * before this migration has a generated thumbnail file on disk to point at.
+ * `MediaCard`'s existing fallback-tile rendering already treats a missing
+ * thumbnail as a normal, non-error state, so no backfill pass is needed.
+ */
+val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE media_assets ADD COLUMN thumbnail_path TEXT")
+    }
+}

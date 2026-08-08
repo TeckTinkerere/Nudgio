@@ -18,7 +18,7 @@ import java.time.Instant
  * [MediaQuerySql] so it is unit-testable without a device; this class is only
  * the Room plumbing that pure builder cannot do.
  */
-class MediaLibraryService(private val database: MediaReminderDatabase) {
+class MediaLibraryService(private val database: MediaReminderDatabase, private val storage: MediaStorage) {
 
     private val mediaDao get() = database.mediaDao()
 
@@ -73,6 +73,7 @@ class MediaLibraryService(private val database: MediaReminderDatabase) {
             counts = activeReminderCounts(items),
             total = total,
             offset = criteria.offset.coerceAtLeast(0),
+            storage = storage,
         )
     }
 
@@ -80,7 +81,7 @@ class MediaLibraryService(private val database: MediaReminderDatabase) {
     suspend fun getMedia(id: String): WritableMap? {
         val entity = mediaDao.getById(id) ?: return null
         val counts = activeReminderCounts(listOf(entity))
-        return MediaDtoWriter.writeDetail(entity, counts[entity.id] ?: 0)
+        return MediaDtoWriter.writeDetail(entity, counts[entity.id] ?: 0, storage)
     }
 
     /**
@@ -121,7 +122,7 @@ class MediaLibraryService(private val database: MediaReminderDatabase) {
 
         val updated = mediaDao.getById(id) ?: return UpdateMediaOutcome.NotFound
         val counts = activeReminderCounts(listOf(updated))
-        return UpdateMediaOutcome.Success(MediaDtoWriter.writeDetail(updated, counts[updated.id] ?: 0))
+        return UpdateMediaOutcome.Success(MediaDtoWriter.writeDetail(updated, counts[updated.id] ?: 0, storage))
     }
 
     sealed class UpdateMediaOutcome {

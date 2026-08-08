@@ -68,6 +68,7 @@ export interface MediaSummaryWire {
   readonly durationMs?: number;
   readonly sizeBytes: string;
   readonly thumbnailToken?: string;
+  readonly sourceToken: string;
   readonly category?: NamedRefWire;
   readonly tags: readonly NamedRefWire[];
   readonly activeReminderCount: number;
@@ -82,6 +83,7 @@ export interface MediaDetailWire {
   readonly durationMs?: number;
   readonly sizeBytes: string;
   readonly thumbnailToken?: string;
+  readonly sourceToken: string;
   readonly category?: NamedRefWire;
   readonly tags: readonly NamedRefWire[];
   readonly activeReminderCount: number;

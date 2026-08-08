@@ -12,7 +12,7 @@
  * no English copy of its own, matching every other design-system component
  * (`StatusPill`, `Banner`, `EmptyState`, ...).
  */
-import {memo} from 'react';
+import {memo, useState} from 'react';
 import {Image, Pressable, View} from 'react-native';
 
 import {Icon, type IconName} from '../icons';
@@ -49,6 +49,15 @@ export interface MediaCardProps {
   /** Localized "Missing" label, shown on the fallback tile and in the a11y name. */
   readonly missingLabel?: string;
   readonly onPress?: () => void;
+  /**
+   * Shown as a standalone circular affordance over the thumbnail for
+   * video/audio only — present whenever the caller can offer in-place
+   * preview playback, independent of whether a real thumbnail loaded (a
+   * fallback-tile audio card can still play; it just has no art to show).
+   */
+  readonly onPlayPress?: () => void;
+  /** Localized, e.g. "Play". Required whenever `onPlayPress` is given. */
+  readonly playLabel?: string;
   readonly testID?: string;
 }
 
@@ -70,13 +79,21 @@ export const MediaCard = memo(function MediaCardImpl({
   isMissing = false,
   missingLabel,
   onPress,
+  onPlayPress,
+  playLabel,
   testID,
 }: MediaCardProps) {
   const theme = useTheme();
   const surface = useSurfaceStyle('level1');
   const ripple = useRippleConfig();
   const isSquare = kind === 'audio' || kind === 'image' || kind === 'text';
-  const showFallback = isMissing || !thumbnailUri;
+  // MR-09: the thumbnail cache "may be cleared at any time" — a token that
+  // was valid when the list loaded can 404 by the time this cell renders.
+  // `imageFailed` catches that at display time, the same "icon and text,
+  // never a broken rectangle" fallback `isMissing`/no-token already use.
+  const [imageFailed, setImageFailed] = useState(false);
+  const showFallback = isMissing || !thumbnailUri || imageFailed;
+  const canPlay = onPlayPress !== undefined && (kind === 'video' || kind === 'audio') && !isMissing;
 
   // Computed once per render, referenced by identifier in the style objects
   // below — not a literal color inside a style prop — so the design system's
@@ -139,11 +156,41 @@ export const MediaCard = memo(function MediaCardImpl({
             source={{uri: thumbnailUri}}
             style={{width: '100%', height: '100%'}}
             resizeMode="cover"
+            onError={() => setImageFailed(true)}
             // Decorative: the accessible name lives on the Pressable.
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
           />
         )}
+
+        {canPlay ? (
+          <View
+            style={{position: 'absolute', top: 0, start: 0, end: 0, bottom: 0}}
+            // Decorative wrapper only; the Pressable inside carries the
+            // accessible name and is the one focusable/actionable node here.
+            pointerEvents="box-none">
+            <Pressable
+              onPress={onPlayPress}
+              accessibilityRole="button"
+              accessibilityLabel={playLabel ?? kindLabel}
+              android_ripple={{...ripple, borderless: true}}
+              style={{
+                position: 'absolute',
+                top: '50%',
+                start: '50%',
+                marginTop: -theme.layout.minTouchTarget / 2,
+                marginStart: -theme.layout.minTouchTarget / 2,
+                width: theme.layout.minTouchTarget,
+                height: theme.layout.minTouchTarget,
+                borderRadius: theme.radius.full,
+                backgroundColor: scrimColor,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+              <Icon name="play" size="md" color={onScrimColor} />
+            </Pressable>
+          </View>
+        ) : null}
 
         {durationLabel && !showFallback ? (
           <View
