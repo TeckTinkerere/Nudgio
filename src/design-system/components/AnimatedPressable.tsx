@@ -14,7 +14,14 @@
  * `tokens/motion.ts` entry already documents.
  */
 import type {ReactNode} from 'react';
-import {Pressable, type AccessibilityRole, type GestureResponderEvent, type StyleProp, type ViewStyle} from 'react-native';
+import {
+  Pressable,
+  type AccessibilityRole,
+  type AccessibilityState,
+  type GestureResponderEvent,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withSpring, withTiming} from 'react-native-reanimated';
 
 import {useRippleConfig, useTheme} from '../theme/useTheme';
@@ -24,22 +31,30 @@ const ReanimatedPressable = Animated.createAnimatedComponent(Pressable);
 export interface AnimatedPressableProps {
   readonly children: ReactNode;
   readonly onPress?: (event: GestureResponderEvent) => void;
+  /** Composed with the internal scale-down trigger, not a replacement for it. */
+  readonly onPressIn?: (event: GestureResponderEvent) => void;
+  /** Composed with the internal spring-release trigger, not a replacement for it. */
+  readonly onPressOut?: (event: GestureResponderEvent) => void;
   readonly style?: StyleProp<ViewStyle>;
   readonly scaleTo?: number;
   readonly disabled?: boolean;
   readonly accessibilityRole?: AccessibilityRole;
   readonly accessibilityLabel?: string;
+  readonly accessibilityState?: AccessibilityState;
   readonly testID?: string;
 }
 
 export function AnimatedPressable({
   children,
   onPress,
+  onPressIn,
+  onPressOut,
   style,
   scaleTo = 0.96,
   disabled = false,
   accessibilityRole,
   accessibilityLabel,
+  accessibilityState,
   testID,
 }: AnimatedPressableProps) {
   const theme = useTheme();
@@ -56,18 +71,20 @@ export function AnimatedPressable({
       disabled={disabled}
       accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={{disabled}}
+      accessibilityState={{disabled, ...accessibilityState}}
       testID={testID}
       android_ripple={disabled ? undefined : ripple}
-      onPressIn={() => {
+      onPressIn={(event: GestureResponderEvent) => {
         if (!theme.a11y.reduceMotion) {
           scale.value = withTiming(scaleTo, {duration: 100});
         }
+        onPressIn?.(event);
       }}
-      onPressOut={() => {
+      onPressOut={(event: GestureResponderEvent) => {
         if (!theme.a11y.reduceMotion) {
           scale.value = withSpring(1, {damping: 16, stiffness: 220});
         }
+        onPressOut?.(event);
       }}
       style={[style, theme.a11y.reduceMotion ? null : animatedStyle]}>
       {children}

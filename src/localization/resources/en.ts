@@ -118,6 +118,7 @@ export const en = {
 
   // --- Reminders / editor (MR-03) ------------------------------------------
   'reminders.title': 'Reminders',
+  'reminders.list.enableToggle': 'Enable {label}',
   'reminders.editor.what': 'What',
   'reminders.editor.when': 'When',
   'reminders.editor.alertStyle': 'Alert style',

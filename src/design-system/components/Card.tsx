@@ -5,9 +5,11 @@
  * plus outline, never shadow alone). A card is 16 dp radius with 16 dp
  * internal padding by default.
  */
-import {Pressable, View, type StyleProp, type ViewStyle} from 'react-native';
+import {useState} from 'react';
+import {View, type StyleProp, type ViewStyle} from 'react-native';
 
-import {useRippleConfig, useSurfaceStyle, useTheme} from '../theme/useTheme';
+import {AnimatedPressable} from './AnimatedPressable';
+import {useSurfaceStyle, useTheme} from '../theme/useTheme';
 import {resolveSpace, type ElevationToken, type SpacingToken} from '../tokens';
 
 export interface CardProps {
@@ -38,7 +40,7 @@ export function Card({
 }: CardProps) {
   const theme = useTheme();
   const surface = useSurfaceStyle(elevation);
-  const ripple = useRippleConfig();
+  const [pressed, setPressed] = useState(false);
 
   const base: ViewStyle = {
     ...surface,
@@ -60,19 +62,16 @@ export function Card({
   }
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{selected}}
       testID={testID}
-      android_ripple={ripple}
-      style={({pressed}) => [
-        base,
-        pressed && {backgroundColor: theme.color.surfaceContainerHigh},
-        style,
-      ]}>
+      style={[base, pressed && {backgroundColor: theme.color.surfaceContainerHigh}, style]}>
       {children}
-    </Pressable>
+    </AnimatedPressable>
   );
 }

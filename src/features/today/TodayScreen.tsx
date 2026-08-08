@@ -24,6 +24,7 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useCallback} from 'react';
 import {StyleSheet} from 'react-native';
 import type {ListRenderItem} from 'react-native';
+import Animated, {FadeInUp} from 'react-native-reanimated';
 
 import {statusKindFor, statusLabelKeyFor} from './capabilityStatus';
 import type {RootStackParamList} from '../../app/navigation/types';
@@ -46,6 +47,7 @@ import {
   VirtualizedList,
 } from '../../design-system';
 import type {IconName, StatusKind} from '../../design-system';
+import {useTheme} from '../../design-system/theme/useTheme';
 import {spacing} from '../../design-system/tokens';
 import {
   importErrorCopy,
@@ -102,6 +104,7 @@ const rowStateFor = (
 
 export function TodayScreen() {
   const t = useTranslation();
+  const theme = useTheme();
   const navigation = useNavigation<Navigation>();
   const startup = useStartupSnapshot();
   const importMedia = useImportMedia();
@@ -110,7 +113,7 @@ export function TodayScreen() {
   // not depend on `startup.data`, so it can be computed unconditionally
   // regardless of which branch below actually renders.
   const renderOccurrence: ListRenderItem<TodayEntry> = useCallback(
-    ({item: entry}) => {
+    ({item: entry, index}) => {
       const media = findMockMedia(entry.reminder.mediaId);
       const state = rowStateFor(entry.reminder, entry.occurrence.state);
       const time = new Intl.DateTimeFormat(undefined, {
@@ -118,7 +121,7 @@ export function TodayScreen() {
         minute: '2-digit',
       }).format(new Date(entry.occurrence.scheduledAt));
 
-      return (
+      const row = (
         <Card
           style={styles.occurrenceCard}
           onPress={() =>
@@ -139,8 +142,19 @@ export function TodayScreen() {
           </Stack>
         </Card>
       );
+
+      if (theme.a11y.reduceMotion) {
+        return row;
+      }
+      // A gentle fade-and-rise stagger, capped so a long list doesn't leave
+      // the last rows waiting behind a multi-second delay queue.
+      return (
+        <Animated.View entering={FadeInUp.delay(Math.min(index, 8) * 40).springify().damping(18)}>
+          {row}
+        </Animated.View>
+      );
     },
-    [navigation, t],
+    [navigation, t, theme.a11y.reduceMotion],
   );
 
   // `isPending`, not `isLoading`: v5's `isLoading` is a derived convenience
@@ -168,6 +182,21 @@ export function TodayScreen() {
 
   const nextEntry = mockTodayOccurrences.find(entry => entry.occurrence.state === 'pending');
   const nextMedia = nextEntry ? findMockMedia(nextEntry.reminder.mediaId) : undefined;
+
+  // A themed avatar container for the hero's media icon — dynamic (reads
+  // `theme.color`), so it is wrapped in `StyleSheet.create` per-render rather
+  // than a raw inline object (see `MediaPreviewPlayer`'s doc comment for why
+  // this is the pattern here instead of a static module-level style).
+  const heroStyles = StyleSheet.create({
+    avatar: {
+      width: theme.layout.reminderThumbnailSize,
+      height: theme.layout.reminderThumbnailSize,
+      borderRadius: theme.radius.full,
+      backgroundColor: theme.color.primaryContainer,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+  });
 
   const header = (
     <Stack gap="lg" paddingVertical="md">
@@ -205,10 +234,13 @@ export function TodayScreen() {
           </Text>
           <Card testID={testIds.today.nextReminderCard}>
             <Stack direction="row" gap="sm" align="center">
-              <Icon
-                name={nextMedia ? MEDIA_ICON[nextMedia.kind] ?? 'reminders' : 'reminders'}
-                size="lg"
-              />
+              <Stack style={heroStyles.avatar} align="center" justify="center">
+                <Icon
+                  name={nextMedia ? MEDIA_ICON[nextMedia.kind] ?? 'reminders' : 'reminders'}
+                  size="lg"
+                  color={theme.color.onPrimaryContainer}
+                />
+              </Stack>
               <Stack style={styles.flexFill} gap={2}>
                 <Text variant="titleLarge">{nextEntry.reminder.label}</Text>
                 <Text variant="bodyMedium" tone="variant">

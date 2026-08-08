@@ -8,6 +8,7 @@ import com.aslam.mediareminder.alarm.SchedulerCoordinator
 import com.aslam.mediareminder.alarm.TestAlarmScheduler
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.data.db.entity.ReminderEntity
+import com.aslam.mediareminder.media.MediaStorage
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
@@ -25,6 +26,7 @@ import java.util.UUID
 class ReminderMutationService(
     private val context: Context,
     private val database: MediaReminderDatabase,
+    private val storage: MediaStorage = MediaStorage(context),
 ) {
     private val scheduler = SchedulerCoordinator(context, database)
 
@@ -45,7 +47,8 @@ class ReminderMutationService(
         val reminder = database.reminderDao().getById(id) ?: return null
         val rule = database.scheduleRuleDao().getByReminderId(id) ?: return null
         val nextOccurrence = database.occurrenceDao().getPendingForReminder(id)
-        return ReminderDtoWriter.writeDetail(reminder, rule, nextOccurrence)
+        val media = database.mediaDao().getById(reminder.mediaId)
+        return ReminderDtoWriter.writeDetail(reminder, rule, nextOccurrence, media, storage)
     }
 
     suspend fun list(): WritableMap {
@@ -55,13 +58,15 @@ class ReminderMutationService(
         // to be a 2N+1-query list endpoint for N reminders (docs/decision-log.md).
         val rulesByReminderId = database.scheduleRuleDao().getByReminderIds(reminderIds).associateBy { it.reminderId }
         val nextOccurrenceByReminderId = database.occurrenceDao().getPendingForReminders(reminderIds).associateBy { it.reminderId }
+        val mediaByMediaId = database.mediaDao().getByIds(reminders.map { it.mediaId }.distinct()).associateBy { it.id }
 
         val items = Arguments.createArray()
         var count = 0
         for (reminder in reminders) {
             val rule = rulesByReminderId[reminder.id] ?: continue
             val nextOccurrence = nextOccurrenceByReminderId[reminder.id]
-            items.pushMap(ReminderDtoWriter.writeSummary(reminder, rule, nextOccurrence))
+            val media = mediaByMediaId[reminder.mediaId]
+            items.pushMap(ReminderDtoWriter.writeSummary(reminder, rule, nextOccurrence, media, storage))
             count += 1
         }
         return Arguments.createMap().apply {
@@ -170,9 +175,10 @@ class ReminderMutationService(
         val savedRule = requireNotNull(database.scheduleRuleDao().getByReminderId(reminderId))
         val nextOccurrence = database.occurrenceDao().getPendingForReminder(reminderId)
         val schedulerGeneration = database.schedulerStateDao().get()?.desiredGeneration ?: 0L
+        val media = database.mediaDao().getById(savedReminder.mediaId)
 
         val result = Arguments.createMap().apply {
-            putMap("reminder", ReminderDtoWriter.writeDetail(savedReminder, savedRule, nextOccurrence))
+            putMap("reminder", ReminderDtoWriter.writeDetail(savedReminder, savedRule, nextOccurrence, media, storage))
             if (nextOccurrence != null) putMap("nextOccurrence", ReminderDtoWriter.writeOccurrence(nextOccurrence)) else putNull("nextOccurrence")
             putMap(
                 "capabilityResult",
@@ -207,9 +213,10 @@ class ReminderMutationService(
         val updated = requireNotNull(reminderDao.getById(id))
         val rule = requireNotNull(database.scheduleRuleDao().getByReminderId(id))
         val nextOccurrence = database.occurrenceDao().getPendingForReminder(id)
+        val media = database.mediaDao().getById(updated.mediaId)
 
         val result = Arguments.createMap().apply {
-            putMap("reminder", ReminderDtoWriter.writeSummary(updated, rule, nextOccurrence))
+            putMap("reminder", ReminderDtoWriter.writeSummary(updated, rule, nextOccurrence, media, storage))
             if (nextOccurrence != null) putMap("nextOccurrence", ReminderDtoWriter.writeOccurrence(nextOccurrence)) else putNull("nextOccurrence")
         }
         return EnableOutcome.Success(result)
