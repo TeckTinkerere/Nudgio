@@ -8,7 +8,17 @@ export {useAppQueryClient} from './useAppQueryClient';
 export {useCapabilitySnapshot} from './useCapabilitySnapshot';
 export {useHaptics} from './useHaptics';
 export type {HapticsControl} from './useHaptics';
+export {
+  importErrorCopy,
+  importPhaseLabelKey,
+  importProgressFraction,
+  STORAGE_INSUFFICIENT_MIN_MB,
+  useImportMedia,
+} from './useImportMedia';
+export type {ImportMediaOutcome} from './useImportMedia';
 export {useMotionDuration} from './useReduceMotion';
+export {useOperationProgress} from './useOperationProgress';
+export type {OperationProgressState} from './useOperationProgress';
 export {usePreferences, useUpdatePreferences} from './usePreferences';
 export {useStartupSnapshot} from './useStartupSnapshot';
 export {useViewState} from './useViewState';

@@ -43,6 +43,9 @@ export const createRepositories = (deps: CreateRepositoriesDeps): Repositories =
 
     media: {
       list: query => client.listMedia(query),
+      pickDocument: mimeTypes => client.pickDocument(mimeTypes),
+      beginImport: request => client.beginMediaImport(request),
+      cancelOperation: id => client.cancelOperation(id),
     },
 
     reminders: {

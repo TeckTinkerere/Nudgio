@@ -18,10 +18,12 @@ import {testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
 import {
   Chip,
+  Dialog,
   EmptyState,
   ErrorState,
   LoadingState,
   MediaCard,
+  ProgressBar,
   Screen,
   Stack,
   Text,
@@ -29,6 +31,13 @@ import {
   VirtualizedList,
   useResponsive,
 } from '../../design-system';
+import {
+  importErrorCopy,
+  importPhaseLabelKey,
+  importProgressFraction,
+  STORAGE_INSUFFICIENT_MIN_MB,
+  useImportMedia,
+} from '../../hooks';
 import {
   formatEnglishUnit,
   useTranslation,
@@ -68,6 +77,7 @@ export function LibraryScreen() {
   const t = useTranslation();
   const navigation = useNavigation<Navigation>();
   const {mediaGridColumns} = useResponsive();
+  const importMedia = useImportMedia();
 
   const [search, setSearch] = useState('');
   const [activeKind, setActiveKind] = useState<KindFilter | null>(null);
@@ -185,12 +195,17 @@ export function LibraryScreen() {
           recoveryAction={{label: t('action.retry'), onPress: () => media.refetch()}}
           diagnosticCode={media.error.correlationId}
         />
+      ) : importMedia.isImporting ? (
+        <ProgressBar
+          progress={importProgressFraction(importMedia.progress)}
+          label={t(importPhaseLabelKey(importMedia.progress?.phase) ?? 'library.import.copying')}
+        />
       ) : media.data.items.length === 0 ? (
         <EmptyState
           icon="library"
           title={t('today.empty.title')}
           body={t('today.empty.body')}
-          action={{label: t('today.empty.importMedia'), onPress: () => undefined}}
+          action={{label: t('today.empty.importMedia'), onPress: () => importMedia.importMedia()}}
         />
       ) : (
         <VirtualizedList
@@ -204,6 +219,19 @@ export function LibraryScreen() {
           horizontalPadding="xs"
         />
       )}
+      {importMedia.error ? (
+        <Dialog
+          visible
+          title={t(importErrorCopy(importMedia.error).titleKey)}
+          body={t(
+            importErrorCopy(importMedia.error).bodyKey,
+            importErrorCopy(importMedia.error).bodyKey === 'library.import.errorInsufficientSpace'
+              ? {megabytes: STORAGE_INSUFFICIENT_MIN_MB}
+              : undefined,
+          )}
+          cancel={{label: t('action.close'), onPress: () => importMedia.reset()}}
+        />
+      ) : null}
     </Screen>
   );
 }

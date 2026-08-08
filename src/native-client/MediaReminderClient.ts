@@ -22,10 +22,13 @@ import type {
   ExportRequest,
   ExportResult,
   ImportCommitRequest,
+  ImportRequest,
+  MediaDetail,
   MediaQuery,
   MediaSummary,
   MutationResult,
   Page,
+  PickedDocument,
   PreferencePatch,
   PreferencesSnapshot,
   ReminderDetail,
@@ -66,6 +69,10 @@ export interface MediaReminderClient {
   getDynamicColorScheme(): Promise<Result<unknown | null, AppError>>;
   listMedia(query: MediaQuery): Promise<Result<Page<MediaSummary>, AppError>>;
   listProfiles(): Promise<Result<readonly ReminderProfile[], AppError>>;
+
+  /** `ok(null)`, not an error, when the user backed out of the picker with no selection. */
+  pickDocument(mimeTypes: readonly string[]): Promise<Result<PickedDocument | null, AppError>>;
+  beginMediaImport(request: ImportRequest): Promise<Result<MediaDetail, AppError>>;
 
   listReminders(): Promise<Result<Page<ReminderSummary>, AppError>>;
   getReminder(id: UUID): Promise<Result<ReminderDetail, AppError>>;
@@ -195,6 +202,11 @@ export const createMediaReminderClient = (
     listMedia: query => call('listMedia', native => native.listMedia(query)),
 
     listProfiles: () => call('listProfiles', native => native.listProfiles()),
+
+    pickDocument: mimeTypes => call('pickDocument', native => native.pickDocument(mimeTypes)),
+
+    beginMediaImport: request =>
+      call('beginMediaImport', native => native.beginMediaImport(request)),
 
     listReminders: () => call('listReminders', native => native.listReminders()),
 

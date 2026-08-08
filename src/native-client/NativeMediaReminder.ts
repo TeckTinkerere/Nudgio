@@ -112,6 +112,23 @@ export interface MediaPageWire {
   readonly hasMore: boolean;
 }
 
+/** A file the user selected via `pickDocument`. `null` (not a rejection) means they backed out with no selection. */
+export interface PickedDocumentWire {
+  /** Opaque `content://` URI string. Never a filesystem path (ADR-011) and not guaranteed readable indefinitely — pass it to `beginMediaImport` promptly. */
+  readonly uriToken: string;
+  readonly displayName?: string;
+  readonly mimeType: string;
+  /** Decimal string; some content providers do not report a size. */
+  readonly sizeBytes?: string;
+}
+
+export interface ImportRequestWire {
+  readonly sourceUri: string;
+  readonly displayName?: string;
+  readonly mimeType: string;
+  readonly sizeBytes?: string;
+}
+
 // --- Reminders ------------------------------------------------------------------
 
 /**
@@ -380,9 +397,11 @@ export interface PreferencePatchWire {
  * The reminder-scheduling group (`saveReminder` through `dismissDueSession`)
  * is implemented as of the recurrence-engine slice (docs/decision-log.md
  * DL-005 onward); the backup group (`beginExport` through `cancelOperation`)
- * is implemented as of the backup-engine slice (DL-025 onward) — see
- * `MediaReminderModule.kt`. Media import remains declared-but-unimplemented;
- * `media/` is still a README placeholder.
+ * is implemented as of the backup-engine slice (DL-025 onward); the media
+ * library's read side (`listMedia`/`getMedia`) and import
+ * (`pickDocument`/`beginMediaImport`) are implemented as of DL-053 and this
+ * slice — see `MediaReminderModule.kt` and `android/.../media/`.
+ * `updateMedia`/`deleteMedia` remain declared-but-unimplemented.
  */
 export interface Spec extends TurboModule {
   // --- Implemented in the foundation ---------------------------------------
@@ -397,7 +416,17 @@ export interface Spec extends TurboModule {
   getDynamicColorScheme(): Promise<Object | null>;
 
   listMedia(query: MediaQueryWire): Promise<MediaPageWire>;
+  getMedia(id: string): Promise<MediaDetailWire>;
   listProfiles(): Promise<readonly ReminderProfileWire[]>;
+
+  /**
+   * ADR-011 "Use system pickers": launches the Photo Picker (visual-only
+   * `mimeTypes`, API 33+) or SAF document picker, and resolves once the user
+   * has chosen — `null` (not a rejection) means they backed out with no
+   * selection. `mimeTypes` are patterns like `image/*`/`audio/*`, matching
+   * `Intent.EXTRA_MIME_TYPES` semantics.
+   */
+  pickDocument(mimeTypes: readonly string[]): Promise<PickedDocumentWire | null>;
 
   // --- Reminder engine (implemented — see module doc above) ------------------
   listReminders(): Promise<ReminderPageWire>;
@@ -423,9 +452,19 @@ export interface Spec extends TurboModule {
   commitImport(request: ImportCommitRequestWire): Promise<MutationResultWire>;
   cancelOperation(id: string): Promise<MutationResultWire>;
 
+  /**
+   * MR-05 "Import transaction". Resolves once the file is copied, hashed,
+   * probed and inserted — a media file genuinely can be large enough to
+   * justify streaming `operationProgress` throughout (tagged `kind:
+   * "import"`), unlike `beginExport`'s reasoning above. The JS side learns
+   * `operationId` from the first such event and can pass it to
+   * `cancelOperation`, the same pattern already established for backup
+   * export/inspection. `request.sourceUri` must come from a `pickDocument`
+   * call earlier in the same session (see that method's doc).
+   */
+  beginMediaImport(request: ImportRequestWire): Promise<MediaDetailWire>;
+
   // --- Declared contract, not yet implemented --------------------------------
-  getMedia(id: string): Promise<MediaDetailWire>;
-  beginMediaImport(request: Object): Promise<OperationRefWire>;
   updateMedia(request: Object): Promise<MediaDetailWire>;
   deleteMedia(request: Object): Promise<MutationResultWire>;
 
