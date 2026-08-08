@@ -110,6 +110,11 @@ export const en = {
   'library.detail.titlePlaceholder': 'Name this media',
   'library.detail.notesPlaceholder': 'Add a note (optional)',
   'library.detail.renameValidationTitleRequired': 'Title cannot be empty.',
+  'library.player.close': 'Close preview',
+  'library.player.loadError': "Couldn't play this file.",
+  'library.player.play': 'Play {title}',
+  'library.detail.emptySelectionTitle': 'Select an item',
+  'library.detail.emptySelectionBody': 'Choose something from your library to see its details here.',
 
   // --- Reminders / editor (MR-03) ------------------------------------------
   'reminders.title': 'Reminders',

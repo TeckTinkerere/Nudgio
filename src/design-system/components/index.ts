@@ -1,3 +1,5 @@
+export {AnimatedPressable} from './AnimatedPressable';
+export type {AnimatedPressableProps} from './AnimatedPressable';
 export {AppBar} from './AppBar';
 export type {AppBarAction, AppBarProps} from './AppBar';
 export {Banner} from './Banner';

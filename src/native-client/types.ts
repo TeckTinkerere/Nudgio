@@ -32,6 +32,13 @@ export type CorrelationId = Brand<string, 'CorrelationId'>;
  * absolute path."
  */
 export type ThumbnailToken = Brand<string, 'ThumbnailToken'>;
+/**
+ * Opaque handle to a media asset's original file, for playback/full-size
+ * viewing rather than the thumbnail. Same "not an absolute path, not a URL
+ * you may construct or persist" rule as `ThumbnailToken` — the only code
+ * allowed to unwrap either token is `src/native-client/mediaTokens.ts`.
+ */
+export type MediaSourceToken = Brand<string, 'MediaSourceToken'>;
 /** References validated private staging. Expires. Never a raw URI. */
 export type ImportToken = Brand<string, 'ImportToken'>;
 /** Decimal string; may exceed `Number.MAX_SAFE_INTEGER`. */
@@ -71,6 +78,12 @@ export interface MediaSummary {
   readonly durationMs?: number;
   readonly sizeBytes: ByteCount;
   readonly thumbnailToken?: ThumbnailToken;
+  /**
+   * Always present, even when `integrity` is `'missing'`/`'unsupported'` —
+   * check `integrity` before offering playback rather than this field's
+   * presence, the same pattern already used for the broken-preview UI.
+   */
+  readonly sourceToken: MediaSourceToken;
   readonly category?: NamedRef;
   readonly tags: readonly NamedRef[];
   readonly activeReminderCount: number;

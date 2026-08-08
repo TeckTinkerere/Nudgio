@@ -21,6 +21,7 @@ import type {
   LocalTime,
   MediaDetail,
   MediaKind,
+  MediaSourceToken,
   NamedRef,
   OccurrenceSummary,
   ReminderDetail,
@@ -34,6 +35,14 @@ const localTime = (value: string): LocalTime => value as LocalTime;
 const instant = (isoOffsetMinutes: number): Instant =>
   new Date(Date.now() + isoOffsetMinutes * 60_000).toISOString() as Instant;
 const bytes = (value: number): ByteCount => String(value) as ByteCount;
+/**
+ * A `sourceToken` is a real playable/opaque handle on-device (see
+ * `mediaTokens.ts`); demo/fixture mode has no backing file to point at, so
+ * this is a non-functional placeholder that keeps the shape honest without
+ * pretending playback works here, matching `pickDocument`'s `demo://picked/...`
+ * placeholder in `demoNativeModule.ts`.
+ */
+const sourceToken = (id: string): MediaSourceToken => `demo://media/${id}` as MediaSourceToken;
 
 // --- Categories and tags -----------------------------------------------------
 // Named constants, not an indexed array: under `noUncheckedIndexedAccess`,
@@ -189,6 +198,7 @@ export const mockMedia: readonly MediaDetail[] = mediaSeeds.map(seed => ({
   createdAt: instant(seed.createdOffsetDays * 24 * 60),
   updatedAt: instant(seed.createdOffsetDays * 24 * 60),
   entityVersion: 1,
+  sourceToken: sourceToken(seed.id),
 }));
 
 export const findMockMedia = (id: UUID): MediaDetail | undefined =>

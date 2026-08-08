@@ -58,7 +58,7 @@ import kotlinx.coroutines.launch
         OperationJournalEntity::class,
         MediaAssetEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class MediaReminderDatabase : RoomDatabase() {
@@ -80,7 +80,7 @@ abstract class MediaReminderDatabase : RoomDatabase() {
          * engine's manifest `sourceSchemaVersion` field, which needs the
          * value at runtime, not just at annotation-processing time.
          */
-        const val SCHEMA_VERSION = 4
+        const val SCHEMA_VERSION = 5
 
         private const val DATABASE_NAME = "media_reminder.db"
 
@@ -106,7 +106,7 @@ abstract class MediaReminderDatabase : RoomDatabase() {
             database = Room
                 .databaseBuilder(context, MediaReminderDatabase::class.java, DATABASE_NAME)
                 .addCallback(callback)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
             return database
         }

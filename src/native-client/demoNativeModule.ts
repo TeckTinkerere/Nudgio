@@ -39,6 +39,7 @@ import type {
   MediaDetail,
   MediaKind,
   MediaQuery,
+  MediaSourceToken,
   MediaSummary,
   MutationResult,
   Page,
@@ -288,9 +289,10 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
     beginMediaImport: async (request: ImportRequest): Promise<MediaDetail> => {
       const now = new Date().toISOString() as Instant;
       const kind = kindFromMimeType(request.mimeType);
+      const id = randomId();
 
       const asset: MediaDetail = {
-        id: randomId(),
+        id,
         kind,
         title: request.displayName?.replace(/\.[^.]+$/, '') || `Imported ${kind}`,
         notes: undefined,
@@ -304,6 +306,7 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
         createdAt: now,
         updatedAt: now,
         entityVersion: 1,
+        sourceToken: `demo://media/${id}` as MediaSourceToken,
       };
 
       media.set(asset.id, asset);

@@ -93,6 +93,18 @@ data class MediaAssetEntity(
 
     @ColumnInfo(name = "entity_version", defaultValue = "1")
     val entityVersion: Int = 1,
+
+    /**
+     * Opaque `<id>.webp` filename under [com.aslam.mediareminder.media.MediaStorage.thumbnailsDir],
+     * or null when generation failed or the kind has nothing to depict (text,
+     * art-less audio). MR-09: "Derived thumbnails are WebP cache and may be
+     * cleared at any time" — this column can point at a file the OS has since
+     * reclaimed; [com.aslam.mediareminder.media.MediaDtoWriter] does not
+     * re-check existence on every read (that cost belongs at render time,
+     * where `MediaCard` already has a broken-image fallback).
+     */
+    @ColumnInfo(name = "thumbnail_path")
+    val thumbnailPath: String? = null,
 ) {
     companion object {
         const val KIND_VIDEO = "video"

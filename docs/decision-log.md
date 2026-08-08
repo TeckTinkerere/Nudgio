@@ -1483,3 +1483,105 @@ a leftover to clean up — its schedule now reconciles correctly on the next
 `SchedulerCoordinator` call. No migration needed: `seedIfAbsent` heals any
 existing install the first time it reconciles after this build, regardless of
 whether that install ever got past this bug before.
+
+## DL-057 — real thumbnails, in-place preview playback, and the Library two-pane layout
+
+**Date:** 2026-08-08
+**Context:** A full Material 3 visual redesign pass across every screen was
+requested ("should NOT look like a student project" — Material 3, rounded
+cards, smooth animations, adaptive tablet/landscape layout, accessible, dark
+mode). The design-system audit that preceded this work found the token/theme/
+component layer already mature (light/dark/Material You, full type/spacing/
+radius/elevation/motion scales, heavy accessibility instrumentation) — the
+real gaps were: almost nothing in the app animates (one hand-rolled
+`Animated` case, no library), no media item has ever had a real thumbnail
+(`MediaCard` already renders `thumbnailUri` via `<Image>`, but nothing
+populated it), Media Detail's "Play preview" button was a literal no-op, and
+no true two-pane tablet layout existed despite the width-class/rail-nav infra
+it would sit on already being there. Clarified with the user: thumbnails
+must be real (extracted video frame / the image itself / embedded audio art),
+not generated placeholders, and the Library needed in-place preview playback.
+**Decision:**
+- Added `react-native-reanimated` 4.5.3 + `react-native-worklets` 0.11.3 (the
+  separate worklets-transform package Reanimated 4 delegates to; both
+  packages' peer ranges target exactly this app's RN 0.86) and
+  `react-native-video` 6.19.2, local-file playback only. `babel.config.js`
+  gained the `react-native-reanimated/plugin` (a thin re-export of
+  `react-native-worklets/plugin`), must stay last. Jest needed both a
+  `resolver: 'react-native-worklets/jest/resolver.js'` (native-only file
+  extensions confuse Jest's module resolution otherwise) and the standard
+  `jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'))`.
+  `react-native-video`'s own manifest declares no permissions, but its
+  ExoPlayer dependency injected `ACCESS_NETWORK_STATE` into the merged
+  manifest — stripped via `tools:node="remove"` in
+  `AndroidManifest.xml` (this app only ever plays local `file://` sources)
+  so the release manifest's verified permission set stays exactly what it
+  was (MR-06 "no network access" — re-checked via
+  `./gradlew :app:processReleaseManifest`, still 8 permissions, no
+  `INTERNET`, and now no `ACCESS_NETWORK_STATE` either).
+- Native thumbnail generation: new `MediaThumbnailer.kt`, called from
+  `MediaImporter.import()` right after `MediaProbe` (which had an explicit
+  comment deferring this). Video gets a real decoded frame
+  (`MediaMetadataRetriever.getFrameAtTime`, ~1s in or 10% of duration for
+  short clips); image gets the source image itself, downscaled; audio gets
+  embedded cover art if the file actually has any, otherwise no thumbnail —
+  never a fabricated image, matching `MediaDtoWriter`'s existing "omit
+  honestly" policy for `category`/`tags`. Pure math
+  (`sampleSizeFor`/`scaledDimensions`/`frameTimestampUs`) split into
+  `data/media/ThumbnailMath.kt` with real JVM tests, the same
+  `MediaProbe`-vs-`MediaKinds` split this codebase already uses everywhere
+  else for Android-framework-dependent code. `media_assets.thumbnail_path`
+  (`MIGRATION_4_5`) stores just the opaque `<id>.webp` filename, resolved
+  against `MediaStorage.thumbnailsDir()` — **`context.cacheDir`, not
+  `filesDir`**, per MR-09 "Derived thumbnails are WebP cache and may be
+  cleared at any time." Generation failure is caught and non-fatal (MR-05:
+  "thumbnail failure does not invalidate the source asset").
+- Wire contract: MR-08 is explicit that DTOs never carry "Android URIs" and
+  that `thumbnailToken` is "opaque... consumed by an image provider." Rather
+  than adding a raw `thumbnailUri: string` field (which would violate that
+  principle) or building a genuine native image-provider indirection (a
+  custom Fresco scheme handler — real native UI-pipeline surgery,
+  disproportionate here), the opaqueness is enforced structurally exactly
+  the way `types.ts`'s own header comment already says this contract does it
+  elsewhere: `ThumbnailToken`/`MediaSourceToken` are TypeScript brands whose
+  *runtime* value is a `file://` URI into this app's private storage (safe —
+  Android resolves `file://` for an app's own files with no permission or
+  content-provider indirection needed, and the value never leaves the
+  process), but nothing in the codebase may treat one as a plain string
+  except `src/native-client/mediaTokens.ts`'s two adapter functions — the
+  "image provider" the spec describes. `MediaCard`/`MediaPreviewPlayer`
+  themselves stay generic, taking a plain `uri` prop exactly as before;
+  every *screen* is the one narrow place that calls the adapter.
+- `MediaPreviewPlayer` (`features/library/`) is a full-screen `Modal`
+  wrapping `react-native-video` with `controls` (the platform/ExoPlayer
+  transport UI) rather than a hand-built scrubber — proportionate given the
+  scope already in this slice. Always black/white regardless of app theme,
+  the same reasoning `MediaCard`'s existing high-contrast scrim comment
+  documents (an immersive media surface, not a themed dialog). Used by both
+  the Library grid's new play affordance and Media Detail's previously-dead
+  "Play preview" button.
+- `MediaDetailScreen` was split into `MediaDetailContent` (all the actual
+  content/logic) plus a thin route-level wrapper, so the identical content
+  can render twice: pushed full-screen (compact width) and embedded as
+  `LibraryScreen`'s right-hand pane (medium/expanded width, `useResponsive()
+  .navigation === 'rail'`) — implementing
+  `specs/Markdown/04_Visual_Design_System.md`'s "Medium: ... two-pane Library
+  detail" line for real, on the one screen the spec's responsive table
+  actually names. `onBack` being present or absent is what tells the
+  component which mode it's in (an embedded pane renders no back button —
+  the grid beside it is the way back).
+- `LibraryScreen`'s own loading/error/importing/empty/populated branching
+  was extracted to `LibraryGridBody` before adding the two-pane split — the
+  code-health hook flagged the screen's cognitive complexity the moment the
+  two-pane `if` was added on top of the existing state chain, the same
+  "extract when a screen's own concerns get crowded" rule DL-055 already
+  established.
+**Consequence:** `./gradlew test`/`assembleDebug` green (new
+`ThumbnailMathTest` cases included), release-manifest check green,
+`npm run verify` green. **Not yet verified on a physical device for this
+slice** — the device was connected earlier in the session but disconnected
+before this slice could be installed; every change here is behind a
+compile-time check or a unit test, not an on-screen look, until that happens.
+Screens beyond Library/Media Detail (Home, Reminders, Reminder Details,
+Create Reminder, Settings, Backup, Import, Statistics, About) are tracked
+separately in `TODO.md` as the remaining part of the same redesign request.

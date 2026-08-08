@@ -6,12 +6,22 @@
  * already encodes 2/3/4 by width class), search, kind/missing filter chips,
  * category chips and sort, all driving `useMediaList`'s `MediaQuery` so
  * filtering happens once, in the query layer, not scattered across render.
+ *
+ * At medium/expanded width (`useResponsive().navigation === 'rail'`) this
+ * renders a true two-pane layout — grid on the left, a persistent detail
+ * pane (`MediaDetailContent`, embedded rather than pushed) on the right —
+ * per `specs/Markdown/04_Visual_Design_System.md` "Responsive behavior":
+ * "Medium: Navigation rail, two-pane Library detail." At compact width,
+ * tapping a card still pushes `MediaDetailScreen` as its own screen.
  */
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useCallback, useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
+import {LibraryGridBody} from './LibraryGridBody';
+import {MediaDetailContent} from './MediaDetailContent';
+import {MediaPreviewPlayer} from './MediaPreviewPlayer';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
@@ -19,21 +29,15 @@ import {
   Chip,
   Dialog,
   EmptyState,
-  ErrorState,
-  LoadingState,
   MediaCard,
-  ProgressBar,
   Screen,
   Stack,
   Text,
   TextField,
-  VirtualizedList,
   useResponsive,
 } from '../../design-system';
 import {
   importErrorCopy,
-  importPhaseLabelKey,
-  importProgressFraction,
   STORAGE_INSUFFICIENT_MIN_MB,
   useImportMedia,
   useMediaList,
@@ -44,6 +48,7 @@ import {
   type TranslationKey,
 } from '../../localization';
 import {mockCategories} from '../../mocks/fixtures';
+import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import type {MediaKind, MediaQuery, MediaSummary, UUID} from '../../native-client/types';
 import {formatDurationAccessible, formatDurationCompact} from '../../utils';
 
@@ -73,16 +78,23 @@ const KIND_LABEL_KEY: Record<MediaKind, TranslationKey> = {
   text: 'library.kind.text',
 };
 
+/** Only these two kinds have anything `MediaPreviewPlayer` can play. */
+const isPlayableKind = (kind: MediaKind): kind is 'video' | 'audio' =>
+  kind === 'video' || kind === 'audio';
+
 export function LibraryScreen() {
   const t = useTranslation();
   const navigation = useNavigation<Navigation>();
-  const {mediaGridColumns} = useResponsive();
+  const {mediaGridColumns, navigation: navTreatment} = useResponsive();
   const importMedia = useImportMedia();
+  const isTwoPane = navTreatment === 'rail';
 
   const [search, setSearch] = useState('');
   const [activeKind, setActiveKind] = useState<KindFilter | null>(null);
   const [activeCategoryId, setActiveCategoryId] = useState<UUID | null>(null);
   const [sort, setSort] = useState<NonNullable<MediaQuery['sort']>>('recent');
+  const [previewItem, setPreviewItem] = useState<MediaSummary | null>(null);
+  const [selectedMediaId, setSelectedMediaId] = useState<UUID | null>(null);
 
   const query = useMemo<MediaQuery>(
     () => ({
@@ -99,6 +111,17 @@ export function LibraryScreen() {
 
   const media = useMediaList(query);
 
+  const openItem = useCallback(
+    (item: MediaSummary) => {
+      if (isTwoPane) {
+        setSelectedMediaId(item.id);
+      } else {
+        navigation.navigate(rootRoutes.mediaDetail, {mediaId: item.id});
+      }
+    },
+    [isTwoPane, navigation],
+  );
+
   const renderItem = useCallback(
     ({item}: {item: MediaSummary}) => (
       <View style={styles.gridCell}>
@@ -106,6 +129,7 @@ export function LibraryScreen() {
           title={item.title}
           kind={item.kind}
           kindLabel={t(KIND_LABEL_KEY[item.kind])}
+          thumbnailUri={thumbnailImageSource(item.thumbnailToken)?.uri}
           durationLabel={item.durationMs ? formatDurationCompact(item.durationMs) : undefined}
           durationAccessibleLabel={
             item.durationMs ? formatDurationAccessible(item.durationMs, formatEnglishUnit) : undefined
@@ -118,21 +142,24 @@ export function LibraryScreen() {
           }
           isMissing={item.integrity === 'missing'}
           missingLabel={t('library.integrity.missing')}
-          onPress={() => navigation.navigate(rootRoutes.mediaDetail, {mediaId: item.id})}
+          onPress={() => openItem(item)}
+          onPlayPress={isPlayableKind(item.kind) ? () => setPreviewItem(item) : undefined}
+          playLabel={t('library.player.play', {title: item.title})}
         />
       </View>
     ),
-    [navigation, t],
+    [openItem, t],
   );
 
-  // No `hasAppBar` below: that prop means "an AppBar already consumed the top
-  // inset", and this screen deliberately has no AppBar — its title is an
-  // inline large heading that scrolls with the content, the same pattern
-  // TodayScreen uses. Passing it set `paddingTop: 0`, so nothing consumed
-  // `insets.top` and the heading drew underneath the status bar and camera
-  // cutout (confirmed on a 720x1600 device: the title overlapped the clock).
-  return (
-    <Screen edgeToEdge testID={testIds.library.screen}>
+  const gridPane = (
+    <>
+      {/* No `hasAppBar` below: that prop means "an AppBar already consumed
+      the top inset", and this screen deliberately has no AppBar — its title
+      is an inline large heading that scrolls with the content, the same
+      pattern TodayScreen uses. Passing it set `paddingTop: 0`, so nothing
+      consumed `insets.top` and the heading drew underneath the status bar
+      and camera cutout (confirmed on a 720x1600 device: the title
+      overlapped the clock). */}
       <Stack gap="xs" paddingHorizontal="md" paddingVertical="sm">
         <Text variant="headlineMedium" isHeading>
           {t('library.title')}
@@ -185,40 +212,36 @@ export function LibraryScreen() {
         </Stack>
       </Stack>
 
-      {/* `isPending`, not `isLoading` — see TodayScreen for why. */}
-      {media.isPending ? (
-        <LoadingState label={t('loading.startingUp')} />
-      ) : media.isError ? (
-        <ErrorState
-          title={t('error.unexpected.title')}
-          effect={t('error.unexpected.effect')}
-          recoveryAction={{label: t('action.retry'), onPress: () => media.refetch()}}
-          diagnosticCode={media.error.correlationId}
-        />
-      ) : importMedia.isImporting ? (
-        <ProgressBar
-          progress={importProgressFraction(importMedia.progress)}
-          label={t(importPhaseLabelKey(importMedia.progress?.phase) ?? 'library.import.copying')}
-        />
-      ) : media.data.items.length === 0 ? (
-        <EmptyState
-          icon="library"
-          title={t('today.empty.title')}
-          body={t('today.empty.body')}
-          action={{label: t('today.empty.importMedia'), onPress: () => importMedia.importMedia()}}
-        />
+      <LibraryGridBody
+        media={media}
+        importMedia={importMedia}
+        mediaGridColumns={mediaGridColumns}
+        renderItem={renderItem}
+      />
+    </>
+  );
+
+  return (
+    <Screen edgeToEdge testID={testIds.library.screen}>
+      {isTwoPane ? (
+        <Stack direction="row" gap="sm" flex={1}>
+          <View style={styles.gridPane}>{gridPane}</View>
+          <View style={styles.detailPane}>
+            {selectedMediaId ? (
+              <MediaDetailContent mediaId={selectedMediaId} />
+            ) : (
+              <EmptyState
+                icon="library"
+                title={t('library.detail.emptySelectionTitle')}
+                body={t('library.detail.emptySelectionBody')}
+              />
+            )}
+          </View>
+        </Stack>
       ) : (
-        <VirtualizedList
-          key={mediaGridColumns}
-          testID={testIds.library.grid}
-          data={media.data.items}
-          keyExtractor={item => item.id}
-          renderItem={renderItem}
-          numColumns={mediaGridColumns}
-          showSeparators={false}
-          horizontalPadding="xs"
-        />
+        gridPane
       )}
+
       {importMedia.error ? (
         <Dialog
           visible
@@ -232,10 +255,23 @@ export function LibraryScreen() {
           cancel={{label: t('action.close'), onPress: () => importMedia.reset()}}
         />
       ) : null}
+      {previewItem && isPlayableKind(previewItem.kind) ? (
+        <MediaPreviewPlayer
+          visible
+          onDismiss={() => setPreviewItem(null)}
+          title={previewItem.title}
+          sourceToken={previewItem.sourceToken}
+          kind={previewItem.kind}
+          closeLabel={t('library.player.close')}
+          loadErrorLabel={t('library.player.loadError')}
+        />
+      ) : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   gridCell: {flex: 1, padding: 4},
+  gridPane: {flex: 5},
+  detailPane: {flex: 4},
 });
