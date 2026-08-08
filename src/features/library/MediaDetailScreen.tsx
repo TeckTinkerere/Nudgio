@@ -7,15 +7,21 @@
  * item, Delete." Deleting shows dependency-aware copy with the destructive
  * button last (MR-03 "Error and recovery pattern" / Dialog conventions).
  *
- * Data source: mock fixtures via `findMockMedia` for now — this screen has
- * no corresponding bridge query yet (`getMedia` rejects on a real device;
- * the demo module answers it, see `native-client/demoNativeModule.ts`).
+ * Data source: real, Room-backed (`useMediaDetail`/`getMedia`) — a previous
+ * revision used `findMockMedia`, which could never resolve a real imported
+ * item's UUID, so opening this screen from a real Library grid always showed
+ * "not found." "Attached reminders" filters the real reminder list client-
+ * side by `mediaId`; MR-09 does not anticipate enough reminders per medium to
+ * need a dedicated indexed query for this.
  */
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useState} from 'react';
 import {StyleSheet} from 'react-native';
 
+import {RenameMediaDialog} from './RenameMediaDialog';
+import {useMediaDetail} from './useMediaDetail';
 import type {RootStackParamList} from '../../app/navigation/types';
+import {rootRoutes} from '../../constants/routes';
 import {
   AppBar,
   Button,
@@ -23,15 +29,15 @@ import {
   Chip,
   Dialog,
   EmptyState,
+  LoadingState,
   Screen,
   Stack,
   StatusPill,
   Text,
 } from '../../design-system';
 import type {StatusKind} from '../../design-system';
-import {useHaptics} from '../../hooks';
+import {useHaptics, useReminderList} from '../../hooks';
 import {useTranslation, type TranslationKey} from '../../localization';
-import {findMockMedia, mockReminders} from '../../mocks/fixtures';
 import type {IntegrityState, MediaKind} from '../../native-client/types';
 import {formatBytes, formatDurationCompact} from '../../utils';
 
@@ -55,10 +61,21 @@ const INTEGRITY_STATUS: Record<IntegrityState, StatusKind> = {
 export function MediaDetailScreen({navigation, route}: Props) {
   const t = useTranslation();
   const haptics = useHaptics();
-  const media = findMockMedia(route.params.mediaId);
+  const media = useMediaDetail(route.params.mediaId);
+  const reminders = useReminderList();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
 
-  if (!media) {
+  if (media.isPending) {
+    return (
+      <Screen hasAppBar>
+        <AppBar title={t('library.title')} back={{label: t('action.back'), onPress: () => navigation.goBack()}} />
+        <LoadingState label={t('loading.startingUp')} />
+      </Screen>
+    );
+  }
+
+  if (media.isError || !media.data) {
     return (
       <Screen hasAppBar>
         <AppBar title={t('library.title')} back={{label: t('action.back'), onPress: () => navigation.goBack()}} />
@@ -71,27 +88,28 @@ export function MediaDetailScreen({navigation, route}: Props) {
     );
   }
 
-  const attachedReminders = mockReminders.filter(reminder => reminder.mediaId === media.id);
+  const item = media.data;
+  const attachedReminders = reminders.data?.items.filter(reminder => reminder.mediaId === item.id) ?? [];
 
   return (
     <Screen hasAppBar scrollable>
       <AppBar
-        title={media.title}
+        title={item.title}
         back={{label: t('action.back'), onPress: () => navigation.goBack()}}
       />
 
       <Stack gap="lg" paddingVertical="md">
         <Card padding="none" elevation="level1">
           <Stack
-            style={media.kind === 'video' ? styles.previewWide : styles.previewSquare}
+            style={item.kind === 'video' ? styles.previewWide : styles.previewSquare}
             align="center"
             justify="center">
             <StatusPill
-              kind={INTEGRITY_STATUS[media.integrity]}
+              kind={INTEGRITY_STATUS[item.integrity]}
               label={
-                media.integrity === 'missing'
+                item.integrity === 'missing'
                   ? t('library.integrity.missing')
-                  : t(KIND_LABEL_KEY[media.kind])
+                  : t(KIND_LABEL_KEY[item.kind])
               }
             />
           </Stack>
@@ -99,17 +117,17 @@ export function MediaDetailScreen({navigation, route}: Props) {
 
         <Stack gap="xs">
           <Text variant="headlineMedium" isHeading>
-            {media.title}
+            {item.title}
           </Text>
           <Stack direction="row" gap="xs" wrap>
-            <Chip label={t(KIND_LABEL_KEY[media.kind])} />
-            {media.durationMs ? <Chip label={formatDurationCompact(media.durationMs)} /> : null}
-            <Chip label={formatBytes(media.sizeBytes)} />
-            {media.category ? <Chip label={media.category.name} /> : null}
+            <Chip label={t(KIND_LABEL_KEY[item.kind])} />
+            {item.durationMs ? <Chip label={formatDurationCompact(item.durationMs)} /> : null}
+            <Chip label={formatBytes(item.sizeBytes)} />
+            {item.category ? <Chip label={item.category.name} /> : null}
           </Stack>
-          {media.tags.length > 0 ? (
+          {item.tags.length > 0 ? (
             <Stack direction="row" gap="xxs" wrap>
-              {media.tags.map(tag => (
+              {item.tags.map(tag => (
                 <Chip key={tag.id} label={tag.name} />
               ))}
             </Stack>
@@ -118,34 +136,44 @@ export function MediaDetailScreen({navigation, route}: Props) {
 
         <Button
           label={t('library.detail.addReminder')}
-          onPress={() => undefined}
+          onPress={() =>
+            navigation.navigate(rootRoutes.reminderEditor, {reminderId: undefined, mediaId: item.id})
+          }
           icon="add"
           fullWidth
         />
         <Stack direction="row" gap="xs" wrap>
           <Button label={t('library.detail.playPreview')} variant="tonal" icon="play" onPress={() => undefined} />
-          <Button label={t('library.detail.editDetails')} variant="outlined" icon="edit" onPress={() => undefined} />
+          <Button label={t('library.detail.editDetails')} variant="outlined" icon="edit" onPress={() => setRenameOpen(true)} />
           <Button label={t('library.detail.exportItem')} variant="outlined" icon="upload" onPress={() => undefined} />
         </Stack>
 
-        {media.notes ? (
+        {item.notes ? (
           <Stack gap="xxs">
             <Text variant="titleMedium">{t('library.detail.notes')}</Text>
             <Text variant="bodyLarge" tone="variant">
-              {media.notes}
+              {item.notes}
             </Text>
           </Stack>
         ) : null}
 
         <Stack gap="xxs">
           <Text variant="titleMedium">{t('library.detail.attachedReminders')}</Text>
-          {attachedReminders.length === 0 ? (
+          {reminders.isPending ? (
+            <Text variant="bodyMedium" tone="variant">
+              {t('loading.startingUp')}
+            </Text>
+          ) : attachedReminders.length === 0 ? (
             <Text variant="bodyMedium" tone="variant">
               {t('library.detail.noAttachedReminders')}
             </Text>
           ) : (
             attachedReminders.map(reminder => (
-              <Card key={reminder.id} onPress={() => undefined}>
+              <Card
+                key={reminder.id}
+                onPress={() =>
+                  navigation.navigate(rootRoutes.reminderDetail, {reminderId: reminder.id})
+                }>
                 <Text variant="titleMedium">{reminder.label}</Text>
                 <Text variant="bodyMedium" tone="variant">
                   {reminder.repeatSummary}
@@ -162,6 +190,12 @@ export function MediaDetailScreen({navigation, route}: Props) {
           onPress={() => setDeleteDialogOpen(true)}
         />
       </Stack>
+
+      <RenameMediaDialog
+        visible={renameOpen}
+        media={item}
+        onDismiss={() => setRenameOpen(false)}
+      />
 
       <Dialog
         visible={deleteDialogOpen}

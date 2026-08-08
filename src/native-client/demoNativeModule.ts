@@ -48,6 +48,7 @@ import type {
   SaveReminderRequest,
   SaveReminderResult,
   ScheduleRuleDto,
+  UpdateMediaRequest,
   StartupSnapshot,
   UUID,
 } from './types';
@@ -307,6 +308,24 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
 
       media.set(asset.id, asset);
       return asset;
+    },
+
+    updateMedia: async (request: UpdateMediaRequest): Promise<MediaDetail> => {
+      const existing = media.get(request.id);
+      if (!existing) {
+        return notFound('demo-updateMedia');
+      }
+      // Same optional-field rule the real Kotlin side documents: an absent
+      // key leaves the field alone, an explicit empty `notes` clears it.
+      const updated: MediaDetail = {
+        ...existing,
+        title: request.title?.trim() || existing.title,
+        notes: 'notes' in request ? request.notes?.trim() || undefined : existing.notes,
+        updatedAt: new Date().toISOString() as Instant,
+        entityVersion: existing.entityVersion + 1,
+      };
+      media.set(updated.id, updated);
+      return updated;
     },
 
     listProfiles: async () => mockProfiles,

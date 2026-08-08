@@ -22,7 +22,11 @@ export type RootStackParamList = {
   [rootRoutes.tabs]: NavigatorScreenParams<TabParamList> | undefined;
   [rootRoutes.mediaDetail]: {readonly mediaId: UUID};
   [rootRoutes.reminderDetail]: {readonly reminderId: UUID};
-  [rootRoutes.reminderEditor]: {readonly reminderId: UUID | undefined};
+  [rootRoutes.reminderEditor]: {
+    readonly reminderId: UUID | undefined;
+    /** Pre-selects this media when creating a new reminder — e.g. arriving from `MediaDetailScreen`'s "Add reminder" (MR-03). Ignored when editing an existing reminder, which already has its own `mediaId`. */
+    readonly mediaId?: UUID;
+  };
   [rootRoutes.health]: undefined;
   [rootRoutes.backup]: undefined;
   [rootRoutes.import]: undefined;

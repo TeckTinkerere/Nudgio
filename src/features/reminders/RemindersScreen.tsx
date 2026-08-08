@@ -9,9 +9,9 @@
  */
 import {useCallback} from 'react';
 
-import {useReminderList} from './useReminderList';
 import {testIds} from '../../constants';
 import {AppBar, EmptyState, ErrorState, ListRow, LoadingState, Screen, Toggle, VirtualizedList} from '../../design-system';
+import {useReminderList} from '../../hooks';
 import {useTranslation} from '../../localization';
 import type {ReminderSummary} from '../../native-client/types';
 

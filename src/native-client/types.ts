@@ -114,6 +114,17 @@ export interface ImportRequest {
   readonly sizeBytes?: ByteCount;
 }
 
+/**
+ * MR-03 "Edit details". `title`/`notes` are each independently optional — an
+ * absent field means "leave this alone," not "clear it." An empty `notes`
+ * clears it; an empty `title` is rejected (MR-09 requires 1-160 characters).
+ */
+export interface UpdateMediaRequest {
+  readonly id: UUID;
+  readonly title?: string;
+  readonly notes?: string;
+}
+
 // --- Reminders (MR-08 "Reminder DTOs") ---------------------------------------
 
 export type ReminderEffectiveState = 'disabled' | 'needs_setup' | 'active' | 'archived';

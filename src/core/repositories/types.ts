@@ -35,6 +35,7 @@ import type {
   SaveReminderResult,
   TestMode,
   TestReminderResult,
+  UpdateMediaRequest,
   UUID,
   StartupSnapshot,
 } from '../../native-client/types';
@@ -51,9 +52,11 @@ export interface StartupRepository {
 
 export interface MediaRepository {
   list(query: MediaQuery): Promise<Result<Page<MediaSummary>, AppError>>;
+  get(id: UUID): Promise<Result<MediaDetail, AppError>>;
   /** `ok(null)`, not an error, when the user backed out of the picker with no selection. */
   pickDocument(mimeTypes: readonly string[]): Promise<Result<PickedDocument | null, AppError>>;
   beginImport(request: ImportRequest): Promise<Result<MediaDetail, AppError>>;
+  update(request: UpdateMediaRequest): Promise<Result<MediaDetail, AppError>>;
   /**
    * Cancels an in-flight `beginImport`. Not `BackupRepository`'s own method
    * reused across a domain boundary — `cancelOperation` is one generic

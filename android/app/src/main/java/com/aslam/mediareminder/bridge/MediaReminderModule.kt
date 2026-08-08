@@ -390,9 +390,33 @@ class MediaReminderModule(
         }
     }
 
+    /** MR-03 "Edit details": rename and/or edit notes for an existing media item. */
     @ReactMethod
-    fun updateMedia(request: ReadableMap, promise: Promise) =
-        NativeErrorEnvelope.rejectNotImplemented(promise, "updateMedia")
+    fun updateMedia(request: ReadableMap, promise: Promise) {
+        moduleScope.launch {
+            runCatching { mediaLibrary.updateMedia(request) }
+                .onSuccess { outcome ->
+                    when (outcome) {
+                        is MediaLibraryService.UpdateMediaOutcome.Success -> promise.resolve(outcome.detail)
+                        is MediaLibraryService.UpdateMediaOutcome.NotFound -> NativeErrorEnvelope.reject(
+                            promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
+                            NativeErrorEnvelope.Category.MEDIA, field = "id",
+                        )
+                        is MediaLibraryService.UpdateMediaOutcome.Invalid -> NativeErrorEnvelope.reject(
+                            promise, "MR_VALIDATION_FAILED", "error.validationFailed",
+                            NativeErrorEnvelope.Category.VALIDATION, field = outcome.field,
+                        )
+                        // A stale-version race on a single-user rename dialog is
+                        // vanishingly rare and not user-actionable beyond "try
+                        // again" — failed-safe, not a bespoke conflict code.
+                        is MediaLibraryService.UpdateMediaOutcome.Conflict -> failSafe(
+                            promise, IllegalStateException("media entity_version conflict"), "updateMedia",
+                        )
+                    }
+                }
+                .onFailure { failSafe(promise, it, "updateMedia") }
+        }
+    }
 
     @ReactMethod
     fun deleteMedia(request: ReadableMap, promise: Promise) =

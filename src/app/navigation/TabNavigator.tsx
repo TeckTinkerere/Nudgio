@@ -5,19 +5,42 @@
  * a bottom bar. `useResponsive().navigation` decides that; this component
  * only renders the tab *set*, and `AppTabBar`/`AppNavigationRail` (rendered by
  * the navigator's `tabBar` override) decide the chrome.
+ *
+ * Also owns the global "Add" FAB (MR-03: "A floating action button labeled
+ * Add opens a modal action sheet with Import media, Create reminder...").
+ * Mounted once here rather than duplicated on Today/Library/Reminders: it is
+ * chrome, visible across every tab, not a per-screen affordance, and a single
+ * `useImportMedia()` instance means its progress/error state has exactly one
+ * source of truth regardless of which tab is focused when an import
+ * finishes. `TabNavigator` is registered as a plain `Stack.Screen` in
+ * `RootNavigator`, so it already receives root-stack `navigation` as a prop —
+ * used for "Create reminder" — without needing `useNavigation()` to resolve
+ * through the nested `Tab.Navigator`'s own context.
  */
 import type {BottomTabBarProps} from '@react-navigation/bottom-tabs';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
-import {useMemo} from 'react';
+import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useMemo, useState} from 'react';
+import {StyleSheet, View} from 'react-native';
 import {SafeAreaInsetsContext, useSafeAreaInsets} from 'react-native-safe-area-context';
 
+import {AddActionSheet} from './AddActionSheet';
 import {AppTabBar} from './AppTabBar';
-import type {TabParamList} from './types';
-import {tabRoutes} from '../../constants/routes';
+import type {RootStackParamList, TabParamList} from './types';
+import {rootRoutes, tabRoutes} from '../../constants/routes';
+import {Dialog, FAB, ProgressBar, useTheme} from '../../design-system';
 import {LibraryScreen} from '../../features/library/LibraryScreen';
 import {RemindersScreen} from '../../features/reminders/RemindersScreen';
 import {SettingsScreen} from '../../features/settings/SettingsScreen';
 import {TodayScreen} from '../../features/today/TodayScreen';
+import {
+  importErrorCopy,
+  importPhaseLabelKey,
+  importProgressFraction,
+  STORAGE_INSUFFICIENT_MIN_MB,
+  useImportMedia,
+} from '../../hooks';
+import {useTranslation} from '../../localization';
 
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -60,16 +83,96 @@ const renderScreenLayout = ({children}: {readonly children: React.ReactElement})
   <TabScreenInsets>{children}</TabScreenInsets>
 );
 
-export function TabNavigator() {
+type Props = NativeStackScreenProps<RootStackParamList, 'Tabs'>;
+
+/**
+ * Fixed offset above the tab bar's bottom edge, not a measured one:
+ * `AppTabBar`'s real height depends on font scale and bar-vs-rail treatment,
+ * and measuring it would mean threading an `onLayout` callback through a
+ * render-prop the navigator itself owns. 88 dp is Material 3's standard
+ * bottom-nav height (`64` content + `24` for label/padding headroom) plus a
+ * small margin — verified against the rendered bar on a physical device
+ * (2026-08-08); revisit if `AppTabBar`'s own height token changes.
+ */
+const FAB_BOTTOM_OFFSET = 88;
+
+export function TabNavigator({navigation}: Props) {
+  const t = useTranslation();
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const importMedia = useImportMedia();
+  const [addSheetOpen, setAddSheetOpen] = useState(false);
+
   return (
-    <Tab.Navigator
-      screenOptions={{headerShown: false}}
-      tabBar={renderTabBar}
-      screenLayout={renderScreenLayout}>
-      <Tab.Screen name={tabRoutes.today} component={TodayScreen} />
-      <Tab.Screen name={tabRoutes.library} component={LibraryScreen} />
-      <Tab.Screen name={tabRoutes.reminders} component={RemindersScreen} />
-      <Tab.Screen name={tabRoutes.settings} component={SettingsScreen} />
-    </Tab.Navigator>
+    <View style={styles.fill}>
+      <Tab.Navigator
+        screenOptions={{headerShown: false}}
+        tabBar={renderTabBar}
+        screenLayout={renderScreenLayout}>
+        <Tab.Screen name={tabRoutes.today} component={TodayScreen} />
+        <Tab.Screen name={tabRoutes.library} component={LibraryScreen} />
+        <Tab.Screen name={tabRoutes.reminders} component={RemindersScreen} />
+        <Tab.Screen name={tabRoutes.settings} component={SettingsScreen} />
+      </Tab.Navigator>
+
+      {importMedia.isImporting ? (
+        <View
+          style={[
+            styles.progressOverlay,
+            {
+              right: 0,
+              left: 0,
+              bottom: FAB_BOTTOM_OFFSET + insets.bottom,
+              paddingHorizontal: theme.spacing.md,
+            },
+          ]}
+          pointerEvents="none">
+          <ProgressBar
+            progress={importProgressFraction(importMedia.progress)}
+            label={t(importPhaseLabelKey(importMedia.progress?.phase) ?? 'library.import.copying')}
+          />
+        </View>
+      ) : (
+        <FAB
+          testID="add-fab"
+          icon="add"
+          label={t('nav.add')}
+          onPress={() => setAddSheetOpen(true)}
+          bottomOffset={FAB_BOTTOM_OFFSET + insets.bottom}
+        />
+      )}
+
+      <AddActionSheet
+        visible={addSheetOpen}
+        onDismiss={() => setAddSheetOpen(false)}
+        onImportMedia={() => {
+          setAddSheetOpen(false);
+          importMedia.importMedia();
+        }}
+        onCreateReminder={() => {
+          setAddSheetOpen(false);
+          navigation.navigate(rootRoutes.reminderEditor, {reminderId: undefined});
+        }}
+      />
+
+      {importMedia.error ? (
+        <Dialog
+          visible
+          title={t(importErrorCopy(importMedia.error).titleKey)}
+          body={t(
+            importErrorCopy(importMedia.error).bodyKey,
+            importErrorCopy(importMedia.error).bodyKey === 'library.import.errorInsufficientSpace'
+              ? {megabytes: STORAGE_INSUFFICIENT_MIN_MB}
+              : undefined,
+          )}
+          cancel={{label: t('action.close'), onPress: () => importMedia.reset()}}
+        />
+      ) : null}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  fill: {flex: 1},
+  progressOverlay: {position: 'absolute'},
+});

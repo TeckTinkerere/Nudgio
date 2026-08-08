@@ -129,6 +129,19 @@ export interface ImportRequestWire {
   readonly sizeBytes?: string;
 }
 
+/**
+ * MR-03 "Edit details". `title`/`notes` are each independently optional —
+ * an absent key means "leave this field alone," not "clear it," so renaming
+ * never requires re-sending the existing notes (and vice versa). An empty
+ * string *is* a meaningful value for `notes` (clears it) but not for `title`
+ * (MR-09 requires 1-160 characters; native rejects a blank title).
+ */
+export interface UpdateMediaRequestWire {
+  readonly id: string;
+  readonly title?: string;
+  readonly notes?: string;
+}
+
 // --- Reminders ------------------------------------------------------------------
 
 /**
@@ -398,10 +411,11 @@ export interface PreferencePatchWire {
  * is implemented as of the recurrence-engine slice (docs/decision-log.md
  * DL-005 onward); the backup group (`beginExport` through `cancelOperation`)
  * is implemented as of the backup-engine slice (DL-025 onward); the media
- * library's read side (`listMedia`/`getMedia`) and import
- * (`pickDocument`/`beginMediaImport`) are implemented as of DL-053 and this
- * slice — see `MediaReminderModule.kt` and `android/.../media/`.
- * `updateMedia`/`deleteMedia` remain declared-but-unimplemented.
+ * library's read side (`listMedia`/`getMedia`), import
+ * (`pickDocument`/`beginMediaImport`) and rename (`updateMedia`) are
+ * implemented as of DL-053/DL-054 and this slice — see
+ * `MediaReminderModule.kt` and `android/.../media/`. `deleteMedia` remains
+ * declared-but-unimplemented.
  */
 export interface Spec extends TurboModule {
   // --- Implemented in the foundation ---------------------------------------
@@ -464,8 +478,10 @@ export interface Spec extends TurboModule {
    */
   beginMediaImport(request: ImportRequestWire): Promise<MediaDetailWire>;
 
+  /** MR-03 "Edit details" — see `UpdateMediaRequestWire`'s doc for the optional-field rules. */
+  updateMedia(request: UpdateMediaRequestWire): Promise<MediaDetailWire>;
+
   // --- Declared contract, not yet implemented --------------------------------
-  updateMedia(request: Object): Promise<MediaDetailWire>;
   deleteMedia(request: Object): Promise<MutationResultWire>;
 
   saveProfile(request: Object): Promise<ReminderProfileWire>;

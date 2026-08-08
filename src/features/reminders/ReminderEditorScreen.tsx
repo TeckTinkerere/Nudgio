@@ -21,6 +21,7 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useMemo, useState} from 'react';
 import {StyleSheet} from 'react-native';
 
+import {MediaPickerSheet, MEDIA_KIND_ICON} from './MediaPickerSheet';
 import {NumberStepper} from './NumberStepper';
 import {TimePicker, type TimeOfDayValue} from './TimePicker';
 import {useSaveReminder} from './useSaveReminder';
@@ -36,7 +37,6 @@ import {
   Icon,
   RadioCard,
   Screen,
-  Sheet,
   Stack,
   StatusPill,
   Text,
@@ -44,8 +44,9 @@ import {
   Toggle,
   WeekdaySelector,
 } from '../../design-system';
+import {useMediaList} from '../../hooks';
 import {useTranslation, type TranslationKey} from '../../localization';
-import {findMockMedia, findMockReminder, mockMedia} from '../../mocks/fixtures';
+import {findMockReminder} from '../../mocks/fixtures';
 import {mockProfiles} from '../../native-client';
 import {isBuiltInProfileNameKey} from '../../native-client/reminderProfileNameKeys';
 import type {Instant, LocalDate, LocalTime, ScheduleRuleDto, ZoneId} from '../../native-client/types';
@@ -127,8 +128,16 @@ export function ReminderEditorScreen({navigation, route}: Props) {
   const isNew = existing === undefined;
   const saveReminder = useSaveReminder();
 
-  const [mediaId, setMediaId] = useState(existing?.mediaId ?? mockMedia[0]?.id);
+  // No mock fallback: an unset `mediaId` correctly leaves `isValid` false
+  // (below) until the user picks a real item, rather than silently pointing
+  // a saved reminder at a fixture id that does not exist in Room.
+  const [mediaId, setMediaId] = useState(existing?.mediaId ?? route.params.mediaId);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // MR-09 anticipates a large library; a plain, unpaginated Sheet list (see
+  // the Sheet below) is a known v1 scale limit shared with `mockMedia`'s
+  // previous placeholder — 200 covers real usage today without yet building
+  // a dedicated searchable full-screen picker route.
+  const mediaList = useMediaList({sort: 'recent', limit: 200});
   const [label, setLabel] = useState(existing?.label ?? '');
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [repeatType, setRepeatType] = useState<RepeatType>(existing?.schedule.type ?? 'daily');
@@ -144,7 +153,9 @@ export function ReminderEditorScreen({navigation, route}: Props) {
   const [historyEnabled, setHistoryEnabled] = useState(existing?.historyEnabled ?? true);
   const [labelTouched, setLabelTouched] = useState(false);
 
-  const selectedMedia = mediaId ? findMockMedia(mediaId) : undefined;
+  const selectedMedia = mediaId
+    ? mediaList.data?.items.find(item => item.id === mediaId)
+    : undefined;
 
   /**
    * The authoritative `ScheduleRuleDto` for the current form state. MR-08:
@@ -268,7 +279,7 @@ export function ReminderEditorScreen({navigation, route}: Props) {
           {selectedMedia ? (
             <Card onPress={() => setPickerOpen(true)}>
               <Stack direction="row" align="center" gap="sm">
-                <Icon name="video" />
+                <Icon name={MEDIA_KIND_ICON[selectedMedia.kind]} />
                 <Stack style={styles.flexFill} gap={2}>
                   <Text variant="titleMedium">{selectedMedia.title}</Text>
                   <Text variant="labelMedium" tone="variant">
@@ -484,30 +495,17 @@ export function ReminderEditorScreen({navigation, route}: Props) {
         />
       </Stack>
 
-      <Sheet
+      <MediaPickerSheet
         visible={pickerOpen}
         onDismiss={() => setPickerOpen(false)}
-        title={t('reminders.editor.chooseMedia')}
-        closeLabel={t('action.close')}>
-        {/*
-          Plain map, not `VirtualizedList`: `Sheet`'s body is already a
-          `ScrollView`, and React Native warns (and pays a real perf cost)
-          when a `FlatList` is nested inside one. The mock media catalog is
-          small and bounded; a production picker at library scale would be
-          its own full-screen searchable route, not a sheet.
-        */}
-        {mockMedia.map(item => (
-          <Card
-            key={item.id}
-            onPress={() => {
-              setMediaId(item.id);
-              setPickerOpen(false);
-            }}
-            selected={item.id === mediaId}>
-            <Text variant="titleMedium">{item.title}</Text>
-          </Card>
-        ))}
-      </Sheet>
+        items={mediaList.data?.items}
+        isPending={mediaList.isPending}
+        selectedId={mediaId}
+        onSelect={id => {
+          setMediaId(id);
+          setPickerOpen(false);
+        }}
+      />
     </Screen>
   );
 }
