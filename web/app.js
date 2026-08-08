@@ -305,6 +305,10 @@
       rafId = requestAnimationFrame(frame);
     }
 
+    // Fires the pulse on demand from the console, for testing without
+    // waiting for a real even-minute mark: __triggerAlarmPulse()
+    window.__triggerAlarmPulse = triggerPulse;
+
     function msUntilNextEvenMinute() {
       var d = new Date();
       var next = new Date(d);
