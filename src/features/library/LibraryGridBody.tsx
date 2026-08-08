@@ -18,9 +18,19 @@ export interface LibraryGridBodyProps {
   readonly importMedia: ReturnType<typeof useImportMedia>;
   readonly mediaGridColumns: number;
   readonly renderItem: ListRenderItem<MediaSummary>;
+  /** Whether search/kind/category narrowed the query — decides which empty copy applies. */
+  readonly isFiltered: boolean;
+  readonly onClearFilters: () => void;
 }
 
-export function LibraryGridBody({media, importMedia, mediaGridColumns, renderItem}: LibraryGridBodyProps) {
+export function LibraryGridBody({
+  media,
+  importMedia,
+  mediaGridColumns,
+  renderItem,
+  isFiltered,
+  onClearFilters,
+}: LibraryGridBodyProps) {
   const t = useTranslation();
 
   // `isPending`, not `isLoading` — see TodayScreen for why.
@@ -46,11 +56,26 @@ export function LibraryGridBody({media, importMedia, mediaGridColumns, renderIte
     );
   }
   if (media.data.items.length === 0) {
-    return (
+    /*
+     * An empty result set has two distinct causes: a genuinely empty
+     * library (first-run — the real fix is to import something) versus a
+     * search/kind/category filter that matched nothing (recoverable by
+     * clearing the filter, not by importing more media).
+     */
+    return isFiltered ? (
       <EmptyState
+        testID={testIds.library.emptyState}
         icon="library"
-        title={t('today.empty.title')}
-        body={t('today.empty.body')}
+        title={t('library.empty.filtered.title')}
+        body={t('library.empty.filtered.body')}
+        action={{label: t('library.empty.filtered.clearFilters'), onPress: onClearFilters}}
+      />
+    ) : (
+      <EmptyState
+        testID={testIds.library.emptyState}
+        icon="library"
+        title={t('library.empty.title')}
+        body={t('library.empty.body')}
         action={{label: t('today.empty.importMedia'), onPress: () => importMedia.importMedia()}}
       />
     );
