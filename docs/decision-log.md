@@ -1441,3 +1441,45 @@ here is behind either a compile-time check (TypeScript route param, Kotlin
 type) or a unit test, but the actual on-screen result — FAB position clearing
 the tab bar, the rename dialog, the picker showing a real imported item — has
 not been looked at.
+
+## DL-056 — `scheduler_state` was never seeded: every reminder save has always crashed post-commit
+
+**Date:** 2026-08-08
+**Context:** On-device verification of DL-055 (FAB → Create reminder → choose
+real media → Save) hit a `bridge.failedSafe method=saveReminder` with
+`IllegalArgumentException: scheduler_state row must exist (seeded at first
+save)`, thrown from `SchedulerCoordinator.applyToAlarmManager`
+(`SchedulerCoordinator.kt:159`). `scheduler_state` is a singleton row
+(`SchedulerStateDao`'s doc comment: "enforced by the DAO only ever upserting
+this row"), but `markDesired` — the only write path ever called before this
+fix — is a bare `UPDATE ... WHERE id = 1`, which silently affects zero rows
+when the row doesn't exist. Nothing in the codebase ever inserted it: no
+`RoomDatabase.Callback.onCreate` seed (unlike `SeedBuiltInProfilesCallback`
+for built-in profiles), no migration default row, and the existing `upsert()`
+method (`OnConflictStrategy.REPLACE`) was never called anywhere. The
+`ReminderMutationService.save()` transaction that inserts the `ReminderEntity`
+row commits successfully *before* `scheduler.reconcile()` runs outside that
+transaction, so the reminder silently persisted in Room on every attempt even
+though the promise always rejected — confirmed on-device: a reminder saved
+under the old build still showed up in the Reminders list after the fix
+shipped, with scheduling never having been registered for it.
+**Decision:** Added `SchedulerStateDao.seedIfAbsent()`
+(`@Insert(onConflict = OnConflictStrategy.IGNORE)`) and call it from
+`SchedulerCoordinator.applyToAlarmManager` immediately before `markDesired()`,
+seeding generation 0 / no desired occurrence if the row is absent. Chose a
+plain `INSERT OR IGNORE` over rewriting `markDesired` as a raw-SQL upsert
+(SQLite's `INSERT ... ON CONFLICT DO UPDATE` needs SQLite 3.24+, which is not
+guaranteed on the framework-bundled SQLite across this app's supported API
+range) and over a `RoomDatabase.Callback.onCreate` seed (fires only for a
+brand-new database file, so it would not have fixed this on any install that
+already went through the v1→v4 migration path, including the test device).
+**Consequence:** `./gradlew test` and `./gradlew assembleDebug` green.
+Verified end-to-end on the physical device: Create reminder → choose real
+imported media → label → Save now succeeds with no error dialog, the new
+reminder appears in the Reminders tab, and the Library grid's "1 active
+reminder" count updates. The pre-existing reminder that had silently
+persisted despite its save-time crash (`trialCookingvideo`) is real data, not
+a leftover to clean up — its schedule now reconciles correctly on the next
+`SchedulerCoordinator` call. No migration needed: `seedIfAbsent` heals any
+existing install the first time it reconciles after this build, regardless of
+whether that install ever got past this bug before.

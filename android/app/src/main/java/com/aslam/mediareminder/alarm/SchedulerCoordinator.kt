@@ -9,6 +9,7 @@ import com.aslam.mediareminder.MainActivity
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.data.db.entity.OccurrenceEntity
 import com.aslam.mediareminder.data.db.entity.ReminderEntity
+import com.aslam.mediareminder.data.db.entity.SchedulerStateEntity
 import com.aslam.mediareminder.diagnostics.NativeLogger
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -155,6 +156,19 @@ class SchedulerCoordinator(
     /** Steps 2-6: the outbox write, then the actual `AlarmManager` call. */
     private suspend fun applyToAlarmManager(earliest: OccurrenceEntity?, now: Instant, reason: String) {
         val stateDao = database.schedulerStateDao()
+        stateDao.seedIfAbsent(
+            SchedulerStateEntity(
+                desiredOccurrenceId = null,
+                desiredAt = null,
+                desiredGeneration = 0,
+                appliedGeneration = 0,
+                pendingIntentRequestCode = 0,
+                isExact = true,
+                lastReconcileAt = now.toEpochMilli(),
+                lastReason = reason,
+                lastErrorCode = null,
+            ),
+        )
         stateDao.markDesired(earliest?.id, earliest?.scheduledAt, now.toEpochMilli(), reason)
         val state = requireNotNull(stateDao.get()) { "scheduler_state row must exist (seeded at first save)" }
 

@@ -14,6 +14,10 @@ interface SchedulerStateDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(state: SchedulerStateEntity)
 
+    /** Seeds the singleton row on the first-ever reconcile; a no-op once it exists (`markDesired`/`markApplied` are plain UPDATEs and rely on this). */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun seedIfAbsent(state: SchedulerStateEntity)
+
     /** Bumps only the desired half of the outbox — step 1 of the pattern documented on the entity. */
     @Query(
         """
