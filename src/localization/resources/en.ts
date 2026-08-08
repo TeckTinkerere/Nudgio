@@ -16,6 +16,10 @@ export const en = {
   'nav.reminders': 'Reminders',
   'nav.settings': 'Settings',
   'nav.add': 'Add',
+  'add.sheetTitle': 'Add',
+  'add.importMediaSubtitle': 'Bring a video, audio or image into your library',
+  'add.createReminder': 'Create reminder',
+  'add.createReminderSubtitle': 'Schedule something from your library',
 
   // --- Onboarding --------------------------------------------------------------
   'onboarding.purpose.title': 'Make local media useful at the right moment',
@@ -100,6 +104,12 @@ export const en = {
   'library.detail.deleteMediaAndReminders': 'Delete media and reminders',
   'library.detail.notFound.title': 'This media is no longer available',
   'library.detail.notFound.effect': 'It may have been removed from the library.',
+  'library.detail.renameTitle': 'Edit details',
+  'library.detail.renameBody': 'Rename this item or add a private note. Nothing here is shared.',
+  'library.detail.titleLabel': 'Title',
+  'library.detail.titlePlaceholder': 'Name this media',
+  'library.detail.notesPlaceholder': 'Add a note (optional)',
+  'library.detail.renameValidationTitleRequired': 'Title cannot be empty.',
 
   // --- Reminders / editor (MR-03) ------------------------------------------
   'reminders.title': 'Reminders',
@@ -134,6 +144,7 @@ export const en = {
   'reminders.editor.mediaSection': 'Media',
   'reminders.editor.changeMedia': 'Change media',
   'reminders.editor.chooseMedia': 'Choose media',
+  'reminders.editor.noMediaBody': 'Import something first, then come back to schedule it.',
   'reminders.editor.label': 'Label',
   'reminders.editor.labelPlaceholder': 'Name this reminder',
   'reminders.editor.notesPlaceholder': 'Optional notes',

@@ -14,6 +14,8 @@ export {EmptyState} from './EmptyState';
 export type {EmptyStateProps} from './EmptyState';
 export {ErrorState} from './ErrorState';
 export type {ErrorStateProps} from './ErrorState';
+export {FAB} from './FAB';
+export type {FABProps} from './FAB';
 export {IconButton} from './IconButton';
 export type {IconButtonProps} from './IconButton';
 export {ListRow} from './ListRow';

@@ -4,8 +4,10 @@ import androidx.sqlite.db.SimpleSQLiteQuery
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.data.db.entity.MediaAssetEntity
 import com.aslam.mediareminder.data.media.MediaQuerySql
+import com.aslam.mediareminder.data.media.MediaRename
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
+import java.time.Instant
 
 /**
  * Read side of the media library (MR-08 `listMedia`/`getMedia`).
@@ -79,6 +81,54 @@ class MediaLibraryService(private val database: MediaReminderDatabase) {
         val entity = mediaDao.getById(id) ?: return null
         val counts = activeReminderCounts(listOf(entity))
         return MediaDtoWriter.writeDetail(entity, counts[entity.id] ?: 0)
+    }
+
+    /**
+     * MR-08 `updateMedia` / MR-03 "Edit details": rename and/or edit notes.
+     * `request` fields are all optional except `id` — an absent `title`/`notes`
+     * key means "leave this field alone," not "clear it," so a caller that only
+     * wants to rename never has to first re-supply the existing notes.
+     */
+    suspend fun updateMedia(request: ReadableMap): UpdateMediaOutcome {
+        val id = request.getString("id") ?: return UpdateMediaOutcome.Invalid("id")
+        val existing = mediaDao.getById(id) ?: return UpdateMediaOutcome.NotFound
+
+        val resolved = MediaRename.resolve(
+            existingTitle = existing.title,
+            existingNotes = existing.notes,
+            requestedTitle = if (request.hasKey("title")) request.getString("title") else null,
+            requestedNotesTrimmed = if (request.hasKey("notes")) request.getString("notes")?.trim() else null,
+            notesKeyPresent = request.hasKey("notes"),
+        )
+        val (finalTitle, finalNotes) = when (resolved) {
+            is MediaRename.Result.Invalid -> return UpdateMediaOutcome.Invalid(resolved.field)
+            is MediaRename.Result.Ok -> resolved.title to resolved.notes
+        }
+
+        val rows = mediaDao.updateTitleAndNotes(
+            id = id,
+            title = finalTitle,
+            notes = finalNotes,
+            updatedAt = Instant.now().toEpochMilli(),
+            expectedVersion = existing.entityVersion,
+        )
+        if (rows == 0) {
+            // Lost a race against a concurrent edit of the same row between
+            // the read above and this write — same discipline
+            // ReminderMutationService.save() already applies to reminders.
+            return UpdateMediaOutcome.Conflict
+        }
+
+        val updated = mediaDao.getById(id) ?: return UpdateMediaOutcome.NotFound
+        val counts = activeReminderCounts(listOf(updated))
+        return UpdateMediaOutcome.Success(MediaDtoWriter.writeDetail(updated, counts[updated.id] ?: 0))
+    }
+
+    sealed class UpdateMediaOutcome {
+        data class Success(val detail: WritableMap) : UpdateMediaOutcome()
+        object NotFound : UpdateMediaOutcome()
+        data class Invalid(val field: String) : UpdateMediaOutcome()
+        object Conflict : UpdateMediaOutcome()
     }
 
     private suspend fun activeReminderCounts(items: List<MediaAssetEntity>): Map<String, Int> {

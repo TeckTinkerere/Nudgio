@@ -12,7 +12,6 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useCallback, useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
-import {useMediaList} from './useMediaList';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
@@ -37,6 +36,7 @@ import {
   importProgressFraction,
   STORAGE_INSUFFICIENT_MIN_MB,
   useImportMedia,
+  useMediaList,
 } from '../../hooks';
 import {
   formatEnglishUnit,

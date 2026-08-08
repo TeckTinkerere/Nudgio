@@ -1358,3 +1358,86 @@ photo-picker-vs-SAF decision is unit-tested; the `Intent` construction and the
 though not an automated instrumentation test — still worth adding per
 TODO.md, since one manual pass doesn't cover cancellation, SAF (audio) or
 error paths.
+
+## DL-055 — real media reached a dead end at the reminder editor; closed the whole loop, not just the picker
+
+**Date:** 2026-08-08
+**Context:** Reported plainly: "I can upload my media but I cannot access it
+to set alarms with it." Tracing the alarm-creation sequence end to end found
+that the report understated the gap. Four separate things were each
+independently broken:
+
+1. `ReminderEditorScreen`'s "choose media" `Sheet` and its "What" section both
+   read from the static `mockMedia` fixture array, never the real
+   Room-backed library — so even reaching the picker, nothing real was in it.
+   A new reminder's `mediaId` also defaulted to `mockMedia[0]?.id`, which
+   would have let Save silently create a reminder pointing at a fixture id
+   that does not exist in Room (`reminders.media_id` still has no foreign key
+   — DL-053/054 — so nothing would have rejected it).
+2. **There was no way to create a new reminder at all.** Every
+   `navigation.navigate(rootRoutes.reminderEditor, ...)` call site in the app
+   passed an *existing* `reminderId`; `RemindersScreen` had no add affordance
+   of any kind (`onPress: () => undefined` on every row, no empty-state
+   action). MR-03's own "Navigation model" section specifies exactly this
+   gap's fix — "A floating action button labeled Add opens a modal action
+   sheet with Import media, Create reminder..." — and it had simply never
+   been built; no FAB component existed in the design system at all.
+3. `MediaDetailScreen` (tapping an item in the Library grid) was entirely
+   `findMockMedia`-backed. A real imported item's UUID can never match a
+   mock fixture id, so opening detail on anything actually imported showed
+   "This media is no longer available" unconditionally — not a bug in this
+   screen's logic, a screen that had never been connected to real data at all.
+4. `updateMedia` (MR-03 "Edit details", i.e. rename) was still
+   `rejectNotImplemented` in Kotlin, and `getMedia` — made real in Kotlin
+   during the read-side slice (DL-053) — had never been exposed through
+   `MediaReminderClient`/`MediaRepository`, so nothing on the JS side could
+   have called it even once the native side worked.
+
+**Decision:** Closed all four, in dependency order (native `updateMedia` →
+JS client/repository wiring for `getMedia`+`updateMedia` → real
+`MediaDetailScreen` → real `ReminderEditorScreen` picker → the FAB). Notable
+calls:
+
+- `MediaRename.resolve()` is a pure function (Kotlin) separating the
+  optional-field trim/validate/clamp rules from the Room read-modify-write —
+  same reasoning as `MediaQuerySql`: the part most likely to be subtly wrong
+  gets JVM tests, not just an instrumented smoke pass.
+- The rename dialog (`RenameMediaDialog.tsx`) and the picker sheet
+  (`MediaPickerSheet.tsx`) are each their own component, not inlined into
+  `MediaDetailScreen`/`ReminderEditorScreen` — both screens' own branching
+  (pending/error/delete-confirmation; repeat type/profile/snooze/preview)
+  already carried enough cognitive weight that adding either dialog inline
+  pushed a code-health check over its complexity threshold. Same rule DL-0xx
+  entries have followed all session: extract when a screen's own concerns
+  are being crowded out by a self-contained dialog's state.
+- The FAB is mounted **once**, in `TabNavigator`, not duplicated on
+  Today/Library/Reminders. Two independent reasons: it is chrome per MR-03's
+  own framing ("Navigation model", alongside the bottom nav), not a
+  per-screen affordance; and a single `useImportMedia()` instance means its
+  progress/error state has exactly one source of truth regardless of which
+  tab is focused when an import finishes — three independent per-screen
+  instances would each show their own progress bar only if that screen
+  itself triggered the import, silently showing nothing on the other two.
+- `FAB`'s position is a fixed 88 dp offset above the tab bar, not measured:
+  `AppTabBar`'s real height depends on font scale and bar-vs-rail treatment,
+  and measuring it would mean threading an `onLayout` callback through the
+  navigator's own `tabBar` render prop. Verified against the real rendered
+  bar on a physical device rather than assumed.
+- `getMedia`/`updateMedia`/`useMediaList`/`useReminderList` all moved to (or
+  were added directly in) `src/hooks/`, not `features/library/`
+  or `features/reminders/` — every one of them is now consumed by at least
+  two features (`ReminderEditorScreen` needs the media list;
+  `MediaDetailScreen` needs the reminder list), matching the `useImportMedia`
+  /`useOperationProgress` precedent from earlier this session.
+
+**Consequence:** `./gradlew test` green (113 Kotlin tests, 8 new
+`MediaRenameTest` cases, 0 failures). `./gradlew assembleDebug` green.
+`npm run verify` green — typecheck clean, lint 0 warnings, 44/44 Jest
+(unchanged; this slice's JS surface has no new tests yet, same residual-risk
+shape as DL-054's — tracked in TODO.md). **Not yet verified on device**: the
+physical device was reachable and unlocked earlier in the session but is
+locked again as of this entry; no PIN was entered to bypass it. Every change
+here is behind either a compile-time check (TypeScript route param, Kotlin
+type) or a unit test, but the actual on-screen result — FAB position clearing
+the tab bar, the rename dialog, the picker showing a real imported item — has
+not been looked at.

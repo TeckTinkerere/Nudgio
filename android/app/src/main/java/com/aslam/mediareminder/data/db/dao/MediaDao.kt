@@ -99,4 +99,30 @@ interface MediaDao {
         """,
     )
     suspend fun updateIntegrityState(id: String, integrityState: String, updatedAt: Long): Int
+
+    /**
+     * Rename/notes edit (MR-03 "Edit details"). Optimistic-concurrency, same
+     * rule [com.aslam.mediareminder.reminders.ReminderMutationService] already
+     * applies to reminders (MR-08 "Event ordering and idempotency"): the
+     * caller supplies the version it read, and 0 rows changed means someone
+     * else's edit landed first — the caller must reject the save rather than
+     * silently overwrite it, not retry blindly.
+     */
+    @Query(
+        """
+        UPDATE media_assets
+        SET title = :title,
+            notes = :notes,
+            updated_at = :updatedAt,
+            entity_version = entity_version + 1
+        WHERE id = :id AND entity_version = :expectedVersion
+        """,
+    )
+    suspend fun updateTitleAndNotes(
+        id: String,
+        title: String,
+        notes: String?,
+        updatedAt: Long,
+        expectedVersion: Int,
+    ): Int
 }
