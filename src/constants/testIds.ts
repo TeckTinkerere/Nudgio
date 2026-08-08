@@ -17,6 +17,7 @@ export const testIds = {
     screen: 'library.screen',
     searchField: 'library.searchField',
     grid: 'library.grid',
+    emptyState: 'library.emptyState',
   },
   reminders: {
     screen: 'reminders.screen',
