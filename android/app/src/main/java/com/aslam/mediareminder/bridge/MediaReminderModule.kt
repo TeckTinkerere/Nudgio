@@ -25,6 +25,7 @@ import com.aslam.mediareminder.data.PreferencesRepository
 import com.aslam.mediareminder.data.ReminderProfileSeed
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.diagnostics.NativeLogger
+import com.aslam.mediareminder.media.MediaLibraryService
 import com.aslam.mediareminder.notifications.NotificationCoordinator
 import com.aslam.mediareminder.reminders.ActionResultWriter
 import com.aslam.mediareminder.reminders.ReminderDtoWriter
@@ -61,6 +62,7 @@ class MediaReminderModule(
     private val preferences = PreferencesRepository(reactContext)
     private val database = MediaReminderDatabase.getInstance(reactContext)
     private val reminderMutations = ReminderMutationService(reactContext, database)
+    private val mediaLibrary = MediaLibraryService(database)
 
     init {
         // MR-11 "Crash during replace": "Startup sees operation journal...
@@ -169,9 +171,27 @@ class MediaReminderModule(
 
     @ReactMethod
     fun listMedia(query: ReadableMap, promise: Promise) {
-        // Library import/media persistence is a later slice; an empty page
-        // is the honest answer today, matching the JS mock exactly.
-        promise.resolve(emptyPage())
+        moduleScope.launch {
+            runCatching { mediaLibrary.listMedia(mediaLibrary.criteriaFrom(query)) }
+                .onSuccess { promise.resolve(it) }
+                .onFailure { error ->
+                    // An unsupported `sort` is the caller sending a value
+                    // outside the MR-08 enum, which is a validation fault, not
+                    // an internal one — reporting it as failed-safe would hide
+                    // a JS bug behind a generic "something went wrong".
+                    if (error is IllegalArgumentException) {
+                        NativeErrorEnvelope.reject(
+                            promise = promise,
+                            code = "MR_VALIDATION_FAILED",
+                            messageKey = "error.validationFailed",
+                            category = NativeErrorEnvelope.Category.VALIDATION,
+                            field = "sort",
+                        )
+                    } else {
+                        failSafe(promise, error, "listMedia")
+                    }
+                }
+        }
     }
 
     @ReactMethod
@@ -188,25 +208,42 @@ class MediaReminderModule(
         promise.resolve(ReminderProfileSeed.asWritableArray())
     }
 
-    private fun emptyPage(): WritableMap = Arguments.createMap().apply {
-        putArray("items", Arguments.createArray())
-        putInt("total", 0)
-        putInt("offset", 0)
-        putBoolean("hasMore", false)
-    }
-
     // --- Media/profile/backup: still declared contract, not yet implemented ---
     // The reminder-engine slice (docs/decision-log.md) implemented
     // getReminder/saveReminder/setReminderEnabled/deleteReminder/
     // scheduleTestReminder/playDueSession/snoozeDueSession/dismissDueSession
     // above for real; media import, user-defined profiles and backup/restore
-    // remain out of scope (`media/`, `backup/` are still empty packages).
+    // remain out of scope. `listMedia`/`getMedia` above are now real (the
+    // media library read side, backed by Room `media_assets`); the *write*
+    // side below — import, update, delete — is still pending.
     // Every method below rejects with the same envelope the JS mock uses
     // (`mockNativeModule.ts`'s `notImplemented`), so a screen built against
     // this module today and against the mock tomorrow behaves identically.
 
     @ReactMethod
-    fun getMedia(id: String, promise: Promise) = NativeErrorEnvelope.rejectNotImplemented(promise, "getMedia")
+    fun getMedia(id: String, promise: Promise) {
+        moduleScope.launch {
+            runCatching { mediaLibrary.getMedia(id) }
+                .onSuccess { detail ->
+                    if (detail != null) {
+                        promise.resolve(detail)
+                    } else {
+                        // MR-08 `MR_MEDIA_UNAVAILABLE`: the id does not resolve
+                        // to a row. Distinct from a failed-safe internal error
+                        // so the UI can show "this item is gone" rather than a
+                        // retry prompt.
+                        NativeErrorEnvelope.reject(
+                            promise = promise,
+                            code = "MR_MEDIA_UNAVAILABLE",
+                            messageKey = "error.mediaUnavailable",
+                            category = NativeErrorEnvelope.Category.MEDIA,
+                            field = "id",
+                        )
+                    }
+                }
+                .onFailure { failSafe(promise, it, "getMedia") }
+        }
+    }
 
     @ReactMethod
     fun beginMediaImport(request: ReadableMap, promise: Promise) =

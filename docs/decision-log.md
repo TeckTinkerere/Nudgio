@@ -1246,3 +1246,49 @@ content runs flush to the tab bar and the new theme `SegmentedControl` renders
 correctly; Health renders with the inset applied; no JS errors. `npm run
 verify` green, 44/44. The context value is memoized because an unmemoized
 object would re-render every inset consumer in the tab subtree.
+
+## DL-053 — media library read side: `media_assets`, and Room schema export was never wired
+
+**Date:** 2026-08-08
+**Context:** "Can't import anything" turned out not to be a wiring bug. Import
+was unimplemented on both sides: `beginMediaImport`/`updateMedia`/`deleteMedia`
+all returned `rejectNotImplemented`, `listMedia` returned a hardcoded
+`emptyPage()`, every "Import media" button was `onPress = () => undefined`, and
+Room had **no media table at all** — the 8 entities were alarm/reminder/
+scheduler only. Everything visible in Library was UI over JS mock fixtures.
+
+**Decision:** Landed the read half of Milestone 1 as its own reviewable slice,
+deliberately stopping short of the picker so the data layer could be verified
+independently. `MediaAssetEntity` matches MR-09's `media_assets` table
+column-for-column, with `MediaDao`, `MIGRATION_3_4`, and `listMedia`/`getMedia`
+now answering from Room.
+
+Two design calls worth recording. First, `MediaQuery`'s five optional filters
+and four sort orders are built by a **pure** `MediaQuerySql` object with no
+Android or Room dependency, driving a `@RawQuery` DAO. As fixed `@Query`
+methods this is combinatorial, and the usual `(:arg IS NULL OR col = :arg)`
+plus `CASE` in `ORDER BY` workaround produces SQL SQLite cannot satisfy from
+the MR-09 indices, because a `CASE` sort key is not indexable. Being pure means
+14 JVM unit tests cover the filter/sort/escaping behavior with no emulator.
+Second, `category`/`tags`/`thumbnailToken` are emitted as null/empty rather
+than faked, because `categories` and the thumbnail cache do not exist yet and a
+placeholder name would render verbatim in the Library's chips.
+
+**Also fixed:** `MediaReminderDatabase` has declared `exportSchema = true`
+since it was written, but `room.schemaLocation` was never passed to KSP, so
+Room silently exported nothing. That is the artifact used to check a
+hand-written migration against what Room actually expects — and MR-09 forbids
+destructive migration, so a wrong migration has no fallback and fails at open
+time on a real install with "Room cannot verify the data integrity". Now wired
+to `android/app/schemas/`, and `4.json` was diffed against `MIGRATION_3_4`:
+columns, types, nullability, the `DEFAULT 1`, primary key and all three indices
+match exactly (the only differences are whitespace, which Room does not compare
+— validation reads `PRAGMA`, not SQL text).
+
+**Consequence:** `./gradlew test` green, 83 Kotlin tests, 0 failures (14 new).
+`npm run verify` green, 44/44. Import itself is still **not** implemented — the
+Photo Picker, streamed copy, SHA-256 and journal remain, and `listMedia` will
+correctly return an empty page until they land. A caught bug worth noting: the
+first draft of `mostScheduled` compared `reminders.effective_state` against a
+*media integrity* constant (`healthy`), which is always true; there is now a
+regression test asserting it counts `active` reminders instead.

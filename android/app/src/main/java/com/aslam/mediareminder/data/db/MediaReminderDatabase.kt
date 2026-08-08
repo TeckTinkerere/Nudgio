@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.aslam.mediareminder.data.db.dao.ActiveAlarmSessionDao
 import com.aslam.mediareminder.data.db.dao.IdempotencyDao
+import com.aslam.mediareminder.data.db.dao.MediaDao
 import com.aslam.mediareminder.data.db.dao.OccurrenceDao
 import com.aslam.mediareminder.data.db.dao.OperationJournalDao
 import com.aslam.mediareminder.data.db.dao.ReminderDao
@@ -15,6 +16,7 @@ import com.aslam.mediareminder.data.db.dao.ScheduleRuleDao
 import com.aslam.mediareminder.data.db.dao.SchedulerStateDao
 import com.aslam.mediareminder.data.db.entity.ActiveAlarmSessionEntity
 import com.aslam.mediareminder.data.db.entity.IdempotencyRecordEntity
+import com.aslam.mediareminder.data.db.entity.MediaAssetEntity
 import com.aslam.mediareminder.data.db.entity.OccurrenceEntity
 import com.aslam.mediareminder.data.db.entity.OperationJournalEntity
 import com.aslam.mediareminder.data.db.entity.ReminderEntity
@@ -54,8 +56,9 @@ import kotlinx.coroutines.launch
         IdempotencyRecordEntity::class,
         ActiveAlarmSessionEntity::class,
         OperationJournalEntity::class,
+        MediaAssetEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class MediaReminderDatabase : RoomDatabase() {
@@ -67,6 +70,7 @@ abstract class MediaReminderDatabase : RoomDatabase() {
     abstract fun idempotencyDao(): IdempotencyDao
     abstract fun activeAlarmSessionDao(): ActiveAlarmSessionDao
     abstract fun operationJournalDao(): OperationJournalDao
+    abstract fun mediaDao(): MediaDao
 
     companion object {
         /**
@@ -76,7 +80,7 @@ abstract class MediaReminderDatabase : RoomDatabase() {
          * engine's manifest `sourceSchemaVersion` field, which needs the
          * value at runtime, not just at annotation-processing time.
          */
-        const val SCHEMA_VERSION = 3
+        const val SCHEMA_VERSION = 4
 
         private const val DATABASE_NAME = "media_reminder.db"
 
@@ -102,7 +106,7 @@ abstract class MediaReminderDatabase : RoomDatabase() {
             database = Room
                 .databaseBuilder(context, MediaReminderDatabase::class.java, DATABASE_NAME)
                 .addCallback(callback)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
             return database
         }
