@@ -38,6 +38,10 @@ interface MediaDao {
     @Query("SELECT * FROM media_assets WHERE id = :id")
     suspend fun getById(id: String): MediaAssetEntity?
 
+    /** Batched lookup for a page of reminders' linked media (`ReminderDtoWriter`), same reasoning as [countActiveRemindersFor]. */
+    @Query("SELECT * FROM media_assets WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<String>): List<MediaAssetEntity>
+
     @Query("SELECT * FROM media_assets WHERE storage_key = :storageKey")
     suspend fun getByStorageKey(storageKey: String): MediaAssetEntity?
 

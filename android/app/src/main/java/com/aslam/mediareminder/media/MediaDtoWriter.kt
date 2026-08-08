@@ -1,6 +1,5 @@
 package com.aslam.mediareminder.media
 
-import android.net.Uri
 import com.aslam.mediareminder.data.db.entity.MediaAssetEntity
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.WritableMap
@@ -54,13 +53,9 @@ object MediaDtoWriter {
                 putDouble("durationMs", entity.durationMs.toDouble())
             }
             putString("sizeBytes", entity.sizeBytes.toString())
-            val thumbnailFile = entity.thumbnailPath?.let { storage.thumbnailFileFor(entity.id) }
-            if (thumbnailFile != null && thumbnailFile.exists()) {
-                putString("thumbnailToken", Uri.fromFile(thumbnailFile).toString())
-            } else {
-                putNull("thumbnailToken")
-            }
-            putString("sourceToken", Uri.fromFile(storage.fileFor(entity.storageKey)).toString())
+            val thumbnailToken = MediaThumbnailUri.resolveThumbnail(entity, storage)
+            if (thumbnailToken != null) putString("thumbnailToken", thumbnailToken) else putNull("thumbnailToken")
+            putString("sourceToken", MediaThumbnailUri.resolveSource(entity, storage))
             putNull("category")
             putArray("tags", Arguments.createArray())
             putInt("activeReminderCount", activeReminderCount)

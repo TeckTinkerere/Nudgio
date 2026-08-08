@@ -1585,3 +1585,51 @@ compile-time check or a unit test, not an on-screen look, until that happens.
 Screens beyond Library/Media Detail (Home, Reminders, Reminder Details,
 Create Reminder, Settings, Backup, Import, Statistics, About) are tracked
 separately in `TODO.md` as the remaining part of the same redesign request.
+
+## DL-058 — reminder rows never actually joined `media_assets`; `Card` gained a shared press-scale
+
+**Date:** 2026-08-08
+**Context:** Continuing the redesign into the Reminders list and Reminder
+Details screens surfaced a second real (non-visual) gap alongside the visual
+one: `ReminderDtoWriter.kt`'s own doc comment already admitted `mediaKind`
+was hardcoded `"video"` and `thumbnailToken` was always absent, because
+`reminders.media_id` had never been joined against `media_assets` at read
+time (distinct from the separately-tracked, harder problem of adding a real
+foreign key — this is just a runtime lookup). The Reminders list row's
+`onPress` was also a bare `() => undefined` and the enable `Toggle` was
+never wired to `setReminderEnabled` at all — the whole row was decorative.
+**Decision:**
+- `MediaDao` gained `getByIds` (batched, same pattern as
+  `countActiveRemindersFor`); `ReminderDtoWriter.writeSummary`/`writeDetail`
+  now take a nullable `media: MediaAssetEntity?` + `storage: MediaStorage`
+  and write the real `kind`/thumbnail. `ReminderMutationService`'s four call
+  sites (`get`/`list`/`save`/`setEnabled`) each fetch the linked media row(s)
+  — `list()` batched in one query, not N. The URI-resolution logic itself
+  (existence-checked thumbnail lookup, source-file URI) was pulled out of
+  `MediaDtoWriter` into a new shared `MediaThumbnailUri` object so
+  `ReminderDtoWriter` doesn't duplicate it.
+- New `useSetReminderEnabled` mutation hook (`features/reminders/`),
+  matching `useSaveReminder`'s write-through-cache/invalidate shape exactly.
+  Reminders list row `onPress` now navigates to `ReminderDetailScreen`; the
+  `Toggle` calls the real mutation instead of doing nothing.
+- `Card` (design-system) was switched from a plain `Pressable` to the new
+  `AnimatedPressable` internally, reproducing its existing pressed-background
+  -highlight via local `useState` (composed with `AnimatedPressable`'s own
+  scale animation through its `onPressIn`/`onPressOut` composition, since the
+  primitive deliberately has no pressed-callback style form — see its own
+  doc comment). One change here gives every card-based screen (Today,
+  Reminders, Media Detail, Settings) the same subtle press-scale for free,
+  rather than opting in screen by screen.
+- Today's occurrence rows and Reminder Detail's whole content got a
+  reanimated `FadeInUp` entrance (staggered by index on Today, capped at 8
+  items so a long list's tail isn't waiting behind a multi-second queue),
+  gated on `theme.a11y.reduceMotion` same as every other new animation this
+  redesign has added. Reminder Detail also gained a hero media
+  avatar (real thumbnail when the mock media has one, kind icon otherwise) —
+  markup-only, since this screen's data source staying `findMockReminder`
+  is a separate, already-tracked gap this pass does not touch.
+**Consequence:** `./gradlew test`/`assembleDebug`, full project `eslint`,
+and `npm test` (44/44) all green. Reminders list and Reminder Detail are
+**not yet verified on a physical device** for the same reason as DL-057 —
+still no device connected this session to confirm the redesigned screens
+render and the newly-wired toggle/navigation actually work end-to-end.
