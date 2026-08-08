@@ -190,12 +190,32 @@
     });
   }
 
+  function pad2(n) {
+    return n < 10 ? '0' + n : '' + n;
+  }
+
+  // Ticks independent of the alarm pulse — a live clock should keep telling
+  // real time even for visitors who have motion reduced.
+  function initLiveClock() {
+    var clockEl = document.getElementById('live-clock');
+    if (!clockEl) return;
+
+    function tick() {
+      var d = new Date();
+      clockEl.textContent = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+    }
+    tick();
+    setInterval(tick, 1000);
+  }
+
   // Alarm pulse: a waveform ring around the download dial that fires on
   // every real-world even minute (:00, :02, :04…) — a small, literal nod
-  // to what the app itself does, rather than a decorative loop.
+  // to what the app itself does, rather than a decorative loop. The live
+  // clock pulses in step with it, since it's the thing counting down to it.
   function initAlarmPulse() {
     var canvas = document.querySelector('.dial__pulse');
     var dialEl = document.getElementById('download-link');
+    var clockEl = document.getElementById('live-clock');
     if (!canvas || !dialEl) return;
 
     var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -270,6 +290,7 @@
       if (elapsed > 0 && env <= 0) {
         rafId = null;
         dialEl.classList.remove('is-alerting');
+        if (clockEl) clockEl.classList.remove('is-alerting');
         return;
       }
 
@@ -301,6 +322,7 @@
     function triggerPulse() {
       if (rafId) cancelAnimationFrame(rafId);
       dialEl.classList.add('is-alerting');
+      if (clockEl) clockEl.classList.add('is-alerting');
       pulseStart = performance.now();
       rafId = requestAnimationFrame(frame);
     }
@@ -332,5 +354,6 @@
   loadLatestRelease();
   loadWaitlistCount();
   initWaitlistForm();
+  initLiveClock();
   initAlarmPulse();
 })();

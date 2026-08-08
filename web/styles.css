@@ -189,6 +189,31 @@ main {
   justify-self: center;
 }
 
+.live-clock {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  color: var(--on-surface-variant);
+  transition: color 0.4s ease;
+}
+
+.live-clock.is-alerting {
+  color: var(--primary);
+  animation: clock-pulse 1s ease-in-out infinite;
+}
+
+@keyframes clock-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
 .dial {
   display: inline-flex;
   flex-direction: column;
