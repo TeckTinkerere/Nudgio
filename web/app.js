@@ -190,8 +190,143 @@
     });
   }
 
+  // Alarm pulse: a waveform ring around the download dial that fires on
+  // every real-world even minute (:00, :02, :04…) — a small, literal nod
+  // to what the app itself does, rather than a decorative loop.
+  function initAlarmPulse() {
+    var canvas = document.querySelector('.dial__pulse');
+    var dialEl = document.getElementById('download-link');
+    if (!canvas || !dialEl) return;
+
+    var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) return;
+
+    var ctx = canvas.getContext('2d');
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w = 0;
+    var h = 0;
+    var cx = 0;
+    var cy = 0;
+    var ringRadius = 0;
+
+    function resize() {
+      var rect = canvas.getBoundingClientRect();
+      w = canvas.width = Math.round(rect.width * dpr);
+      h = canvas.height = Math.round(rect.height * dpr);
+      cx = w / 2;
+      cy = h / 2;
+      ringRadius = Math.min(w, h) * 0.37;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    function hexToRgb(hex) {
+      hex = hex.replace('#', '');
+      if (hex.length === 3) {
+        hex = hex.split('').map(function (c) { return c + c; }).join('');
+      }
+      var n = parseInt(hex, 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+
+    var rootStyles = getComputedStyle(document.documentElement);
+    function readColor(name, fallback) {
+      var v = rootStyles.getPropertyValue(name).trim();
+      return hexToRgb(v || fallback);
+    }
+    var c1 = readColor('--primary', '#5edbc8');
+    var c2 = readColor('--secondary', '#ffb951');
+
+    var BARS = 40;
+    var amp = new Float32Array(BARS);
+    var rafId = null;
+    var pulseStart = 0;
+    var ATTACK = 900;
+    var SUSTAIN = 4200;
+    var RELEASE = 1900;
+    var TOTAL = ATTACK + SUSTAIN + RELEASE;
+
+    function envelope(elapsed) {
+      if (elapsed < ATTACK) return elapsed / ATTACK;
+      if (elapsed < ATTACK + SUSTAIN) return 1;
+      if (elapsed < TOTAL) return 1 - (elapsed - ATTACK - SUSTAIN) / RELEASE;
+      return 0;
+    }
+
+    function spectrum(i, t) {
+      var f = i / BARS;
+      var v =
+        Math.sin(f * 9 + t * 6) * 0.5 +
+        Math.sin(f * 23 - t * 9) * 0.3 +
+        Math.sin(f * 4 + t * 3) * 0.5;
+      return Math.abs(v) * (0.55 + 0.45 * Math.sin(f * Math.PI));
+    }
+
+    function frame(now) {
+      var elapsed = now - pulseStart;
+      var env = envelope(elapsed);
+      ctx.clearRect(0, 0, w, h);
+
+      if (elapsed > 0 && env <= 0) {
+        rafId = null;
+        dialEl.classList.remove('is-alerting');
+        return;
+      }
+
+      var t = elapsed / 1000;
+      ctx.lineCap = 'round';
+      for (var i = 0; i < BARS; i++) {
+        var target = spectrum(i, t) * env;
+        amp[i] += (target - amp[i]) * 0.3;
+        var len = ringRadius * 0.9 * amp[i];
+        var a = (i / BARS) * Math.PI * 2 - Math.PI / 2;
+        var ix = cx + Math.cos(a) * ringRadius;
+        var iy = cy + Math.sin(a) * ringRadius;
+        var ox = cx + Math.cos(a) * (ringRadius + len);
+        var oy = cy + Math.sin(a) * (ringRadius + len);
+        var mix = amp[i];
+        var r = (c1[0] + (c2[0] - c1[0]) * mix) | 0;
+        var g = (c1[1] + (c2[1] - c1[1]) * mix) | 0;
+        var b = (c1[2] + (c2[2] - c1[2]) * mix) | 0;
+        ctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + (0.85 * env) + ')';
+        ctx.lineWidth = 2 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(ix, iy);
+        ctx.lineTo(ox, oy);
+        ctx.stroke();
+      }
+      rafId = requestAnimationFrame(frame);
+    }
+
+    function triggerPulse() {
+      if (rafId) cancelAnimationFrame(rafId);
+      dialEl.classList.add('is-alerting');
+      pulseStart = performance.now();
+      rafId = requestAnimationFrame(frame);
+    }
+
+    function msUntilNextEvenMinute() {
+      var d = new Date();
+      var next = new Date(d);
+      next.setSeconds(0, 0);
+      var add = d.getMinutes() % 2 === 0 ? 2 : 1;
+      next.setMinutes(d.getMinutes() + add);
+      return Math.max(next.getTime() - d.getTime(), 1000);
+    }
+
+    function scheduleNext() {
+      setTimeout(function () {
+        if (!document.hidden) triggerPulse();
+        scheduleNext();
+      }, msUntilNextEvenMinute());
+    }
+
+    scheduleNext();
+  }
+
   buildTicks();
   loadLatestRelease();
   loadWaitlistCount();
   initWaitlistForm();
+  initAlarmPulse();
 })();

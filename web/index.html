@@ -54,11 +54,14 @@
 
       <div class="hero__cta">
         <a id="download-link" class="dial" href="https://github.com/TeckTinkerere/Nudgio/releases/latest" aria-describedby="dial-state">
-          <svg class="dial__ticks" viewBox="0 0 200 200" aria-hidden="true">
-            <circle class="dial__track" cx="100" cy="100" r="92"/>
-            <g id="dial-tick-group"></g>
-            <path class="dial__play" d="M84,70 L84,130 L136,100 Z"/>
-          </svg>
+          <span class="dial__ring">
+            <canvas class="dial__pulse" aria-hidden="true"></canvas>
+            <svg class="dial__ticks" viewBox="0 0 200 200" aria-hidden="true">
+              <circle class="dial__track" cx="100" cy="100" r="92"/>
+              <g id="dial-tick-group"></g>
+              <path class="dial__play" d="M84,70 L84,130 L136,100 Z"/>
+            </svg>
+          </span>
           <span class="dial__label">Download APK</span>
         </a>
         <p id="dial-state" class="dial__state">checking the latest release…</p>
