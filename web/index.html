@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nudgio — download the APK</title>
+  <meta name="description" content="Nudgio turns your own photos, clips and voice notes into reminders and alarms. No account, no backend, no internet permission. Android 8.0+, sideloaded APK." />
+  <meta name="theme-color" content="#0E1513" />
+
+  <meta property="og:title" content="Nudgio — download the APK" />
+  <meta property="og:description" content="Reminders and alarms built from your own media. No account, no backend, no internet permission." />
+  <meta property="og:type" content="website" />
+
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <a class="wordmark" href="#top">
+      <svg class="wordmark__ring" viewBox="0 0 108 108" aria-hidden="true">
+        <path fill="none" stroke="currentColor" stroke-width="7" d="M54,24 A30,30 0 1 1 53.9,24"/>
+        <path fill="currentColor" d="M46,38 L46,70 L74,54 Z"/>
+      </svg>
+      Nudgio
+    </a>
+    <nav class="site-nav">
+      <span class="pill pill--mono" id="version-pill">checking latest build…</span>
+      <a class="site-nav__link" href="https://github.com/TeckTinkerere/Nudgio" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero__copy">
+        <p class="eyebrow">ANDROID 8.0+ &nbsp;·&nbsp; SIDELOADED APK &nbsp;·&nbsp; OPEN SOURCE</p>
+        <h1>Reminders built from<br>your own media.</h1>
+        <p class="hero__sub">
+          Import a photo, clip or voice note, put it on a schedule, and Nudgio
+          alarms you with it — Gentle, Standard or Persistent, your call on
+          how insistent it needs to be. Everything lives on your phone: no
+          account, no backend, no internet permission, no ads.
+        </p>
+
+        <dl class="fact-row">
+          <div><dt>Requires</dt><dd id="fact-sdk">Android 8.0+</dd></div>
+          <div><dt>Size</dt><dd id="fact-size">—</dd></div>
+          <div><dt>Updated</dt><dd id="fact-updated">—</dd></div>
+        </dl>
+      </div>
+
+      <div class="hero__cta">
+        <a id="download-link" class="dial" href="https://github.com/TeckTinkerere/Nudgio/releases/latest" aria-describedby="dial-state">
+          <svg class="dial__ticks" viewBox="0 0 200 200" aria-hidden="true">
+            <circle class="dial__track" cx="100" cy="100" r="92"/>
+            <g id="dial-tick-group"></g>
+            <path class="dial__play" d="M84,70 L84,130 L136,100 Z"/>
+          </svg>
+          <span class="dial__label">Download APK</span>
+        </a>
+        <p id="dial-state" class="dial__state">checking the latest release…</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section__title">What it doesn't do</h2>
+      <ul class="checklist">
+        <li><span class="checklist__mark">✕</span> ask for the internet permission</li>
+        <li><span class="checklist__mark">✕</span> ask you to create an account</li>
+        <li><span class="checklist__mark">✕</span> run analytics or telemetry</li>
+        <li><span class="checklist__mark">✕</span> show ads</li>
+        <li><span class="checklist__mark">✕</span> touch a server you don't control</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2 class="section__title">Set it up</h2>
+      <ol class="steps">
+        <li>
+          <span class="steps__num">01</span>
+          <div>
+            <h3>Download the APK</h3>
+            <p>Tap the dial above. Your browser will flag it as an unrecognized file — that's expected for an app outside the Play Store.</p>
+          </div>
+        </li>
+        <li>
+          <span class="steps__num">02</span>
+          <div>
+            <h3>Allow this install</h3>
+            <p>Open the downloaded file. Android will ask to allow installs from your browser for this one app — approve it.</p>
+          </div>
+        </li>
+        <li>
+          <span class="steps__num">03</span>
+          <div>
+            <h3>Install and open</h3>
+            <p>Confirm the install, then open Nudgio and import your first reminder.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="section trust">
+      <h2 class="section__title">Why sideload is fine here</h2>
+      <p>
+        Nudgio isn't on the Play Store — it's built and signed by one person,
+        published straight from source. The code is public on
+        <a href="https://github.com/TeckTinkerere/Nudgio" target="_blank" rel="noopener">GitHub</a>,
+        every release is a tagged build, and each APK ships with a SHA-256
+        checksum you can verify against the file yourself.
+      </p>
+      <p id="checksum-row" class="checksum-row" hidden>
+        <span class="pill pill--mono">SHA-256 published</span>
+        <a id="checksum-link" href="#" target="_blank" rel="noopener">view SHA256SUMS.txt</a>
+      </p>
+    </section>
+
+    <section class="section waitlist">
+      <p class="eyebrow">STAY IN THE LOOP</p>
+      <h2 class="section__title">Want to know what's next?</h2>
+      <p class="waitlist__sub">
+        Nudgio's still early. Drop your email and I'll reach out when there's
+        something worth your time — a new build, a feature, eventually a
+        Play Store listing. No spam, unsubscribe anytime.
+      </p>
+
+      <form id="waitlist-form" class="waitlist__form" novalidate>
+        <label class="visually-hidden" for="waitlist-email">Email address</label>
+        <input
+          id="waitlist-email"
+          class="waitlist__input"
+          type="email"
+          name="email"
+          placeholder="you@example.com"
+          autocomplete="email"
+          required
+        />
+        <!-- honeypot: left blank by humans, hidden from screen readers -->
+        <input
+          id="waitlist-company"
+          class="waitlist__honeypot"
+          type="text"
+          name="company"
+          tabindex="-1"
+          autocomplete="off"
+          aria-hidden="true"
+        />
+        <button type="submit" class="waitlist__submit">Join the waitlist</button>
+      </form>
+
+      <p id="waitlist-status" class="waitlist__status" role="status"></p>
+      <p id="waitlist-count" class="waitlist__count" hidden></p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>Nudgio · Apache-2.0</span>
+    <a href="https://github.com/TeckTinkerere/Nudgio" target="_blank" rel="noopener">Source on GitHub</a>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
