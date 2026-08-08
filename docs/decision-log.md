@@ -1633,3 +1633,27 @@ and `npm test` (44/44) all green. Reminders list and Reminder Detail are
 **not yet verified on a physical device** for the same reason as DL-057 —
 still no device connected this session to confirm the redesigned screens
 render and the newly-wired toggle/navigation actually work end-to-end.
+
+## DL-059 — Library's grid empty state stopped reusing Today's copy
+
+**Date:** 2026-08-09
+**Context:** `LibraryGridBody`'s zero-items branch rendered `today.empty.title`
+/ `today.empty.body` ("No reminders scheduled" / "Import something
+meaningful, then choose when it should return.") — Today's copy, not
+Library's, so an empty media library told the user their *reminders* were
+empty. This was inherited unchanged from before the `LibraryScreen` /
+`LibraryGridBody` split (DL-057); nothing about that refactor touched it.
+**Decision:** Added dedicated `library.empty.*` keys and split them into two
+states, since an empty grid has two distinct causes the user can act on
+differently: a genuinely empty library (first-run — the fix is to import
+something, so the existing `importMedia.importMedia()` action stays as-is)
+versus a search/kind/category filter that matched nothing (recoverable by
+clearing the filter, not by importing more media — new `library.empty.filtered.*`
+copy with a real **Clear filters** action). `LibraryGridBody` gained
+`isFiltered`/`onClearFilters` props from `LibraryScreen`, computed as
+`search.length > 0 || activeKind !== null || activeCategoryId !== null` —
+sort is deliberately excluded, since it reorders and never excludes.
+**Consequence:** None of this touches the loading/error/importing branches
+above it in `LibraryGridBody`, which were already correct. `TranslationKey`
+needed no edit — it is `keyof typeof en`, so the new keys type-check
+automatically.
