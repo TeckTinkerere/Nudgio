@@ -11,7 +11,10 @@
  */
 export const en = {
   // --- Navigation (MR-03) ----------------------------------------------------
-  'nav.today': 'Today',
+  // Internal route key stays `Today` (`tabRoutes.today`) — only the visible
+  // label changed, so navigation state/deep links/tests keyed on the route
+  // name are unaffected.
+  'nav.today': 'Upcoming',
   'nav.library': 'Library',
   'nav.reminders': 'Reminders',
   'nav.settings': 'Settings',
@@ -32,8 +35,8 @@ export const en = {
   'onboarding.permissions.title': 'Permissions, only when needed',
   'onboarding.start': 'Start with my library',
 
-  // --- Today ---------------------------------------------------------------
-  'today.title': 'Today',
+  // --- Upcoming (formerly "Today" — internal keys/route unchanged, MR-03) ----
+  'today.title': 'Upcoming',
   'today.status.ready': 'Ready',
   'today.status.actionNeeded': 'Action needed',
   'today.status.limitedTiming': 'Limited timing',
@@ -47,16 +50,20 @@ export const en = {
   // Translator note: {count} is a plain integer.
   'today.activeReminderCount': '{count} active reminders',
   'today.nextReminder': 'Next reminder',
-  'today.occurrence.upcoming': 'Upcoming',
-  'today.occurrence.completed': 'Completed',
-  'today.occurrence.dismissed': 'Dismissed',
-  'today.occurrence.missed': 'Missed',
-  'today.occurrence.snoozed': 'Snoozed',
-  'today.occurrence.disabled': 'Disabled',
-  'today.occurrence.needsSetup': 'Needs setup',
+  'today.nextReminder.todayAt': 'Today at {time}',
+  'today.nextReminder.tomorrowAt': 'Tomorrow at {time}',
+  'today.nextReminder.weekdayAt': '{weekday} at {time}',
   'today.playPreview': 'Play',
   'today.edit': 'Edit',
   'today.more': 'More',
+  // The date-section heading text itself, not the page title — spec:
+  // "Do not rename date-section headings. The first schedule section should
+  // still be called TODAY." Rendered visually upper-cased; the base string
+  // stays sentence case for screen readers/other locales.
+  'today.section.today': 'Today',
+  'today.section.tomorrow': 'Tomorrow, {date}',
+  'today.section.empty': 'No alarms scheduled',
+  'today.previewSoundFor': 'Preview sound for {label} at {time}',
 
   // --- Library ---------------------------------------------------------------
   'library.title': 'Library',
@@ -66,6 +73,8 @@ export const en = {
   'library.filter.images': 'Images',
   'library.filter.text': 'Text',
   'library.filter.missing': 'Missing',
+  'library.filters.more': 'More filters',
+  'library.filters.fewer': 'Fewer filters',
   'library.sort.recentlyAdded': 'Recently added',
   'library.sort.name': 'Name',
   'library.sort.mostScheduled': 'Most scheduled',
@@ -81,6 +90,8 @@ export const en = {
   'library.import.errorInsufficientSpace':
     'Not enough free space. Free at least {megabytes} MB and try again.',
   'library.import.errorCancelled': 'Import was cancelled. No file was added.',
+  // Translator note: {count} is a plain integer, always 1 today (imports are one file at a time).
+  'library.import.success': '{count} assets imported successfully.',
   // Translator note: {count} is a plain integer.
   'library.grid.itemCount': '{count} items',
   'library.kind.video': 'Video',
@@ -104,8 +115,6 @@ export const en = {
   'library.detail.deleteMediaAndReminders': 'Delete media and reminders',
   'library.detail.notFound.title': 'This media is no longer available',
   'library.detail.notFound.effect': 'It may have been removed from the library.',
-  'library.detail.renameTitle': 'Edit details',
-  'library.detail.renameBody': 'Rename this item or add a private note. Nothing here is shared.',
   'library.detail.titleLabel': 'Title',
   'library.detail.titlePlaceholder': 'Name this media',
   'library.detail.notesPlaceholder': 'Add a note (optional)',
@@ -115,6 +124,21 @@ export const en = {
   'library.player.play': 'Play {title}',
   'library.detail.emptySelectionTitle': 'Select an item',
   'library.detail.emptySelectionBody': 'Choose something from your library to see its details here.',
+  'library.selection.select': 'Select',
+  'library.selection.back': 'Exit selection',
+  'library.selection.export': 'Export',
+  'library.selection.delete': 'Delete',
+  // Translator note: {count} is a plain integer, always 1 or more here.
+  'library.selection.checkboxLabel': 'Select {title}',
+  'library.selection.checkedLabel': 'Selected: {title}',
+  'library.selection.emptyWarning': 'Select at least one item, or tap Back to exit.',
+  'library.selection.exportSuccess': '{count} assets exported successfully.',
+  'library.selection.deleteSuccess': '{count} assets deleted successfully.',
+  'library.selection.exportError': "Couldn't export the selected items. Try again.",
+  'library.selection.deleteError': "Couldn't delete the selected items. Try again.",
+  'library.editAsset.title': 'Edit media asset',
+  'library.editAsset.editLabel': 'Edit {title}',
+  'library.editAsset.saveSuccess': 'Media details updated successfully.',
 
   // --- Reminders / editor (MR-03) ------------------------------------------
   'reminders.title': 'Reminders',
@@ -147,10 +171,13 @@ export const en = {
   'reminders.dst.useSecond': 'Use second {time}',
   'reminders.editor.newTitle': 'New reminder',
   'reminders.editor.editTitle': 'Edit reminder',
+  'reminders.editor.createSuccess': 'Reminder created successfully.',
+  'reminders.editor.updateSuccess': 'Reminder updated successfully.',
   'reminders.editor.mediaSection': 'Media',
   'reminders.editor.changeMedia': 'Change media',
   'reminders.editor.chooseMedia': 'Choose media',
-  'reminders.editor.noMediaBody': 'Import something first, then come back to schedule it.',
+  'reminders.selectMedia.title': 'Select media',
+  'reminders.selectMedia.useThis': 'Use this',
   'reminders.editor.label': 'Label',
   'reminders.editor.labelPlaceholder': 'Name this reminder',
   'reminders.editor.notesPlaceholder': 'Optional notes',
@@ -167,11 +194,17 @@ export const en = {
   'reminders.editor.validationLabelRequired': 'Give this reminder a name.',
   'reminders.editor.validationMediaRequired': 'Choose media for this reminder.',
   'reminders.editor.saved': 'Reminder saved',
+  'reminders.editor.notificationsBlockedTitle': 'Notifications are turned off',
+  'reminders.editor.notificationsBlockedBody':
+    "This reminder won't be able to alert you until notifications are enabled for Nudgio.",
+  'reminders.editor.notificationsBlockedContinue': 'Save anyway',
+  'reminders.editor.notificationsBlockedOpenSettings': 'Open Settings',
   'reminders.detail.title': 'Reminder',
   'reminders.detail.edit': 'Edit',
   'reminders.detail.delete': 'Delete reminder',
   'reminders.detail.deleteConfirmTitle': 'Delete this reminder?',
   'reminders.detail.deleteConfirmBody': 'The media itself is not deleted.',
+  'reminders.detail.deleteSuccess': 'Reminder deleted successfully.',
   'reminders.detail.next': 'Next occurrence',
   'reminders.detail.schedule': 'Schedule',
   'reminders.detail.alertStyle': 'Alert style',
@@ -236,8 +269,12 @@ export const en = {
   'backup.import.chooseFile': 'Choose backup file',
   'backup.import.inspecting': 'Inspecting backup',
   'backup.import.inspectOnly': 'Inspect only',
+  'backup.import.inspectOnlyDescription': 'Look at what is in this backup. Nothing on this device changes.',
   'backup.import.merge': 'Merge',
+  'backup.import.mergeDescription': 'Add this backup’s media and reminders alongside what you already have.',
   'backup.import.replace': 'Replace',
+  'backup.import.replaceDescription': 'Erase everything on this device first, then restore only what is in this backup.',
+  'backup.import.replaceNotice': 'This cannot be undone.',
   'backup.import.replaceConfirmToken': 'REPLACE',
   'backup.import.replaceConfirmTitle': 'Replace all local data?',
   'backup.import.replaceConfirmBody':
@@ -282,6 +319,9 @@ export const en = {
   'settings.row.health.subtitle': 'Permissions and scheduler status',
   'settings.row.profiles': 'Alert profiles',
   'settings.row.profiles.subtitle': 'Gentle, Standard, Persistent',
+  'settings.alarmPreview.hint': 'Tap Preview to see and hear what each alert style looks like.',
+  'settings.alarmPreview.notificationTitle': '{name} preview',
+  'settings.alarmPreview.scheduled': "Preview scheduled — check your notifications in a few seconds.",
   'settings.row.defaults': 'Reminder defaults',
   'settings.row.defaults.subtitle': 'Default snooze duration',
   'settings.row.statistics': 'Statistics',
