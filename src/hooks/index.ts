@@ -18,9 +18,11 @@ export {
 export type {ImportMediaOutcome} from './useImportMedia';
 export {useMediaList} from './useMediaList';
 export {useMotionDuration} from './useReduceMotion';
+export {useOpenCapabilitySettings} from './useOpenCapabilitySettings';
 export {useOperationProgress} from './useOperationProgress';
 export type {OperationProgressState} from './useOperationProgress';
 export {usePreferences, useUpdatePreferences} from './usePreferences';
+export {useProfiles} from './useProfiles';
 export {useReminderList} from './useReminderList';
 export {useStartupSnapshot} from './useStartupSnapshot';
 export {useViewState} from './useViewState';

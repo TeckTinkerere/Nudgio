@@ -16,6 +16,7 @@ import {ThemeProvider} from '../design-system';
 import {TranslationProvider} from '../localization';
 import type {AppContainer} from './di';
 import {AppContainerContext} from './di';
+import {ToastProvider} from './toast/ToastProvider';
 import {useAppearance} from '../hooks/useAppearance';
 
 export interface AppProvidersProps {
@@ -39,7 +40,9 @@ function ThemedProviders({children}: PropsWithChildren) {
       dynamicColor={dynamicColor}>
       {/* V1 ships English only (MR-13); languageTag wiring is a one-line
           change once a preference for it exists on PreferencesSnapshot. */}
-      <TranslationProvider languageTag="en">{children}</TranslationProvider>
+      <TranslationProvider languageTag="en">
+        <ToastProvider>{children}</ToastProvider>
+      </TranslationProvider>
     </ThemeProvider>
   );
 }
