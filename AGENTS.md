@@ -14,6 +14,7 @@ Read `specs/Markdown/00_Document_Map_and_Executive_Summary.md`, `specs/Markdown/
 - Room/app-owned files are source of truth. Media and archives are streamed, validated, journaled and bounded.
 - Backups are logical versioned ZIPs; never raw DB; validate before mutation and preserve rollback.
 - New permission, schema, archive field, background component or architectural dependency requires specs/tests and usually an ADR.
+- Build APKs only from the primary checkout, never a `.claude/worktrees/*` one, and only from a clean tree that is up to date with `origin/main`. A worktree has its own working directory, so a build started there silently omits every uncommitted change sitting in the primary checkout — which is how a release APK once shipped without a whole slice of finished work. Requires JDK 17+ on `JAVA_HOME` (Gradle refuses to start on 11).
 
 ## Completion report
 
