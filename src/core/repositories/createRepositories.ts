@@ -47,6 +47,8 @@ export const createRepositories = (deps: CreateRepositoriesDeps): Repositories =
       pickDocument: mimeTypes => client.pickDocument(mimeTypes),
       beginImport: request => client.beginMediaImport(request),
       update: request => client.updateMedia(request),
+      remove: request => client.deleteMedia(request),
+      exportSelected: ids => client.exportMediaAssets(ids),
       cancelOperation: id => client.cancelOperation(id),
     },
 
@@ -56,7 +58,7 @@ export const createRepositories = (deps: CreateRepositoriesDeps): Repositories =
       save: request => client.saveReminder(request),
       setEnabled: (id, enabled) => client.setReminderEnabled(id, enabled),
       remove: id => client.deleteReminder(id),
-      scheduleTest: mode => client.scheduleTestReminder(mode),
+      scheduleTest: request => client.scheduleTestReminder(request),
       play: (sessionId, nonce) => client.playDueSession(sessionId, nonce),
       snooze: (sessionId, minutes, nonce) => client.snoozeDueSession(sessionId, minutes, nonce),
       dismiss: (sessionId, nonce) => client.dismissDueSession(sessionId, nonce),
@@ -68,6 +70,8 @@ export const createRepositories = (deps: CreateRepositoriesDeps): Repositories =
 
     capability: {
       getSnapshot: () => client.getCapabilitySnapshot(),
+      requestNotificationPermission: () => client.requestNotificationPermission(),
+      openSettings: kind => client.openCapabilitySettings(kind),
     },
 
     settings: {

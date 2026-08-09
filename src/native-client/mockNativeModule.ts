@@ -160,20 +160,35 @@ export const createMockNativeModule = (
     // Jest mock/spy at a higher level, not this native-module fake.
     pickDocument: async () => null,
 
+    // No real OS permission dialog exists in Metro-only dev mode or Jest —
+    // always resolves granted, matching what a fresh install with no prior
+    // denial would see.
+    requestNotificationPermission: async () => ({granted: true}),
+
+    // No real OS Settings app to deep-link to in Metro-only dev mode or Jest.
+    openCapabilitySettings: async () => ({}),
+
+    // Settings "Preview alarm styles" — echoes back a synthetic session/time
+    // rather than actually scheduling an `AlarmManager` alarm, since none of
+    // that exists outside a real device.
+    scheduleTestReminder: async () => ({
+      sessionId: asUuid('00000000-0000-4000-8000-0000000000f1'),
+      scheduledAt: now() as StartupSnapshot['capability']['observedAt'],
+    }),
+
     // Declared-but-unimplemented surface. Rejecting with the same envelope the
     // Kotlin stub uses keeps mock and device behavior identical.
     getMedia: notImplemented('getMedia'),
     beginMediaImport: notImplemented('beginMediaImport'),
     updateMedia: notImplemented('updateMedia'),
     deleteMedia: notImplemented('deleteMedia'),
+    exportMediaAssets: notImplemented('exportMediaAssets'),
     getReminder: notImplemented('getReminder'),
     saveReminder: notImplemented('saveReminder'),
     setReminderEnabled: notImplemented('setReminderEnabled'),
     deleteReminder: notImplemented('deleteReminder'),
     saveProfile: notImplemented('saveProfile'),
     resetBuiltInProfile: notImplemented('resetBuiltInProfile'),
-    openCapabilitySettings: notImplemented('openCapabilitySettings'),
-    scheduleTestReminder: notImplemented('scheduleTestReminder'),
     beginExport: notImplemented('beginExport'),
     inspectBackup: notImplemented('inspectBackup'),
     commitImport: notImplemented('commitImport'),

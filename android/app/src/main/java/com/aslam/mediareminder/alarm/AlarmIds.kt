@@ -41,4 +41,16 @@ object AlarmIds {
     const val EXTRA_GENERATION = "generation"
     const val EXTRA_NONCE = "nonce"
     const val EXTRA_SNOOZE_MINUTES = "snooze_minutes"
+
+    /**
+     * Settings "Preview alarm styles" (no Room session, same reasoning as the
+     * plain [EXTRA_SESSION_ID]-less test alarm above) — carries the
+     * already-localized title/body JS built from the profile the user tapped,
+     * plus whether that profile would show a full-screen alert when locked.
+     * Native never owns this English copy (MR-18); it only ever displays what
+     * JS already localized.
+     */
+    const val EXTRA_PREVIEW_TITLE = "preview_title"
+    const val EXTRA_PREVIEW_BODY = "preview_body"
+    const val EXTRA_PREVIEW_FULL_SCREEN = "preview_full_screen"
 }

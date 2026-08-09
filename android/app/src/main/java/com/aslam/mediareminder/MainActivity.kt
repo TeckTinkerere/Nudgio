@@ -1,5 +1,6 @@
 package com.aslam.mediareminder
 
+import android.os.Bundle
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -20,4 +21,21 @@ class MainActivity : ReactActivity() {
 
     override fun createReactActivityDelegate(): ReactActivityDelegate =
         DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
+
+    /**
+     * react-native-screens requires this: its `ScreenStackFragment`s cannot be
+     * restored through Android's default fragment-restoration mechanism (the
+     * JS-side navigator, not the Activity, is the source of truth for screen
+     * state). Passing the real `savedInstanceState` through crashes with
+     * `IllegalStateException: Screen fragments should never be restored` the
+     * moment the OS recreates this Activity with a non-null saved state —
+     * e.g. the process was frozen/killed while an alarm was ringing and the
+     * user then tries to reopen the app from the launcher or a notification.
+     * Passing `null` here is the documented fix (react-native-screens#Android
+     * setup): it skips Android's own state restore since JS re-derives the
+     * correct screen from scratch on cold start anyway.
+     */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(null)
+    }
 }

@@ -129,4 +129,36 @@ interface MediaDao {
         updatedAt: Long,
         expectedVersion: Int,
     ): Int
+
+    /**
+     * Items thumbnail generation never ran for — every asset imported before
+     * `MediaThumbnailer` existed (docs/decision-log.md DL-059's on-device
+     * pass found real library rows in exactly this state). `text` is
+     * excluded: it has no thumbnail concept, so it would never gain one and
+     * would just be swept on every backfill pass for nothing.
+     */
+    @Query(
+        """
+        SELECT * FROM media_assets
+        WHERE thumbnail_path IS NULL AND kind != 'text'
+        """,
+    )
+    suspend fun getMissingThumbnails(): List<MediaAssetEntity>
+
+    /** The other half of the backfill sweep: rows that claim a thumbnail, so a corrupted (not just missing) cache file can be caught too. */
+    @Query(
+        """
+        SELECT * FROM media_assets
+        WHERE thumbnail_path IS NOT NULL AND kind != 'text'
+        """,
+    )
+    suspend fun getWithThumbnails(): List<MediaAssetEntity>
+
+    /** No optimistic-concurrency check: a backfilled thumbnail is derived cache, not user content — see `MediaThumbnailer`'s doc. */
+    @Query("UPDATE media_assets SET thumbnail_path = :thumbnailPath WHERE id = :id")
+    suspend fun updateThumbnailPath(id: String, thumbnailPath: String)
+
+    /** Clears a corrupted cache reference so the row honestly reflects "no thumbnail" if regeneration also fails. */
+    @Query("UPDATE media_assets SET thumbnail_path = NULL WHERE id = :id")
+    suspend fun clearThumbnailPath(id: String)
 }

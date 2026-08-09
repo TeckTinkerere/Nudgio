@@ -5,7 +5,13 @@
   `external-files-path` matches `BackupExporter`'s export directory
   (`getExternalFilesDir(null)/backups`) exactly — this file grants no other
   path, so a share intent can never expose anything outside that one folder.
+
+  `files-path name="media"` mirrors `MediaStorage.mediaDir()`
+  (`filesDir/media/`) for the Library's "Export selected" action — same
+  read-only, single-folder grant shape as the backups entry above, just for
+  `filesDir` (internal storage) instead of external.
 -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <external-files-path name="backups" path="backups/" />
+    <files-path name="media" path="media/" />
 </paths>

@@ -84,6 +84,16 @@ export interface MediaSummary {
    * presence, the same pattern already used for the broken-preview UI.
    */
   readonly sourceToken: MediaSourceToken;
+  /**
+   * Pixel dimensions of the real source (video frame / image), when known —
+   * absent for audio/text, which have nothing visual to size. The Library
+   * grid uses these to give every card its own true aspect ratio instead of
+   * a fixed 16:9/square crop; present on the summary (not just the detail
+   * DTO) for exactly that reason — the grid never fetches a detail record
+   * per card.
+   */
+  readonly widthPx?: number;
+  readonly heightPx?: number;
   readonly category?: NamedRef;
   readonly tags: readonly NamedRef[];
   readonly activeReminderCount: number;
@@ -94,8 +104,6 @@ export interface MediaSummary {
 export interface MediaDetail extends MediaSummary {
   readonly notes?: string;
   readonly mimeType: string;
-  readonly widthPx?: number;
-  readonly heightPx?: number;
   readonly updatedAt: Instant;
   readonly entityVersion: number;
 }
@@ -136,6 +144,19 @@ export interface UpdateMediaRequest {
   readonly id: UUID;
   readonly title?: string;
   readonly notes?: string;
+}
+
+/**
+ * MR-03 "Delete": `media_id` on a reminder carries no FK (see the Kotlin
+ * `ReminderEntity` doc), so nothing forces a decision about a media item's
+ * attached reminders except this flag. `true` deletes them the same way
+ * `deleteReminder` would (alarm rescheduling included); omitted/`false`
+ * just disables them, leaving them pointing at now-deleted media rather
+ * than being destroyed.
+ */
+export interface DeleteMediaRequest {
+  readonly id: UUID;
+  readonly cascadeDeleteReminders?: boolean;
 }
 
 // --- Reminders (MR-08 "Reminder DTOs") ---------------------------------------
@@ -209,6 +230,8 @@ export interface ReminderSummary {
   readonly mediaId: UUID;
   readonly mediaKind: MediaKind;
   readonly thumbnailToken?: ThumbnailToken;
+  /** Lets the Reminders list preview-play this reminder's media in place; absent only when the joined media row is null. */
+  readonly sourceToken?: MediaSourceToken;
   readonly profileId: UUID;
   readonly enabledIntent: boolean;
   readonly effectiveState: ReminderEffectiveState;
@@ -219,6 +242,14 @@ export interface ReminderSummary {
    * rendered text, not a lookup key — display it directly.
    */
   readonly repeatSummary: string;
+  /**
+   * The reminder's own recurrence rule — used only to build the "Upcoming"
+   * 5-day display projection (`projectUpcomingOccurrences`), a read-only
+   * forward-looking list. MR-08's "UI never calculates authoritative next
+   * occurrence" governs actual scheduling, which stays entirely native; nothing
+   * computed from this field is ever written back into a save/schedule call.
+   */
+  readonly schedule: ScheduleRuleDto;
 }
 
 export interface ReminderDetail extends ReminderSummary {
@@ -274,8 +305,18 @@ export interface EnableResult {
   readonly nextOccurrence: OccurrenceSummary | null;
 }
 
-/** MR-08 `TestMode`: which adaptive-presentation path the Test reminder exercises. */
-export type TestMode = 'locked' | 'unlocked';
+/**
+ * Settings "Preview alarm styles" request. `title`/`body` are already
+ * localized by the caller (native never owns display copy — MR-18);
+ * `fullScreenWhenLocked` mirrors the previewed profile's own field, so the
+ * preview notification/full-screen takeover matches what a real reminder on
+ * that profile would actually do.
+ */
+export interface TestReminderRequest {
+  readonly title: string;
+  readonly body: string;
+  readonly fullScreenWhenLocked: boolean;
+}
 
 export interface TestReminderResult {
   readonly sessionId: UUID;
@@ -350,6 +391,11 @@ export interface CapabilitySnapshot {
   readonly overall: ResultStatus;
   readonly items: readonly CapabilityItem[];
   readonly observedAt: Instant;
+}
+
+/** Result of prompting the OS notification-permission dialog (`requestNotificationPermission`). */
+export interface NotificationPermissionResult {
+  readonly granted: boolean;
 }
 
 // --- Startup (MR-08 "Startup snapshot") ----------------------------------------

@@ -41,7 +41,11 @@ class AlarmDispatchReceiver : BroadcastReceiver() {
             // involvement at all (see `NotificationCoordinator.postTestNotification`'s
             // scope note) — cheap enough to run synchronously, no
             // goAsync()/wake lock needed.
-            AlarmIds.ACTION_TEST_ALARM_DUE -> NotificationCoordinator(context).postTestNotification()
+            AlarmIds.ACTION_TEST_ALARM_DUE -> NotificationCoordinator(context).postTestNotification(
+                title = intent.getStringExtra(AlarmIds.EXTRA_PREVIEW_TITLE).orEmpty(),
+                body = intent.getStringExtra(AlarmIds.EXTRA_PREVIEW_BODY).orEmpty(),
+                fullScreenWhenLocked = intent.getBooleanExtra(AlarmIds.EXTRA_PREVIEW_FULL_SCREEN, false),
+            )
             else -> return
         }
     }

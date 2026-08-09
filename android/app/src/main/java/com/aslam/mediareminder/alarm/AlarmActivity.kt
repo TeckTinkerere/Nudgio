@@ -3,6 +3,7 @@ package com.aslam.mediareminder.alarm
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.PopupMenu
@@ -51,9 +52,15 @@ class AlarmActivity : AppCompatActivity() {
     private var sessionId: String? = null
     private var nonce: String? = null
 
+    /** True when this Activity is showing Settings' "Preview alarm styles" (see `AlarmIds.EXTRA_PREVIEW_*`), not a real session. */
+    private var isPreview = false
+
     private lateinit var labelView: TextView
     private lateinit var mediaTitleView: TextView
     private lateinit var repeatSummaryView: TextView
+    private lateinit var acceptButton: MaterialButton
+    private lateinit var snoozeButton: MaterialButton
+    private lateinit var overflowButton: ImageButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -116,17 +123,20 @@ class AlarmActivity : AppCompatActivity() {
         labelView = findViewById(R.id.alarm_label)
         mediaTitleView = findViewById(R.id.alarm_media_title)
         repeatSummaryView = findViewById(R.id.alarm_repeat_summary)
+        acceptButton = findViewById(R.id.alarm_accept_button)
+        snoozeButton = findViewById(R.id.alarm_snooze_button)
+        overflowButton = findViewById(R.id.alarm_overflow_button)
 
-        findViewById<MaterialButton>(R.id.alarm_accept_button).setOnClickListener {
+        acceptButton.setOnClickListener {
             dispatchAction(AlarmIds.ACTION_PLAY)
         }
-        findViewById<MaterialButton>(R.id.alarm_snooze_button).setOnClickListener {
+        snoozeButton.setOnClickListener {
             dispatchAction(AlarmIds.ACTION_SNOOZE)
         }
         findViewById<MaterialButton>(R.id.alarm_dismiss_button).setOnClickListener {
             dispatchAction(AlarmIds.ACTION_DISMISS)
         }
-        findViewById<ImageButton>(R.id.alarm_overflow_button).setOnClickListener { anchor ->
+        overflowButton.setOnClickListener { anchor ->
             PopupMenu(this, anchor).apply {
                 menu.add(getString(R.string.alarm_silence_sound))
                 setOnMenuItemClickListener {
@@ -137,7 +147,34 @@ class AlarmActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Settings "Preview alarm styles": shows the already-localized title/body
+     * JS built for the tapped profile directly, with no Room session behind
+     * it — Accept/Snooze/the "Silence sound" overflow only make sense against
+     * a real session, so they are hidden rather than left visible and inert.
+     * Dismiss stays visible and, via [dispatchAction]'s `isPreview` check,
+     * just closes this screen.
+     */
+    private fun showPreview(title: String, body: String) {
+        isPreview = true
+        sessionId = null
+        nonce = null
+        labelView.text = title
+        mediaTitleView.text = body
+        repeatSummaryView.text = ""
+        acceptButton.visibility = View.GONE
+        snoozeButton.visibility = View.GONE
+        overflowButton.visibility = View.GONE
+    }
+
     private fun loadSession(intent: Intent) {
+        val previewTitle = intent.getStringExtra(AlarmIds.EXTRA_PREVIEW_TITLE)
+        if (previewTitle != null) {
+            showPreview(previewTitle, intent.getStringExtra(AlarmIds.EXTRA_PREVIEW_BODY).orEmpty())
+            return
+        }
+
+        isPreview = false
         val newSessionId = intent.getStringExtra(AlarmIds.EXTRA_SESSION_ID) ?: return
         sessionId = newSessionId
         labelView.text = getString(R.string.alarm_default_label)
@@ -175,6 +212,12 @@ class AlarmActivity : AppCompatActivity() {
      * independent of this activity's lifecycle.
      */
     private fun dispatchAction(action: String) {
+        if (isPreview) {
+            // No session exists to resolve — Dismiss (the only button left
+            // visible, see `showPreview`) just closes the preview.
+            finish()
+            return
+        }
         val id = sessionId ?: return
         val currentNonce = nonce ?: return
         sendBroadcast(

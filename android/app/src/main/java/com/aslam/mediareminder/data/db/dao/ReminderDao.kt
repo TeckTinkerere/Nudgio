@@ -20,6 +20,10 @@ interface ReminderDao {
     @Query("SELECT * FROM reminders WHERE id = :id")
     suspend fun getById(id: String): ReminderEntity?
 
+    /** MR-03 "Delete" media flow: which reminders would be orphaned/cascaded by deleting a media asset. */
+    @Query("SELECT * FROM reminders WHERE media_id = :mediaId")
+    suspend fun getByMediaId(mediaId: String): List<ReminderEntity>
+
     @Query("SELECT COUNT(*) FROM reminders WHERE enabled_intent = 1")
     suspend fun countEnabled(): Int
 

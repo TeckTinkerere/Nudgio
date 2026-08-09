@@ -1,6 +1,8 @@
 package com.aslam.mediareminder.media
 
 import android.content.Context
+import android.net.Uri
+import androidx.core.content.FileProvider
 import com.aslam.mediareminder.data.media.MediaKinds
 import java.io.File
 import java.util.UUID
@@ -23,6 +25,18 @@ class MediaStorage(private val context: Context) {
         "${UUID.randomUUID()}.${MediaKinds.extensionFor(mimeType)}"
 
     fun fileFor(storageKey: String): File = File(mediaDir(), storageKey)
+
+    /**
+     * MR-10 "Sharing and privacy": a read-only, temporary `content://` grant
+     * for the Library's "Export selected" share intent — never a raw
+     * `file://` (blocked by `FileUriExposedException` on a share intent to
+     * another app since API 24, and would leak the app-private path even if
+     * it worked). Scoped by `res/xml/file_paths.xml`'s `media` entry to
+     * `filesDir/media/` alone, the same one-folder discipline the `backups`
+     * entry already documents.
+     */
+    fun contentUriFor(file: File): Uri =
+        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 
     /**
      * MR-09 "File storage": "Derived thumbnails are WebP cache and may be

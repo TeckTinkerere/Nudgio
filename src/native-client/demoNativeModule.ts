@@ -33,6 +33,7 @@ import {
 import type {MediaReminderSpec} from './NativeMediaReminder';
 import type {
   ByteCount,
+  DeleteMediaRequest,
   EnableResult,
   ImportRequest,
   Instant,
@@ -187,11 +188,13 @@ const toSummary = (reminder: ReminderDetail): ReminderSummary => ({
   mediaId: reminder.mediaId,
   mediaKind: reminder.mediaKind,
   thumbnailToken: reminder.thumbnailToken,
+  sourceToken: reminder.sourceToken,
   profileId: reminder.profileId,
   enabledIntent: reminder.enabledIntent,
   effectiveState: reminder.effectiveState,
   nextOccurrence: reminder.nextOccurrence,
   repeatSummary: reminder.repeatSummary,
+  schedule: reminder.schedule,
 });
 
 export const createDemoNativeModule = (): MediaReminderSpec => {
@@ -331,6 +334,29 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
       return updated;
     },
 
+    deleteMedia: async (request: DeleteMediaRequest): Promise<MutationResult> => {
+      const existed = media.delete(request.id);
+      if (existed) {
+        // Mirrors the Kotlin side's rule: `cascadeDeleteReminders` selects
+        // between removing dependent reminders outright and just disabling
+        // them (media_id has no FK, so nothing else forces this decision).
+        for (const [reminderId, reminder] of reminders) {
+          if (reminder.mediaId !== request.id) {continue;}
+          if (request.cascadeDeleteReminders) {
+            reminders.delete(reminderId);
+          } else {
+            reminders.set(reminderId, {
+              ...reminder,
+              enabledIntent: false,
+              effectiveState: 'disabled',
+              nextOccurrence: null,
+            });
+          }
+        }
+      }
+      return {status: 'ok', affectedCount: existed ? 1 : 0};
+    },
+
     listProfiles: async () => mockProfiles,
 
     listReminders: async (): Promise<Page<ReminderSummary>> =>
@@ -359,6 +385,7 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
         mediaId: request.mediaId,
         mediaKind: referencedMedia?.kind ?? 'video',
         thumbnailToken: undefined,
+        sourceToken: referencedMedia?.sourceToken,
         profileId: request.profileId,
         enabledIntent: request.enabledIntent,
         effectiveState: request.enabledIntent ? 'active' : 'disabled',

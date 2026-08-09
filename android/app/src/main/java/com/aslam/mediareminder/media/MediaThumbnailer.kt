@@ -33,6 +33,25 @@ object MediaThumbnailer {
     private const val MAX_DIMENSION_PX = 640
     private const val WEBP_QUALITY = 82
 
+    /**
+     * Bounds-only decode (no pixel buffer allocated) — cheap enough to run
+     * over every cached thumbnail on a startup sweep. A thumbnail file can
+     * exist on disk yet fail to decode (truncated write, a previous OS-level
+     * storage fault) without the row's `thumbnail_path` ever being cleared,
+     * since nothing previously checked the file's actual readability, only
+     * its presence.
+     */
+    fun isValid(file: File): Boolean {
+        if (!file.exists()) return false
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        return try {
+            BitmapFactory.decodeFile(file.absolutePath, options)
+            options.outWidth > 0 && options.outHeight > 0
+        } catch (error: Exception) {
+            false
+        }
+    }
+
     fun generate(sourceFile: File, kind: String, destination: File): Boolean {
         val sourceBitmap = try {
             when (kind) {
