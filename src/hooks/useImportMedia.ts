@@ -24,9 +24,10 @@ import {useAppMutation} from './useAppMutation';
 import {useAppQueryClient} from './useAppQueryClient';
 import {useOperationProgress} from './useOperationProgress';
 import {useAppContainer} from '../app/di';
+import {useToast} from '../app/toast/ToastProvider';
 import type {AppError} from '../core/errors';
 import {queryKeys, unwrapResult} from '../core/state';
-import type {TranslationKey} from '../localization';
+import {useTranslation, type TranslationKey} from '../localization';
 import type {MediaDetail, UUID} from '../native-client/types';
 
 /**
@@ -132,6 +133,8 @@ const DEFAULT_MIME_TYPES: readonly string[] = ['image/*', 'video/*'];
 export const useImportMedia = () => {
   const {repositories} = useAppContainer();
   const queryClient = useAppQueryClient();
+  const {showToast} = useToast();
+  const t = useTranslation();
   const [operationId, setOperationId] = useState<UUID | null>(null);
 
   const mutation = useAppMutation<ImportMediaOutcome, readonly string[] | void>({
@@ -163,6 +166,10 @@ export const useImportMedia = () => {
       void queryClient.invalidateQueries({queryKey: queryKeys.media.all()});
       // eslint-disable-next-line no-void
       void queryClient.invalidateQueries({queryKey: queryKeys.startup()});
+      // Every call imports exactly one file (see module doc comment) — the
+      // `{count}` form matches the same "N assets ... successfully" wording
+      // Library's bulk export/delete toasts already use.
+      showToast({message: t('library.import.success', {count: 1}), tone: 'success'});
     },
   });
 

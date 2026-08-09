@@ -9,6 +9,7 @@
 import type {PropsWithChildren} from 'react';
 
 import {useAppBootstrap} from './useAppBootstrap';
+import {useRequestNotificationPermissionOnLaunch} from './useRequestNotificationPermissionOnLaunch';
 import {testIds} from '../../constants';
 import {ErrorState, LoadingState} from '../../design-system';
 import {useTranslation} from '../../localization';
@@ -17,6 +18,7 @@ import {useTranslation} from '../../localization';
 export function StartupGate({children}: PropsWithChildren) {
   const t = useTranslation();
   const bootstrap = useAppBootstrap();
+  useRequestNotificationPermissionOnLaunch(bootstrap.snapshot);
 
   if (bootstrap.phase === 'loading') {
     return (
