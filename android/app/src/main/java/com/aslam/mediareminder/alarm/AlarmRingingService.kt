@@ -151,7 +151,7 @@ class AlarmRingingService : Service() {
             val notification = notificationCoordinator.buildDueNotification(
                 sessionId = sessionId,
                 reminderLabel = reminder?.label ?: "Reminder",
-                mediaTitle = reminder?.label ?: "",
+                mediaTitle = reminder?.let { AlarmNotificationText.resolveBody(database, it) } ?: "",
                 nonce = session.actionNonce,
                 useAlarmChannel = true,
                 ongoing = true,

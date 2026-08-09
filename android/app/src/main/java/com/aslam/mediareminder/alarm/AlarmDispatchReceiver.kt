@@ -133,6 +133,7 @@ class AlarmDispatchReceiver : BroadcastReceiver() {
             // ring and use `CATEGORY_ALARM`, Gentle never does.
             val useAlarmChannel = profile?.fullScreenWhenLocked ?: true
             val notificationCoordinator = NotificationCoordinator(context)
+            val notificationBody = AlarmNotificationText.resolveBody(database, reminder)
 
             val decision = DevicePresentationState.classify(
                 isLockedOrNonInteractive = isLockedOrNonInteractive(context),
@@ -169,7 +170,7 @@ class AlarmDispatchReceiver : BroadcastReceiver() {
                 sessionId = sessionId,
                 occurrenceId = occurrenceId,
                 reminderLabel = reminder.label,
-                mediaTitle = reminder.label,
+                mediaTitle = notificationBody,
                 nonce = nonce,
                 useAlarmChannel = useAlarmChannel,
                 ongoing = useAlarmChannel,
@@ -194,7 +195,7 @@ class AlarmDispatchReceiver : BroadcastReceiver() {
                     scheduledAtEpochMs = occurrence.scheduledAt,
                     occurrenceState = OccurrenceEntity.STATE_CLAIMED,
                     reminderLabel = reminder.label,
-                    mediaTitle = reminder.label,
+                    mediaTitle = notificationBody,
                     defaultSnoozeMinutes = reminder.snoozeDefaultMinutes,
                 )
             }
