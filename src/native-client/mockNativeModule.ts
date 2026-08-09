@@ -190,6 +190,7 @@ export const createMockNativeModule = (
     saveProfile: notImplemented('saveProfile'),
     resetBuiltInProfile: notImplemented('resetBuiltInProfile'),
     beginExport: notImplemented('beginExport'),
+    shareBackupExport: notImplemented('shareBackupExport'),
     inspectBackup: notImplemented('inspectBackup'),
     commitImport: notImplemented('commitImport'),
     cancelOperation: notImplemented('cancelOperation'),

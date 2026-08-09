@@ -83,6 +83,7 @@ export const createRepositories = (deps: CreateRepositoriesDeps): Repositories =
 
     backup: {
       beginExport: request => client.beginExport(request),
+      shareBackupExport: fileName => client.shareBackupExport(fileName),
       inspectBackup: uriToken => client.inspectBackup(uriToken),
       commitImport: request => client.commitImport(request),
       cancelOperation: id => client.cancelOperation(id),
