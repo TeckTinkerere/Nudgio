@@ -7,7 +7,7 @@
 
   function buildTicks() {
     var group = document.getElementById('dial-tick-group');
-    if (!group) return;
+    if (!group) {return;}
     var cx = 100;
     var cy = 100;
     var count = 60;
@@ -32,20 +32,20 @@
   }
 
   function formatBytes(bytes) {
-    if (!bytes && bytes !== 0) return '—';
+    if (!bytes && bytes !== 0) {return '—';}
     var mb = bytes / (1024 * 1024);
     return mb.toFixed(1) + ' MB';
   }
 
   function formatDate(iso) {
-    if (!iso) return '—';
+    if (!iso) {return '—';}
     var d = new Date(iso);
     return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
   function setDialState(text, tone) {
     var stateEl = document.getElementById('dial-state');
-    if (!stateEl) return;
+    if (!stateEl) {return;}
     stateEl.textContent = text;
     if (tone) {
       stateEl.setAttribute('data-tone', tone);
@@ -64,7 +64,7 @@
 
     fetch(API_URL, { headers: { Accept: 'application/vnd.github+json' } })
       .then(function (res) {
-        if (!res.ok) throw new Error('GitHub API returned ' + res.status);
+        if (!res.ok) {throw new Error('GitHub API returned ' + res.status);}
         return res.json();
       })
       .then(function (release) {
@@ -106,14 +106,14 @@
 
   function showWaitlistCount(n) {
     var countEl = document.getElementById('waitlist-count');
-    if (!countEl || typeof n !== 'number') return;
+    if (!countEl || typeof n !== 'number') {return;}
     countEl.textContent = formatCount(n);
     countEl.hidden = false;
   }
 
   function setWaitlistStatus(text, tone) {
     var statusEl = document.getElementById('waitlist-status');
-    if (!statusEl) return;
+    if (!statusEl) {return;}
     statusEl.textContent = text;
     if (tone) {
       statusEl.setAttribute('data-tone', tone);
@@ -125,7 +125,7 @@
   function loadWaitlistCount() {
     fetch('/api/waitlist')
       .then(function (res) {
-        if (!res.ok) throw new Error('bad response');
+        if (!res.ok) {throw new Error('bad response');}
         return res.json();
       })
       .then(function (data) {
@@ -138,7 +138,7 @@
 
   function initWaitlistForm() {
     var form = document.getElementById('waitlist-form');
-    if (!form) return;
+    if (!form) {return;}
 
     form.addEventListener('submit', function (event) {
       event.preventDefault();
@@ -169,7 +169,7 @@
               return {};
             })
             .then(function (data) {
-              if (!res.ok) throw new Error(data.error || 'Something went wrong. Try again in a bit.');
+              if (!res.ok) {throw new Error(data.error || 'Something went wrong. Try again in a bit.');}
               return data;
             });
         })
