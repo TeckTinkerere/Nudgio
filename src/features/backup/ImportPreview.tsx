@@ -4,12 +4,33 @@
  * Split out of `ImportScreen` purely to keep that screen's phase switch
  * readable — this is one phase's worth of UI, not a reusable component.
  */
-import {Card, Button, Stack, StatusPill, Text} from '../../design-system';
+import {Button, Card, RadioCard, Stack, StatusPill, Text} from '../../design-system';
+import type {IconName} from '../../design-system';
 import {useTranslation, type TranslationKey} from '../../localization';
 import type {BackupInspection, ConflictSummary, ImportMode} from '../../native-client/types';
 import {formatBytes} from '../../utils';
 
 export type {ImportMode};
+
+const MODE_ICON = {
+  inspect: 'search',
+  merge: 'download',
+  replace: 'delete',
+} as const satisfies Record<ImportMode, IconName>;
+
+const MODE_LABEL_KEY: Record<ImportMode, TranslationKey> = {
+  inspect: 'backup.import.inspectOnly',
+  merge: 'backup.import.merge',
+  replace: 'backup.import.replace',
+};
+
+const MODE_DESCRIPTION_KEY: Record<ImportMode, TranslationKey> = {
+  inspect: 'backup.import.inspectOnlyDescription',
+  merge: 'backup.import.mergeDescription',
+  replace: 'backup.import.replaceDescription',
+};
+
+const IMPORT_MODES: readonly ImportMode[] = ['inspect', 'merge', 'replace'];
 
 export interface ImportPreviewProps {
   readonly inspection: BackupInspection;
@@ -95,25 +116,19 @@ export function ImportPreview({inspection, mode, onModeChange, onCommit}: Import
         </Stack>
       ) : null}
 
-      <Stack gap="xxs">
+      <Stack gap="xs">
         <Text variant="titleMedium">{t('backup.import.title')}</Text>
-        <Stack direction="row" gap="xs" wrap>
-          <Button
-            label={t('backup.import.inspectOnly')}
-            variant={mode === 'inspect' ? 'filled' : 'outlined'}
-            onPress={() => onModeChange('inspect')}
+        {IMPORT_MODES.map(candidate => (
+          <RadioCard
+            key={candidate}
+            title={t(MODE_LABEL_KEY[candidate])}
+            description={t(MODE_DESCRIPTION_KEY[candidate])}
+            icon={MODE_ICON[candidate]}
+            selected={mode === candidate}
+            onPress={() => onModeChange(candidate)}
+            notice={candidate === 'replace' ? t('backup.import.replaceNotice') : undefined}
           />
-          <Button
-            label={t('backup.import.merge')}
-            variant={mode === 'merge' ? 'filled' : 'outlined'}
-            onPress={() => onModeChange('merge')}
-          />
-          <Button
-            label={t('backup.import.replace')}
-            variant={mode === 'replace' ? 'destructive' : 'outlined'}
-            onPress={() => onModeChange('replace')}
-          />
-        </Stack>
+        ))}
       </Stack>
 
       <Button

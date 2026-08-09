@@ -8,13 +8,51 @@
  * bolted onto a chart, it's the only rendering.
  */
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {StyleSheet, View} from 'react-native';
 
 import type {RootStackParamList} from '../../app/navigation/types';
-import {AppBar, Card, EmptyState, Screen, Stack, StatTile, Text} from '../../design-system';
+import {AppBar, Card, EmptyState, Screen, Stack, StatTile, Text, useTheme} from '../../design-system';
 import {useTranslation} from '../../localization';
-import {mockStatistics} from '../../mocks/fixtures';
+import {mockStatistics, type DailyOutcomeCount} from '../../mocks/fixtures';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Statistics'>;
+
+/**
+ * Proportional stacked bar, not a chart widget (MR-04 "Charts and history"
+ * bans bar/line charts, not a decorative inline proportion strip) — three
+ * flex segments sized by each count's share of the day's total. Colors are
+ * neutral role tones, not `error`/`actionNeeded`: "missed" gets the same
+ * even-handed treatment "Completed and dismissed are factual, not
+ * celebratory or shaming" already requires of the numbers beside it.
+ */
+function DayProportionBar({day}: {readonly day: DailyOutcomeCount}) {
+  const theme = useTheme();
+  const total = day.completed + day.dismissed + day.missed;
+  if (total === 0) {
+    return null;
+  }
+
+  const styles = StyleSheet.create({
+    track: {
+      flexDirection: 'row',
+      height: 6,
+      borderRadius: theme.radius.full,
+      overflow: 'hidden',
+      backgroundColor: theme.color.surfaceContainerHigh,
+    },
+    completed: {flex: day.completed, backgroundColor: theme.color.primary},
+    dismissed: {flex: day.dismissed, backgroundColor: theme.color.secondary},
+    missed: {flex: day.missed, backgroundColor: theme.color.outline},
+  });
+
+  return (
+    <View style={styles.track}>
+      <View style={styles.completed} />
+      <View style={styles.dismissed} />
+      <View style={styles.missed} />
+    </View>
+  );
+}
 
 export function StatisticsScreen({navigation}: Props) {
   const t = useTranslation();
@@ -40,10 +78,15 @@ export function StatisticsScreen({navigation}: Props) {
           </Text>
 
           <Stack direction="row" gap="xs" wrap>
-            <StatTile value={stats.completed} label={t('statistics.completed')} tone="positive" />
-            <StatTile value={stats.dismissed} label={t('statistics.dismissed')} />
-            <StatTile value={stats.missed} label={t('statistics.missed')} />
-            <StatTile value={stats.snoozed} label={t('statistics.snoozed')} />
+            <StatTile
+              value={stats.completed}
+              label={t('statistics.completed')}
+              tone="positive"
+              icon="check"
+            />
+            <StatTile value={stats.dismissed} label={t('statistics.dismissed')} icon="close" />
+            <StatTile value={stats.missed} label={t('statistics.missed')} icon="clock" />
+            <StatTile value={stats.snoozed} label={t('statistics.snoozed')} icon="snooze" />
           </Stack>
 
           <Card>
@@ -66,19 +109,22 @@ export function StatisticsScreen({navigation}: Props) {
                   dismissed: day.dismissed,
                   missed: day.missed,
                 })}>
-                <Stack direction="row" align="center" justify="space-between">
-                  <Text variant="titleMedium">{day.date}</Text>
-                  <Stack direction="row" gap="sm">
-                    <Text variant="bodyMedium" tone="variant" tabularNumbers>
-                      {t('statistics.completed')}: {day.completed}
-                    </Text>
-                    <Text variant="bodyMedium" tone="variant" tabularNumbers>
-                      {t('statistics.dismissed')}: {day.dismissed}
-                    </Text>
-                    <Text variant="bodyMedium" tone="variant" tabularNumbers>
-                      {t('statistics.missed')}: {day.missed}
-                    </Text>
+                <Stack gap="xs">
+                  <Stack direction="row" align="center" justify="space-between">
+                    <Text variant="titleMedium">{day.date}</Text>
+                    <Stack direction="row" gap="sm">
+                      <Text variant="bodyMedium" tone="variant" tabularNumbers>
+                        {t('statistics.completed')}: {day.completed}
+                      </Text>
+                      <Text variant="bodyMedium" tone="variant" tabularNumbers>
+                        {t('statistics.dismissed')}: {day.dismissed}
+                      </Text>
+                      <Text variant="bodyMedium" tone="variant" tabularNumbers>
+                        {t('statistics.missed')}: {day.missed}
+                      </Text>
+                    </Stack>
                   </Stack>
+                  <DayProportionBar day={day} />
                 </Stack>
               </Card>
             ))}

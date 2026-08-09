@@ -7,58 +7,124 @@
  * 6. Confirm. Replace requires typing REPLACE... 7. Commit, then show
  * restored counts."
  *
- * The native `inspectBackup`/`commitImport` engine is real
- * (docs/decision-log.md DL-025 onward) — `MediaReminderClient`/`BackupRepository`
- * already expose it. What is still simulated here, against
- * `mockBackupInspection`, is step 1: this app has no document-picker
- * wired yet to turn a user's file choice into the `content://`/`file://`
- * URI `inspectBackup` needs, so there is no real archive path to inspect
- * from this screen today. `BackupScreen`'s export flow has no such
- * blocker and is wired for real. The preview step is its own component
+ * Fully real now: `pickDocument` (built for media import, generic SAF/Photo
+ * Picker launch) supplies the `content://` `uriToken` `inspectBackup` needs,
+ * closing the one gap that used to force step 1 through `mockBackupInspection`
+ * (docs/decision-log.md — `BackupScreen`'s export side had no such blocker
+ * and was already wired for real). The preview step is its own component
  * (`ImportPreview`) — folding it into this file's phase switch pushed
  * the whole screen's cognitive complexity well past a readable size.
  */
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {useEffect, useState} from 'react';
+import {useState} from 'react';
+import {StyleSheet} from 'react-native';
 
 import {ImportPreview, type ImportMode} from './ImportPreview';
+import {useAppContainer} from '../../app/di/useAppContainer';
 import type {RootStackParamList} from '../../app/navigation/types';
-import {AppBar, Button, Dialog, ProgressBar, Screen, Stack, Text, TextField} from '../../design-system';
+import {
+  AppBar,
+  Banner,
+  Button,
+  Dialog,
+  Icon,
+  ProgressBar,
+  Screen,
+  Stack,
+  Text,
+  TextField,
+  useTheme,
+} from '../../design-system';
 import {useHaptics} from '../../hooks';
 import {useTranslation} from '../../localization';
-import {mockBackupInspection} from '../../mocks/fixtures';
+import type {BackupInspection} from '../../native-client/types';
 
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Import'>;
 
 type ImportPhase = 'idle' | 'inspecting' | 'preview' | 'committing' | 'done';
 
+/** Same tonal-circle treatment `BackupScreen`'s success state uses, for a consistent restore/export pair. */
+function HeroCircle({icon, tone}: {readonly icon: 'download' | 'check'; readonly tone: 'neutral' | 'success'}) {
+  const theme = useTheme();
+  const styles = StyleSheet.create({
+    circle: {
+      width: 72,
+      height: 72,
+      borderRadius: theme.radius.full,
+      backgroundColor: tone === 'success' ? theme.color.successContainer : theme.color.secondaryContainer,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+  });
+  return (
+    <Stack style={styles.circle} align="center" justify="center">
+      <Icon
+        name={icon}
+        size="lg"
+        color={tone === 'success' ? theme.color.onSuccessContainer : theme.color.onSecondaryContainer}
+      />
+    </Stack>
+  );
+}
+
 export function ImportScreen({navigation}: Props) {
   const t = useTranslation();
   const haptics = useHaptics();
+  const container = useAppContainer();
   const [phase, setPhase] = useState<ImportPhase>('idle');
   const [mode, setMode] = useState<ImportMode>('merge');
+  const [inspection, setInspection] = useState<BackupInspection | null>(null);
+  const [error, setError] = useState(false);
   const [replaceConfirmOpen, setReplaceConfirmOpen] = useState(false);
   const [replaceConfirmText, setReplaceConfirmText] = useState('');
 
-  useEffect(() => {
-    if (phase !== 'inspecting' && phase !== 'committing') {
+  const chooseFile = async () => {
+    setError(false);
+    const picked = await container.repositories.media.pickDocument(['application/zip']);
+    // `ok(null)` is the user backing out of the picker — not an error, and
+    // not distinguishable from "no file chosen yet", so just stay on idle.
+    if (!picked.ok || picked.value === null) {
+      if (!picked.ok) {setError(true);}
       return;
     }
-    const timeout = setTimeout(() => {
-      setPhase(phase === 'inspecting' ? 'preview' : 'done');
-    }, 900);
-    return () => clearTimeout(timeout);
-  }, [phase]);
 
-  const inspection = mockBackupInspection;
+    setPhase('inspecting');
+    const inspected = await container.repositories.backup.inspectBackup(picked.value.uriToken);
+    if (inspected.ok) {
+      setInspection(inspected.value);
+      setPhase('preview');
+    } else {
+      container.logger.warn('importScreen.inspectFailed', {code: inspected.error.code});
+      setError(true);
+      setPhase('idle');
+    }
+  };
+
+  const commit = async (commitMode: ImportMode) => {
+    if (!inspection) {return;}
+    setPhase('committing');
+    const outcome = await container.repositories.backup.commitImport({
+      operationId: inspection.operationId,
+      importToken: inspection.importToken,
+      mode: commitMode,
+    });
+    if (outcome.ok) {
+      setPhase('done');
+    } else {
+      container.logger.warn('importScreen.commitFailed', {code: outcome.error.code});
+      setError(true);
+      setPhase('preview');
+    }
+  };
 
   const startCommit = () => {
     if (mode === 'replace') {
       setReplaceConfirmOpen(true);
       return;
     }
-    setPhase('committing');
+    // eslint-disable-next-line no-void
+    void commit(mode);
   };
 
   return (
@@ -70,18 +136,32 @@ export function ImportScreen({navigation}: Props) {
 
       <Stack gap="lg" paddingVertical="md">
         {phase === 'idle' ? (
-          <Button
-            label={t('backup.import.chooseFile')}
-            icon="download"
-            onPress={() => setPhase('inspecting')}
-            fullWidth
-          />
+          <Stack gap="lg" align="center" paddingVertical="xl">
+            {error ? (
+              <Banner
+                kind="actionNeeded"
+                title={t('error.unexpected.title')}
+                effect={t('error.unexpected.effect')}
+              />
+            ) : null}
+            <HeroCircle icon="download" tone="neutral" />
+            <Button
+              label={t('backup.import.chooseFile')}
+              icon="download"
+              onPress={() => {
+                // eslint-disable-next-line no-void
+                void chooseFile();
+              }}
+              fullWidth
+            />
+          </Stack>
         ) : phase === 'inspecting' ? (
           <ProgressBar label={t('backup.import.inspecting')} />
         ) : phase === 'committing' ? (
           <ProgressBar label={t('backup.import.committing')} />
-        ) : phase === 'done' ? (
-          <Stack gap="xs" align="center" paddingVertical="xl">
+        ) : phase === 'done' && inspection ? (
+          <Stack gap="sm" align="center" paddingVertical="xl">
+            <HeroCircle icon="check" tone="success" />
             <Text variant="headlineMedium" isHeading align="center">
               {t('backup.import.successTitle')}
             </Text>
@@ -93,14 +173,14 @@ export function ImportScreen({navigation}: Props) {
             </Text>
             <Button label={t('backup.export.done')} onPress={() => navigation.goBack()} />
           </Stack>
-        ) : (
+        ) : inspection ? (
           <ImportPreview
             inspection={inspection}
             mode={mode}
             onModeChange={setMode}
             onCommit={startCommit}
           />
-        )}
+        ) : null}
       </Stack>
 
       <Dialog
@@ -127,7 +207,8 @@ export function ImportScreen({navigation}: Props) {
                   haptics.trigger('warning');
                   setReplaceConfirmOpen(false);
                   setReplaceConfirmText('');
-                  setPhase('committing');
+                  // eslint-disable-next-line no-void
+                  void commit('replace');
                 },
               }
             : undefined
