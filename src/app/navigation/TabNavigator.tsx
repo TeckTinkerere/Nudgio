@@ -32,7 +32,7 @@ import {Dialog, FAB, ProgressBar, useTheme} from '../../design-system';
 import {LibraryScreen} from '../../features/library/LibraryScreen';
 import {RemindersScreen} from '../../features/reminders/RemindersScreen';
 import {SettingsScreen} from '../../features/settings/SettingsScreen';
-import {TodayScreen} from '../../features/today/TodayScreen';
+import {UpcomingScreen} from '../../features/today/UpcomingScreen';
 import {
   importErrorCopy,
   importPhaseLabelKey,
@@ -109,7 +109,7 @@ export function TabNavigator({navigation}: Props) {
         screenOptions={{headerShown: false}}
         tabBar={renderTabBar}
         screenLayout={renderScreenLayout}>
-        <Tab.Screen name={tabRoutes.today} component={TodayScreen} />
+        <Tab.Screen name={tabRoutes.today} component={UpcomingScreen} />
         <Tab.Screen name={tabRoutes.library} component={LibraryScreen} />
         <Tab.Screen name={tabRoutes.reminders} component={RemindersScreen} />
         <Tab.Screen name={tabRoutes.settings} component={SettingsScreen} />

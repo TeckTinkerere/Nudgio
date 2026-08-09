@@ -20,10 +20,12 @@ import {LoadingState, useTheme} from '../../design-system';
 import {AboutScreen} from '../../features/about/AboutScreen';
 import {BackupScreen} from '../../features/backup/BackupScreen';
 import {ImportScreen} from '../../features/backup/ImportScreen';
+import {EditMediaAssetScreen} from '../../features/library/EditMediaAssetScreen';
 import {MediaDetailScreen} from '../../features/library/MediaDetailScreen';
 import {OnboardingScreen} from '../../features/onboarding/OnboardingScreen';
 import {ReminderDetailScreen} from '../../features/reminders/ReminderDetailScreen';
 import {ReminderEditorScreen} from '../../features/reminders/ReminderEditorScreen';
+import {SelectMediaScreen} from '../../features/reminders/SelectMediaScreen';
 import {StatisticsScreen} from '../../features/statistics/StatisticsScreen';
 import {usePreferences} from '../../hooks';
 import {useTranslation} from '../../localization';
@@ -62,8 +64,10 @@ export function RootNavigator() {
       <Stack.Screen name={rootRoutes.onboarding} component={OnboardingScreen} />
       <Stack.Screen name={rootRoutes.tabs} component={TabNavigator} />
       <Stack.Screen name={rootRoutes.mediaDetail} component={MediaDetailScreen} />
+      <Stack.Screen name={rootRoutes.editMediaAsset} component={EditMediaAssetScreen} />
       <Stack.Screen name={rootRoutes.reminderDetail} component={ReminderDetailScreen} />
       <Stack.Screen name={rootRoutes.reminderEditor} component={ReminderEditorScreen} />
+      <Stack.Screen name={rootRoutes.selectMedia} component={SelectMediaScreen} />
       <Stack.Screen name={rootRoutes.health} component={HealthScreen} />
       <Stack.Screen name={rootRoutes.backup} component={BackupScreen} />
       <Stack.Screen name={rootRoutes.import} component={ImportScreen} />
