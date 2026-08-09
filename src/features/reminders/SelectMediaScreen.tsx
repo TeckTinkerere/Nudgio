@@ -58,6 +58,16 @@ export function SelectMediaScreen({navigation, route}: Props) {
   const [activeKind, setActiveKind] = useState<MediaKind | null>(null);
   const [previewItem, setPreviewItem] = useState<MediaSummary | null>(null);
 
+  // Same two empty-result causes as Library's own grid (DL-059): browsing
+  // here can filter down to nothing just as easily, and the recovery is to
+  // clear the filter rather than to import more media.
+  const isFiltered = search.length > 0 || activeKind !== null;
+
+  const clearFilters = useCallback(() => {
+    setSearch('');
+    setActiveKind(null);
+  }, []);
+
   const query = useMemo<MediaQuery>(
     () => ({
       search: search.length > 0 ? search : undefined,
@@ -135,6 +145,8 @@ export function SelectMediaScreen({navigation, route}: Props) {
         importMedia={importMedia}
         mediaGridColumns={mediaGridColumns}
         renderCard={renderCard}
+        isFiltered={isFiltered}
+        onClearFilters={clearFilters}
       />
 
       <MediaSelectionPreviewModal
