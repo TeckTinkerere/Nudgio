@@ -132,7 +132,7 @@ interface MediaDao {
 
     /**
      * Items thumbnail generation never ran for — every asset imported before
-     * `MediaThumbnailer` existed (docs/decision-log.md DL-059's on-device
+     * `MediaThumbnailer` existed (docs/decision-log.md DL-060's on-device
      * pass found real library rows in exactly this state). `text` is
      * excluded: it has no thumbnail concept, so it would never gain one and
      * would just be swept on every backfill pass for nothing.

@@ -54,4 +54,4 @@ Thumbs.db
 # Never commit personal media, real archives or private diagnostics (MR-18)
 fixtures/private/
 *.mediareminder.zip
-diagnostics/
+/diagnostics/
