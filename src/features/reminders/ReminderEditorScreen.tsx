@@ -18,15 +18,17 @@
  * the recurrence engine landed) instead of only closing the screen.
  */
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {useMemo, useState} from 'react';
-import {StyleSheet} from 'react-native';
+import {useEffect, useMemo, useState} from 'react';
+import {Image, StyleSheet} from 'react-native';
 
-import {MediaPickerSheet, MEDIA_KIND_ICON} from './MediaPickerSheet';
 import {NumberStepper} from './NumberStepper';
+import {PROFILE_DESCRIPTION_KEY, PROFILE_ICON} from './profileDisplay';
 import {TimePicker, type TimeOfDayValue} from './TimePicker';
+import {useReminderDetail} from './useReminderDetail';
 import {useSaveReminder} from './useSaveReminder';
 import {weekdayOptions} from './weekdayOptions';
 import type {RootStackParamList} from '../../app/navigation/types';
+import {rootRoutes} from '../../constants/routes';
 import {appConfig} from '../../core/config/appConfig';
 import {
   AppBar,
@@ -34,7 +36,10 @@ import {
   Button,
   Card,
   Chip,
+  Dialog,
+  ErrorState,
   Icon,
+  LoadingState,
   RadioCard,
   Screen,
   Stack,
@@ -44,12 +49,24 @@ import {
   Toggle,
   WeekdaySelector,
 } from '../../design-system';
-import {useMediaList} from '../../hooks';
+import type {IconName} from '../../design-system';
+import {useTheme} from '../../design-system/theme/useTheme';
+import {useCapabilitySnapshot, useMediaList, useOpenCapabilitySettings, useProfiles} from '../../hooks';
 import {useTranslation, type TranslationKey} from '../../localization';
-import {findMockReminder} from '../../mocks/fixtures';
-import {mockProfiles} from '../../native-client';
+import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import {isBuiltInProfileNameKey} from '../../native-client/reminderProfileNameKeys';
-import type {Instant, LocalDate, LocalTime, ScheduleRuleDto, ZoneId} from '../../native-client/types';
+import type {
+  Instant,
+  LocalDate,
+  LocalTime,
+  MediaKind,
+  MediaSummary,
+  ReminderDetail,
+  ReminderProfile,
+  ScheduleRuleDto,
+  UUID,
+  ZoneId,
+} from '../../native-client/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ReminderEditor'>;
 
@@ -73,16 +90,12 @@ const REPEAT_TYPES: readonly RepeatType[] = [
   'custom',
 ];
 
-const PROFILE_ICON: Record<string, 'notification' | 'reminders' | 'clock'> = {
-  'profile.gentle.name': 'notification',
-  'profile.standard.name': 'reminders',
-  'profile.persistent.name': 'clock',
-};
-
-const PROFILE_DESCRIPTION_KEY: Record<string, TranslationKey> = {
-  'profile.gentle.name': 'profile.gentle.description',
-  'profile.standard.name': 'profile.standard.description',
-  'profile.persistent.name': 'profile.persistent.description',
+/** Shown on the "What" card's fallback avatar when the selected item has no thumbnail. */
+const MEDIA_KIND_ICON: Record<MediaKind, IconName> = {
+  video: 'video',
+  audio: 'audio',
+  image: 'image',
+  text: 'text',
 };
 
 
@@ -122,21 +135,106 @@ const deviceZone = (): ZoneId => {
   }
 };
 
+/**
+ * Loads the real reminder to edit before the form ever mounts — the form's
+ * fields are seeded once, from `useState`'s initializer, so if `existing`
+ * were allowed to arrive asynchronously *after* the form mounted, the
+ * already-mounted fields would silently keep their blank/default values
+ * instead of catching up to the loaded data.
+ */
 export function ReminderEditorScreen({navigation, route}: Props) {
   const t = useTranslation();
-  const existing = route.params.reminderId ? findMockReminder(route.params.reminderId) : undefined;
+  const reminderId = route.params.reminderId;
+  const reminderDetail = useReminderDetail(reminderId);
+  // Real, Room-seeded profiles (MR-08 `listProfiles`) — the form used to
+  // read the hardcoded `mockProfiles` fixture directly for both the default
+  // selection and the "Alert style" list (see `useProfiles`'s doc). Gated
+  // here the same way as `existing`: the form's `useState` initializers
+  // seed once from whatever `profiles.data` was at mount time, so it must
+  // already be loaded before the form ever mounts.
+  const profiles = useProfiles();
+  const backAction = {label: t('action.back'), onPress: () => navigation.goBack()};
+  const title = t('reminders.editor.editTitle');
+
+  if ((reminderId !== undefined && reminderDetail.isPending) || profiles.isPending) {
+    return (
+      <Screen hasAppBar>
+        <AppBar title={title} back={backAction} />
+        <LoadingState label={t('loading.startingUp')} />
+      </Screen>
+    );
+  }
+
+  if (reminderId !== undefined && reminderDetail.isError) {
+    return (
+      <Screen hasAppBar>
+        <AppBar title={title} back={backAction} />
+        <ErrorState
+          title={t('error.unexpected.title')}
+          effect={t('error.unexpected.effect')}
+          recoveryAction={{label: t('action.retry'), onPress: () => reminderDetail.refetch()}}
+          diagnosticCode={reminderDetail.error.correlationId}
+        />
+      </Screen>
+    );
+  }
+
+  if (profiles.isError) {
+    return (
+      <Screen hasAppBar>
+        <AppBar title={title} back={backAction} />
+        <ErrorState
+          title={t('error.unexpected.title')}
+          effect={t('error.unexpected.effect')}
+          recoveryAction={{label: t('action.retry'), onPress: () => profiles.refetch()}}
+          diagnosticCode={profiles.error.correlationId}
+        />
+      </Screen>
+    );
+  }
+
+  return (
+    <ReminderEditorForm
+      navigation={navigation}
+      existing={reminderId !== undefined ? reminderDetail.data : undefined}
+      prefillMediaId={route.params.mediaId}
+      profiles={profiles.data}
+    />
+  );
+}
+
+interface ReminderEditorFormProps {
+  readonly navigation: Props['navigation'];
+  readonly existing: ReminderDetail | undefined;
+  readonly prefillMediaId: UUID | undefined;
+  readonly profiles: readonly ReminderProfile[];
+}
+
+function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: ReminderEditorFormProps) {
+  const t = useTranslation();
   const isNew = existing === undefined;
   const saveReminder = useSaveReminder();
 
   // No mock fallback: an unset `mediaId` correctly leaves `isValid` false
   // (below) until the user picks a real item, rather than silently pointing
   // a saved reminder at a fixture id that does not exist in Room.
-  const [mediaId, setMediaId] = useState(existing?.mediaId ?? route.params.mediaId);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  // MR-09 anticipates a large library; a plain, unpaginated Sheet list (see
-  // the Sheet below) is a known v1 scale limit shared with `mockMedia`'s
-  // previous placeholder — 200 covers real usage today without yet building
-  // a dedicated searchable full-screen picker route.
+  const [mediaId, setMediaId] = useState(existing?.mediaId ?? prefillMediaId);
+  // `prefillMediaId` doubles as this screen's own "return value" from
+  // `SelectMediaScreen`: confirming a pick there merges a new `mediaId` into
+  // this route's params (`navigation.navigate(..., {merge: true})`), which
+  // arrives here as a changed `prefillMediaId` prop. `useState`'s initializer
+  // above only ever runs once at mount, so without this effect a pick made
+  // after the form was already open would never actually apply.
+  useEffect(() => {
+    if (prefillMediaId !== undefined) {
+      setMediaId(prefillMediaId);
+    }
+  }, [prefillMediaId]);
+  // MR-09 anticipates a large library; this unpaginated lookup (used only to
+  // resolve `mediaId` into the full `MediaSummary` the "What" card renders)
+  // is a known v1 scale limit shared with `mockMedia`'s previous placeholder
+  // — 200 covers real usage today. `SelectMediaScreen` runs its own,
+  // separately-filtered `useMediaList` query for actual browsing.
   const mediaList = useMediaList({sort: 'recent', limit: 200});
   const [label, setLabel] = useState(existing?.label ?? '');
   const [notes, setNotes] = useState(existing?.notes ?? '');
@@ -146,12 +244,22 @@ export function ReminderEditorScreen({navigation, route}: Props) {
   const [dayOfMonth, setDayOfMonth] = useState(1);
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [intervalDays, setIntervalDays] = useState(3);
-  const [profileId, setProfileId] = useState(existing?.profileId ?? mockProfiles[1]?.id);
+  const [profileId, setProfileId] = useState(existing?.profileId ?? profiles[1]?.id);
   const [snoozeMinutes, setSnoozeMinutes] = useState(
     existing?.snooze.defaultMinutes ?? appConfig.snooze.presetMinutes[1],
   );
   const [historyEnabled, setHistoryEnabled] = useState(existing?.historyEnabled ?? true);
   const [labelTouched, setLabelTouched] = useState(false);
+
+  // Every Save while notifications are blocked shows this nag (not just
+  // once) — the user explicitly asked to be reminded each time, since the
+  // OS gives no other signal once a permission dialog stops appearing.
+  const capability = useCapabilitySnapshot();
+  const openCapabilitySettings = useOpenCapabilitySettings();
+  const [notificationsWarningOpen, setNotificationsWarningOpen] = useState(false);
+  const notificationsBlocked = capability.data?.items.some(
+    item => item.kind === 'notifications' && item.status !== 'ready',
+  ) ?? false;
 
   const selectedMedia = mediaId
     ? mediaList.data?.items.find(item => item.id === mediaId)
@@ -241,8 +349,8 @@ export function ReminderEditorScreen({navigation, route}: Props) {
 
   const isValid = label.trim().length > 0 && selectedMedia !== undefined;
 
-  const handleSave = () => {
-    if (!isValid || !selectedMedia || !profileId) {
+  const performSave = () => {
+    if (!selectedMedia || !profileId) {
       return;
     }
     saveReminder.mutate(
@@ -265,6 +373,17 @@ export function ReminderEditorScreen({navigation, route}: Props) {
     );
   };
 
+  const handleSave = () => {
+    if (!isValid || !selectedMedia || !profileId) {
+      return;
+    }
+    if (notificationsBlocked) {
+      setNotificationsWarningOpen(true);
+      return;
+    }
+    performSave();
+  };
+
   return (
     <Screen hasAppBar scrollable>
       <AppBar
@@ -277,20 +396,17 @@ export function ReminderEditorScreen({navigation, route}: Props) {
         <Stack gap="xs">
           <Text variant="titleLarge">{t('reminders.editor.what')}</Text>
           {selectedMedia ? (
-            <Card onPress={() => setPickerOpen(true)}>
-              <Stack direction="row" align="center" gap="sm">
-                <Icon name={MEDIA_KIND_ICON[selectedMedia.kind]} />
-                <Stack style={styles.flexFill} gap={2}>
-                  <Text variant="titleMedium">{selectedMedia.title}</Text>
-                  <Text variant="labelMedium" tone="variant">
-                    {t('reminders.editor.changeMedia')}
-                  </Text>
-                </Stack>
-                <Icon name="chevronRight" />
-              </Stack>
-            </Card>
+            <MediaWhatCard
+              media={selectedMedia}
+              changeLabel={t('reminders.editor.changeMedia')}
+              onPress={() => navigation.navigate(rootRoutes.selectMedia, {selectedMediaId: mediaId})}
+            />
           ) : (
-            <Button label={t('reminders.editor.chooseMedia')} variant="outlined" onPress={() => setPickerOpen(true)} />
+            <Button
+              label={t('reminders.editor.chooseMedia')}
+              variant="outlined"
+              onPress={() => navigation.navigate(rootRoutes.selectMedia, {selectedMediaId: mediaId})}
+            />
           )}
         </Stack>
 
@@ -394,7 +510,7 @@ export function ReminderEditorScreen({navigation, route}: Props) {
         <Stack gap="xs">
           <Text variant="titleLarge">{t('reminders.editor.alertStyle')}</Text>
           <Stack gap="xs" accessibilityLabel={t('reminders.editor.alertStyle')}>
-            {mockProfiles.map(profile => (
+            {profiles.map(profile => (
               <RadioCard
                 key={profile.id}
                 title={isBuiltInProfileNameKey(profile.nameKey) ? t(profile.nameKey) : profile.nameKey}
@@ -495,18 +611,83 @@ export function ReminderEditorScreen({navigation, route}: Props) {
         />
       </Stack>
 
-      <MediaPickerSheet
-        visible={pickerOpen}
-        onDismiss={() => setPickerOpen(false)}
-        items={mediaList.data?.items}
-        isPending={mediaList.isPending}
-        selectedId={mediaId}
-        onSelect={id => {
-          setMediaId(id);
-          setPickerOpen(false);
+      <Dialog
+        visible={notificationsWarningOpen}
+        title={t('reminders.editor.notificationsBlockedTitle')}
+        body={t('reminders.editor.notificationsBlockedBody')}
+        cancel={{
+          label: t('reminders.editor.notificationsBlockedContinue'),
+          onPress: () => {
+            setNotificationsWarningOpen(false);
+            performSave();
+          },
+        }}
+        confirm={{
+          label: t('reminders.editor.notificationsBlockedOpenSettings'),
+          onPress: () => {
+            setNotificationsWarningOpen(false);
+            openCapabilitySettings.mutate('notifications');
+          },
         }}
       />
     </Screen>
+  );
+}
+
+interface MediaWhatCardProps {
+  readonly media: MediaSummary;
+  readonly changeLabel: string;
+  readonly onPress: () => void;
+}
+
+/**
+ * Extracted so its thumbnail-or-icon branching and theme-dependent style
+ * don't add to `ReminderEditorForm`'s own cognitive complexity (code-health
+ * hook, this slice) — a real thumbnail here (previously always a bare kind
+ * icon) is what actually makes "What" recognizable at a glance instead of
+ * every video/audio/image reminder showing the same generic glyph.
+ */
+function MediaWhatCard({media, changeLabel, onPress}: MediaWhatCardProps) {
+  const theme = useTheme();
+  const thumbnail = thumbnailImageSource(media.thumbnailToken);
+
+  const avatarStyle = StyleSheet.create({
+    box: {
+      width: theme.layout.reminderThumbnailSize,
+      height: theme.layout.reminderThumbnailSize,
+      borderRadius: theme.radius.card,
+      backgroundColor: theme.color.surfaceContainerHigh,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+    },
+  });
+
+  return (
+    <Card onPress={onPress}>
+      <Stack direction="row" align="center" gap="sm">
+        <Stack style={avatarStyle.box} align="center" justify="center">
+          {thumbnail ? (
+            <Image
+              source={thumbnail}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            />
+          ) : (
+            <Icon name={MEDIA_KIND_ICON[media.kind]} color={theme.color.onSurfaceVariant} />
+          )}
+        </Stack>
+        <Stack style={styles.flexFill} gap={2}>
+          <Text variant="titleMedium">{media.title}</Text>
+          <Text variant="labelMedium" tone="variant">
+            {changeLabel}
+          </Text>
+        </Stack>
+        <Icon name="chevronRight" color={theme.color.onSurfaceVariant} />
+      </Stack>
+    </Card>
   );
 }
 

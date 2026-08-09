@@ -2,16 +2,21 @@
  * Reminder detail screen (MR-03 reminder detail / editor preview fields).
  *
  * Shows the reminder's media, schedule, alert profile and snooze policy with
- * Edit/Delete actions. Data source is mock fixtures (`findMockReminder`) —
- * see `MediaDetailScreen`'s module doc for why. The visual pass here
- * (hero media avatar, entrance animation) is markup-only; wiring this screen
- * to real reminder data is a separate, already-tracked gap (TODO.md).
+ * Edit/Delete actions. Real, Room-backed data via `useReminderDetail`
+ * (previously `findMockReminder`/`findMockMedia` — opening this screen for
+ * any real, saved reminder showed fixture data instead, docs/decision-log.md).
+ * The enable `Toggle` and Delete confirm are now wired to the real
+ * `setReminderEnabled`/`deleteReminder` mutations too — both were previously
+ * decorative (`useState` and "close the dialog, do nothing" respectively).
  */
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useState} from 'react';
 import {Image, StyleSheet} from 'react-native';
 import Animated, {FadeInUp} from 'react-native-reanimated';
 
+import {useDeleteReminder} from './useDeleteReminder';
+import {useReminderDetail} from './useReminderDetail';
+import {useSetReminderEnabled} from './useSetReminderEnabled';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {rootRoutes} from '../../constants/routes';
 import {
@@ -21,7 +26,9 @@ import {
   Card,
   Dialog,
   EmptyState,
+  ErrorState,
   Icon,
+  LoadingState,
   Screen,
   Stack,
   Text,
@@ -29,10 +36,8 @@ import {
 } from '../../design-system';
 import type {IconName} from '../../design-system';
 import {useTheme} from '../../design-system/theme/useTheme';
-import {useHaptics} from '../../hooks';
+import {useHaptics, useProfiles} from '../../hooks';
 import {useTranslation} from '../../localization';
-import {findMockMedia, findMockReminder} from '../../mocks/fixtures';
-import {mockProfiles} from '../../native-client';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import {isBuiltInProfileNameKey} from '../../native-client/reminderProfileNameKeys';
 import type {MediaKind} from '../../native-client/types';
@@ -50,29 +55,52 @@ export function ReminderDetailScreen({navigation, route}: Props) {
   const t = useTranslation();
   const theme = useTheme();
   const haptics = useHaptics();
-  const reminder = findMockReminder(route.params.reminderId);
+  const reminderQuery = useReminderDetail(route.params.reminderId);
+  const profiles = useProfiles();
+  const setEnabled = useSetReminderEnabled();
+  const deleteReminder = useDeleteReminder();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [enabled, setEnabled] = useState(reminder?.enabledIntent ?? false);
 
-  if (!reminder) {
+  if (reminderQuery.isPending) {
     return (
       <Screen hasAppBar>
         <AppBar
           title={t('reminders.detail.title')}
           back={{label: t('action.back'), onPress: () => navigation.goBack()}}
         />
-        <EmptyState
-          icon="reminders"
-          title={t('library.detail.notFound.title')}
-          body={t('library.detail.notFound.effect')}
-        />
+        <LoadingState label={t('loading.startingUp')} />
       </Screen>
     );
   }
 
-  const media = findMockMedia(reminder.mediaId);
-  const profile = mockProfiles.find(item => item.id === reminder.profileId);
-  const thumbnail = media ? thumbnailImageSource(media.thumbnailToken) : undefined;
+  if (reminderQuery.isError || !reminderQuery.data) {
+    return (
+      <Screen hasAppBar>
+        <AppBar
+          title={t('reminders.detail.title')}
+          back={{label: t('action.back'), onPress: () => navigation.goBack()}}
+        />
+        {reminderQuery.isError ? (
+          <ErrorState
+            title={t('error.unexpected.title')}
+            effect={t('error.unexpected.effect')}
+            recoveryAction={{label: t('action.retry'), onPress: () => reminderQuery.refetch()}}
+            diagnosticCode={reminderQuery.error.correlationId}
+          />
+        ) : (
+          <EmptyState
+            icon="reminders"
+            title={t('library.detail.notFound.title')}
+            body={t('library.detail.notFound.effect')}
+          />
+        )}
+      </Screen>
+    );
+  }
+
+  const reminder = reminderQuery.data;
+  const profile = profiles.data?.find(item => item.id === reminder.profileId);
+  const thumbnail = thumbnailImageSource(reminder.thumbnailToken);
 
   const avatarStyle = StyleSheet.create({
     box: {
@@ -130,14 +158,14 @@ export function ReminderDetailScreen({navigation, route}: Props) {
                 {thumbnail ? (
                   <Image
                     source={thumbnail}
-                    style={StyleSheet.absoluteFillObject}
+                    style={StyleSheet.absoluteFill}
                     resizeMode="cover"
                     accessibilityElementsHidden
                     importantForAccessibility="no-hide-descendants"
                   />
                 ) : (
                   <Icon
-                    name={media ? MEDIA_ICON[media.kind] : 'reminders'}
+                    name={MEDIA_ICON[reminder.mediaKind]}
                     size="lg"
                     color={theme.color.onPrimaryContainer}
                   />
@@ -147,11 +175,11 @@ export function ReminderDetailScreen({navigation, route}: Props) {
                 <Text variant="labelLarge" tone="variant">
                   {t('reminders.editor.enabledToggle')}
                 </Text>
-                <Text variant="titleMedium">{media?.title ?? reminder.label}</Text>
+                <Text variant="titleMedium">{reminder.label}</Text>
               </Stack>
               <Toggle
-                value={enabled}
-                onValueChange={setEnabled}
+                value={reminder.enabledIntent}
+                onValueChange={value => setEnabled.mutate({id: reminder.id, enabled: value})}
                 label={reminder.label}
               />
             </Stack>
@@ -214,10 +242,19 @@ export function ReminderDetailScreen({navigation, route}: Props) {
           onPress: () => {
             haptics.trigger('warning');
             setDeleteDialogOpen(false);
-            navigation.goBack();
+            deleteReminder.mutate(reminder.id, {onSuccess: () => navigation.goBack()});
           },
         }}
       />
+
+      {deleteReminder.isError ? (
+        <Dialog
+          visible
+          title={t('error.unexpected.title')}
+          body={t('error.unexpected.effect')}
+          cancel={{label: t('action.close'), onPress: () => deleteReminder.reset()}}
+        />
+      ) : null}
     </Screen>
   );
 }
