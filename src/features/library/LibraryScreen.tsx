@@ -134,12 +134,11 @@ export function LibraryScreen() {
    * them. Sort is excluded deliberately: it reorders, it never excludes, so
    * it is not something "Clear filters" should reset.
    */
-  const isFiltered = search.length > 0 || activeKind !== null || activeCategoryId !== null;
+  const isFiltered = search.length > 0 || activeKind !== null;
 
   const clearFilters = useCallback(() => {
     setSearch('');
     setActiveKind(null);
-    setActiveCategoryId(null);
   }, []);
 
   const openItem = useCallback(
