@@ -75,6 +75,14 @@ export const en = {
   'library.filter.missing': 'Missing',
   'library.filters.more': 'More filters',
   'library.filters.fewer': 'Fewer filters',
+  // The two `library.empty.*` states cover different causes: a genuinely
+  // empty library (first-run) versus a search/kind/category filter that
+  // matched nothing (recoverable — see `library.empty.filtered.*`).
+  'library.empty.title': 'Your library is empty',
+  'library.empty.body': 'Imported videos, audio, images and text cards appear here.',
+  'library.empty.filtered.title': 'No media matches these filters',
+  'library.empty.filtered.body': 'Try a different search term, or clear the filters to see everything.',
+  'library.empty.filtered.clearFilters': 'Clear filters',
   'library.sort.recentlyAdded': 'Recently added',
   'library.sort.name': 'Name',
   'library.sort.mostScheduled': 'Most scheduled',

@@ -24,6 +24,7 @@ export const testIds = {
     editAssetScreen: 'library.editAssetScreen',
     editAssetTitleField: 'library.editAssetTitleField',
     editAssetSaveButton: 'library.editAssetSaveButton',
+    emptyState: 'library.emptyState',
   },
   reminders: {
     screen: 'reminders.screen',

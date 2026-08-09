@@ -129,6 +129,19 @@ export function LibraryScreen() {
 
   const media = useMediaList(query);
 
+  /**
+   * An empty result set has two causes and the user can only act on one of
+   * them. Sort is excluded deliberately: it reorders, it never excludes, so
+   * it is not something "Clear filters" should reset.
+   */
+  const isFiltered = search.length > 0 || activeKind !== null || activeCategoryId !== null;
+
+  const clearFilters = useCallback(() => {
+    setSearch('');
+    setActiveKind(null);
+    setActiveCategoryId(null);
+  }, []);
+
   const openItem = useCallback(
     (item: MediaSummary) => {
       if (isTwoPane) {
@@ -249,6 +262,8 @@ export function LibraryScreen() {
         importMedia={importMedia}
         mediaGridColumns={mediaGridColumns}
         renderCard={renderCard}
+        isFiltered={isFiltered}
+        onClearFilters={clearFilters}
       />
     </>
   );

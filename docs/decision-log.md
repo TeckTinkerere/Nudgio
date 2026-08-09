@@ -1634,7 +1634,30 @@ and `npm test` (44/44) all green. Reminders list and Reminder Detail are
 still no device connected this session to confirm the redesigned screens
 render and the newly-wired toggle/navigation actually work end-to-end.
 
-## DL-059 — first real on-device pass surfaced a stub delete, fake Today data, and a broken edit path; full screen-polish sweep
+## DL-059 — Library's grid empty state stopped reusing Today's copy
+
+**Date:** 2026-08-09
+**Context:** `LibraryGridBody`'s zero-items branch rendered `today.empty.title`
+/ `today.empty.body` ("No reminders scheduled" / "Import something
+meaningful, then choose when it should return.") — Today's copy, not
+Library's, so an empty media library told the user their *reminders* were
+empty. This was inherited unchanged from before the `LibraryScreen` /
+`LibraryGridBody` split (DL-057); nothing about that refactor touched it.
+**Decision:** Added dedicated `library.empty.*` keys and split them into two
+states, since an empty grid has two distinct causes the user can act on
+differently: a genuinely empty library (first-run — the fix is to import
+something, so the existing `importMedia.importMedia()` action stays as-is)
+versus a search/kind/category filter that matched nothing (recoverable by
+clearing the filter, not by importing more media — new `library.empty.filtered.*`
+copy with a real **Clear filters** action). `LibraryGridBody` gained
+`isFiltered`/`onClearFilters` props from `LibraryScreen`, computed as
+`search.length > 0 || activeKind !== null || activeCategoryId !== null` —
+sort is deliberately excluded, since it reorders and never excludes.
+**Consequence:** None of this touches the loading/error/importing branches
+above it in `LibraryGridBody`, which were already correct. `TranslationKey`
+needed no edit — it is `keyof typeof en`, so the new keys type-check
+automatically.
+## DL-060 — first real on-device pass surfaced a stub delete, fake Today data, and a broken edit path; full screen-polish sweep
 
 **Date:** 2026-08-09
 **Context:** A device finally connected and immediately surfaced problems no
@@ -1731,7 +1754,7 @@ pointed at `.claude/worktrees/elastic-banach-bd5254`, not this tree. Visual
 confirmation of this entire slice is pending the user coordinating that
 session before the next on-device check.
 
-## DL-060 — Library selection mode, a dedicated Edit Media Asset screen, and app-wide save/delete toasts
+## DL-061 — Library selection mode, a dedicated Edit Media Asset screen, and app-wide save/delete toasts
 
 **Date:** 2026-08-09
 **Context:** A follow-up 9-section spec ("Library Layout, Editing, Selection,
@@ -1783,7 +1806,7 @@ excluding the pre-existing unrelated `web/app.js` `curly` violations), and
 `npm test` (44/44) all green. Not yet verified on a physical device this
 slice — same no-device-connected constraint as DL-057/DL-058.
 
-## DL-061 — `MainActivity` crashed on restore, silently swallowing a fired alarm
+## DL-062 — `MainActivity` crashed on restore, silently swallowing a fired alarm
 
 **Date:** 2026-08-09
 **Context:** User report: "the alarm is not working" plus an already-timed-out
@@ -1821,7 +1844,7 @@ the fix itself is the single documented, standard remedy for this exact
 exactly, so confidence is high without needing to reproduce the original
 crash first.
 
-## DL-062 — Reminder editor's media picker becomes a dedicated screen, not a text-list sheet
+## DL-063 — Reminder editor's media picker becomes a dedicated screen, not a text-list sheet
 
 **Date:** 2026-08-09
 **Context:** User request: replace the "choose media" dropdown (`MediaPickerSheet`
@@ -1875,10 +1898,10 @@ and the sheet it replaces had the identical cap with no way to exceed it at
 all, so this is a pre-existing constraint made *reachable* rather than a
 regression introduced by this change.
 
-## DL-063 — Real notification-permission prompting, Settings alarm previews, and a `openCapabilitySettings` implementation
+## DL-064 — Real notification-permission prompting, Settings alarm previews, and a `openCapabilitySettings` implementation
 
 **Date:** 2026-08-09
-**Context:** User asked for two things after DL-061/062: (1) the app should
+**Context:** User asked for two things after DL-062/062: (1) the app should
 proactively prompt for notification access at launch, the way most Android
 apps do, rather than silently staying blocked forever once denied once with
 no runtime dialog left to show; and every reminder Save while blocked should
@@ -1932,12 +1955,12 @@ and sounds like before assigning one to a real reminder.
 pre-existing unrelated `web/app.js` `curly` violations), and `npm test`
 (44/44) all green. Verified live on device that the underlying permission
 mechanics are sound (`SCHEDULE_EXACT_ALARM` grant, exact-alarm firing) in
-DL-061; the notification-permission prompt itself and the new Settings
+DL-062; the notification-permission prompt itself and the new Settings
 preview flow were implemented and build-verified in this slice but not yet
 exercised on-device end to end (session moved on to a much larger follow-up
 request before that on-device pass happened).
 
-## DL-064 — "Today" renamed to "Upcoming" and rebuilt as a 5-day occurrence view
+## DL-065 — "Today" renamed to "Upcoming" and rebuilt as a 5-day occurrence view
 
 **Date:** 2026-08-09
 **Context:** Direct product request, with a reference screenshot: rename
@@ -2022,11 +2045,11 @@ alongside a full screen rewrite; and the inline per-row play/pause icon-swap
 interaction (see above — the shared full-screen preview modal was used
 instead).
 
-## DL-065 — Metro's `blockList` did not exclude other git worktrees on the same machine
+## DL-066 — Metro's `blockList` did not exclude other git worktrees on the same machine
 
 **Date:** 2026-08-09
 **Context:** Metro (the JS dev server this device's app fetches its bundle
-from) crashed twice in a row while pushing DL-064's build — each time a few
+from) crashed twice in a row while pushing DL-065's build — each time a few
 seconds after reporting "Dev server ready," not immediately. The crash log:
 `Error: ENOENT: no such file or directory, watch
 '...\.claude\worktrees\upstash-plugin-install-804b6e\android\app\.cxx\...'`
