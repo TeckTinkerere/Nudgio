@@ -14,6 +14,7 @@
 import {View} from 'react-native';
 
 import {Text} from './Text';
+import {Icon, type IconName} from '../icons';
 import {useTheme} from '../theme/useTheme';
 
 
@@ -23,10 +24,16 @@ export interface StatTileProps {
   readonly value: number | string;
   readonly label: string;
   readonly tone?: StatTileTone;
+  /**
+   * Purely decorative, always rendered in the same neutral ink regardless of
+   * which stat it labels — see the module doc's "no attention/error tone on
+   * purpose" rule. Never pick an alert/warning glyph for "missed"/"dismissed".
+   */
+  readonly icon?: IconName;
   readonly testID?: string;
 }
 
-export function StatTile({value, label, tone = 'neutral', testID}: StatTileProps) {
+export function StatTile({value, label, tone = 'neutral', icon, testID}: StatTileProps) {
   const theme = useTheme();
 
   const valueColor = tone === 'positive' ? theme.color.success : theme.color.onSurface;
@@ -44,6 +51,7 @@ export function StatTile({value, label, tone = 'neutral', testID}: StatTileProps
         padding: theme.spacing.sm,
         gap: 2,
       }}>
+      {icon ? <Icon name={icon} size="sm" color={theme.color.onSurfaceVariant} /> : null}
       <Text variant="headlineMedium" tabularNumbers style={{color: valueColor}}>
         {value}
       </Text>
