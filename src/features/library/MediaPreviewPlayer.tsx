@@ -35,6 +35,8 @@ export interface MediaPreviewPlayerProps {
   readonly kind: 'video' | 'audio';
   readonly closeLabel: string;
   readonly loadErrorLabel: string;
+  /** Optional persistent bottom bar (e.g. the reminder-editor picker's "Use this" confirm button). Omit for a plain preview. */
+  readonly footer?: React.ReactNode;
   readonly testID?: string;
 }
 
@@ -48,6 +50,7 @@ export function MediaPreviewPlayer({
   kind,
   closeLabel,
   loadErrorLabel,
+  footer,
   testID,
 }: MediaPreviewPlayerProps) {
   const theme = useTheme();
@@ -80,7 +83,17 @@ export function MediaPreviewPlayer({
       paddingBottom: theme.spacing.xs,
     },
     title: {flex: 1, color: neutral.white},
-    body: {flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: insets.bottom},
+    body: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingBottom: footer ? 0 : insets.bottom,
+    },
+    footer: {
+      paddingHorizontal: theme.layout.dialogPadding,
+      paddingTop: theme.spacing.sm,
+      paddingBottom: insets.bottom + theme.spacing.sm,
+    },
     errorContent: {alignItems: 'center', gap: theme.spacing.xs, padding: theme.layout.dialogPadding},
     errorLabel: {color: neutral.white},
     video: {width: '100%', height: kind === 'video' ? '100%' : 160},
@@ -130,6 +143,8 @@ export function MediaPreviewPlayer({
             />
           ) : null}
         </View>
+
+        {footer ? <View style={styles.footer}>{footer}</View> : null}
       </View>
     </Modal>
   );

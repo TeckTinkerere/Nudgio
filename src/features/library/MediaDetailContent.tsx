@@ -19,8 +19,9 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useState} from 'react';
 import {Image, Pressable, StyleSheet} from 'react-native';
 
+import {DeleteFlushOverlay} from './DeleteFlushOverlay';
 import {MediaPreviewPlayer} from './MediaPreviewPlayer';
-import {RenameMediaDialog} from './RenameMediaDialog';
+import {useDeleteMedia} from './useDeleteMedia';
 import {useMediaDetail} from './useMediaDetail';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {rootRoutes} from '../../constants/routes';
@@ -31,12 +32,13 @@ import {
   Chip,
   Dialog,
   EmptyState,
+  IconButton,
   LoadingState,
   Stack,
   StatusPill,
   Text,
 } from '../../design-system';
-import type {StatusKind} from '../../design-system';
+import type {IconName, StatusKind} from '../../design-system';
 import {useHaptics, useReminderList} from '../../hooks';
 import {useTranslation, type TranslationKey} from '../../localization';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
@@ -49,6 +51,13 @@ export interface MediaDetailContentProps {
   readonly mediaId: UUID;
   /** Present only when rendered as a standalone pushed screen. */
   readonly onBack?: () => void;
+  /**
+   * Fires once the delete flush animation finishes after a confirmed,
+   * successful delete — the standalone screen pops itself, the two-pane
+   * embedded pane clears its selection. Distinct from `onBack` because the
+   * embedded pane has no "back" of its own, only a selection to clear.
+   */
+  readonly onDeleted?: () => void;
 }
 
 const KIND_LABEL_KEY: Record<MediaKind, TranslationKey> = {
@@ -56,6 +65,13 @@ const KIND_LABEL_KEY: Record<MediaKind, TranslationKey> = {
   audio: 'library.kind.audio',
   image: 'library.kind.image',
   text: 'library.kind.text',
+};
+
+const KIND_ICON: Record<MediaKind, IconName> = {
+  video: 'video',
+  audio: 'audio',
+  image: 'image',
+  text: 'text',
 };
 
 const INTEGRITY_STATUS: Record<IntegrityState, StatusKind> = {
@@ -69,17 +85,44 @@ const INTEGRITY_STATUS: Record<IntegrityState, StatusKind> = {
 const isPlayableKind = (kind: MediaKind): kind is 'video' | 'audio' =>
   kind === 'video' || kind === 'audio';
 
-export function MediaDetailContent({mediaId, onBack}: MediaDetailContentProps) {
+export function MediaDetailContent({mediaId, onBack, onDeleted}: MediaDetailContentProps) {
   const t = useTranslation();
   const haptics = useHaptics();
   const navigation = useNavigation<Navigation>();
   const media = useMediaDetail(mediaId);
   const reminders = useReminderList();
+  const deleteMedia = useDeleteMedia();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [renameOpen, setRenameOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [flushing, setFlushing] = useState(false);
+  const [deletingIcon, setDeletingIcon] = useState<IconName | null>(null);
 
   const backAction = onBack ? {label: t('action.back'), onPress: onBack} : undefined;
+
+  // Deliberately checked before `media.isPending`/`isError` below: once the
+  // native delete has succeeded, the underlying `getMedia` query can be
+  // invalidated and refetch at any moment (it 404s once the row is truly
+  // gone) — reading `media.data` for anything past this point would race
+  // the flush animation and flash a "not found" state underneath it. This
+  // branch stops touching `media` entirely; `deletingIcon` was captured
+  // before the delete request went out, while the item still existed.
+  if (flushing) {
+    return (
+      <FlushingMediaView
+        backAction={backAction}
+        libraryTitle={t('library.title')}
+        icon={deletingIcon ?? 'mediaMissing'}
+        // Deliberately does NOT reset `flushing` back to `false` — this
+        // component is about to unmount either way (`onBack`'s
+        // `navigation.goBack()` pops it, or the two-pane parent swaps it
+        // for its empty-selection pane), and flipping `flushing` first
+        // caused exactly one extra render on the way out where `media`'s
+        // now-invalidated query had already flipped to "not found" —
+        // a visible flash of the wrong state right as the screen closed.
+        onFinished={() => onDeleted?.()}
+      />
+    );
+  }
 
   if (media.isPending) {
     return (
@@ -107,6 +150,18 @@ export function MediaDetailContent({mediaId, onBack}: MediaDetailContentProps) {
   const attachedReminders = reminders.data?.items.filter(reminder => reminder.mediaId === item.id) ?? [];
   const thumbnail = thumbnailImageSource(item.thumbnailToken);
   const canPlay = isPlayableKind(item.kind) && item.integrity !== 'missing';
+  const openEditAsset = () =>
+    navigation.navigate(rootRoutes.editMediaAsset, {mediaId: item.id});
+
+  const performDelete = (cascadeDeleteReminders: boolean) => {
+    setDeleteDialogOpen(false);
+    haptics.trigger('warning');
+    setDeletingIcon(KIND_ICON[item.kind]);
+    deleteMedia.mutate(
+      {id: item.id, cascadeDeleteReminders},
+      {onSuccess: () => setFlushing(true)},
+    );
+  };
 
   return (
     <>
@@ -122,7 +177,7 @@ export function MediaDetailContent({mediaId, onBack}: MediaDetailContentProps) {
             {thumbnail ? (
               <Image
                 source={thumbnail}
-                style={StyleSheet.absoluteFillObject}
+                style={StyleSheet.absoluteFill}
                 resizeMode="cover"
                 accessibilityElementsHidden
                 importantForAccessibility="no-hide-descendants"
@@ -142,9 +197,16 @@ export function MediaDetailContent({mediaId, onBack}: MediaDetailContentProps) {
         </Card>
 
         <Stack gap="xs">
-          <Text variant="headlineMedium" isHeading>
-            {item.title}
-          </Text>
+          <Stack direction="row" align="center" gap="xxs">
+            <Text variant="headlineMedium" isHeading style={styles.title}>
+              {item.title}
+            </Text>
+            <IconButton
+              name="edit"
+              label={t('library.editAsset.editLabel', {title: item.title})}
+              onPress={openEditAsset}
+            />
+          </Stack>
           <Stack direction="row" gap="xs" wrap>
             <Chip label={t(KIND_LABEL_KEY[item.kind])} />
             {item.durationMs ? <Chip label={formatDurationCompact(item.durationMs)} /> : null}
@@ -176,7 +238,7 @@ export function MediaDetailContent({mediaId, onBack}: MediaDetailContentProps) {
             disabled={!canPlay}
             onPress={() => setPreviewOpen(true)}
           />
-          <Button label={t('library.detail.editDetails')} variant="outlined" icon="edit" onPress={() => setRenameOpen(true)} />
+          <Button label={t('library.detail.editDetails')} variant="outlined" icon="edit" onPress={openEditAsset} />
           <Button label={t('library.detail.exportItem')} variant="outlined" icon="upload" onPress={() => undefined} />
         </Stack>
 
@@ -223,12 +285,6 @@ export function MediaDetailContent({mediaId, onBack}: MediaDetailContentProps) {
         />
       </Stack>
 
-      <RenameMediaDialog
-        visible={renameOpen}
-        media={item}
-        onDismiss={() => setRenameOpen(false)}
-      />
-
       {canPlay ? (
         <MediaPreviewPlayer
           visible={previewOpen}
@@ -241,42 +297,97 @@ export function MediaDetailContent({mediaId, onBack}: MediaDetailContentProps) {
         />
       ) : null}
 
-      <Dialog
+      <DeleteMediaDialog
         visible={deleteDialogOpen}
-        title={t('library.detail.deleteTitle')}
-        body={t('library.detail.deleteConfirmBody')}
-        impact={
-          attachedReminders.length > 0
-            ? t('library.detail.deleteDependencyWarning', {count: attachedReminders.length})
-            : undefined
-        }
-        destructive
-        cancel={{label: t('action.cancel'), onPress: () => setDeleteDialogOpen(false)}}
-        alternative={
-          attachedReminders.length > 0
-            ? {
-                label: t('library.detail.deleteKeepDisabled'),
-                onPress: () => setDeleteDialogOpen(false),
-              }
-            : undefined
-        }
-        confirm={{
-          label:
-            attachedReminders.length > 0
-              ? t('library.detail.deleteMediaAndReminders')
-              : t('action.delete'),
-          onPress: () => {
-            haptics.trigger('warning');
-            setDeleteDialogOpen(false);
-          },
-        }}
+        attachedReminderCount={attachedReminders.length}
+        onCancel={() => setDeleteDialogOpen(false)}
+        onKeepDisabled={() => performDelete(false)}
+        onConfirm={() => performDelete(attachedReminders.length > 0)}
       />
+
+      {deleteMedia.isError ? (
+        <Dialog
+          visible
+          title={t('error.unexpected.title')}
+          body={t('error.unexpected.effect')}
+          cancel={{label: t('action.close'), onPress: () => deleteMedia.reset()}}
+        />
+      ) : null}
     </>
+  );
+}
+
+interface FlushingMediaViewProps {
+  readonly backAction?: {readonly label: string; readonly onPress: () => void};
+  readonly libraryTitle: string;
+  readonly icon: IconName;
+  readonly onFinished: () => void;
+}
+
+/**
+ * Extracted so the delete flush's own JSX branching doesn't add to
+ * `MediaDetailContent`'s already-high cognitive complexity (code-health
+ * hook, this slice) — it renders once, right after a confirmed delete,
+ * and never touches `media`/`reminders` query state at all.
+ */
+function FlushingMediaView({backAction, libraryTitle, icon, onFinished}: FlushingMediaViewProps) {
+  return (
+    <>
+      {backAction ? <AppBar title={libraryTitle} back={backAction} /> : null}
+      <DeleteFlushOverlay visible icon={icon} onFinished={onFinished} />
+    </>
+  );
+}
+
+interface DeleteMediaDialogProps {
+  readonly visible: boolean;
+  readonly attachedReminderCount: number;
+  readonly onCancel: () => void;
+  readonly onKeepDisabled: () => void;
+  readonly onConfirm: () => void;
+}
+
+/** Extracted for the same code-health reason as `FlushingMediaView` above. */
+function DeleteMediaDialog({
+  visible,
+  attachedReminderCount,
+  onCancel,
+  onKeepDisabled,
+  onConfirm,
+}: DeleteMediaDialogProps) {
+  const t = useTranslation();
+  const hasAttachedReminders = attachedReminderCount > 0;
+
+  return (
+    <Dialog
+      visible={visible}
+      title={t('library.detail.deleteTitle')}
+      body={t('library.detail.deleteConfirmBody')}
+      impact={
+        hasAttachedReminders
+          ? t('library.detail.deleteDependencyWarning', {count: attachedReminderCount})
+          : undefined
+      }
+      destructive
+      cancel={{label: t('action.cancel'), onPress: onCancel}}
+      alternative={
+        hasAttachedReminders
+          ? {label: t('library.detail.deleteKeepDisabled'), onPress: onKeepDisabled}
+          : undefined
+      }
+      confirm={{
+        label: hasAttachedReminders
+          ? t('library.detail.deleteMediaAndReminders')
+          : t('action.delete'),
+        onPress: onConfirm,
+      }}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   previewWide: {width: '100%', aspectRatio: 16 / 9},
   previewSquare: {width: '100%', aspectRatio: 1},
-  previewOverlay: {...StyleSheet.absoluteFillObject},
+  previewOverlay: {...StyleSheet.absoluteFill},
+  title: {flexShrink: 1},
 });

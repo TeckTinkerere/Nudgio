@@ -20,19 +20,22 @@ import {useCallback, useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {LibraryGridBody} from './LibraryGridBody';
+import {LibrarySelectionHeader} from './LibrarySelectionHeader';
 import {MediaDetailContent} from './MediaDetailContent';
 import {MediaPreviewPlayer} from './MediaPreviewPlayer';
+import {SelectionCheckboxOverlay} from './SelectionCheckboxOverlay';
+import {useLibrarySelection} from './useLibrarySelection';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
 import {
   Chip,
+  ChipRow,
   Dialog,
   EmptyState,
   MediaCard,
   Screen,
   Stack,
-  Text,
   TextField,
   useResponsive,
 } from '../../design-system';
@@ -47,7 +50,6 @@ import {
   useTranslation,
   type TranslationKey,
 } from '../../localization';
-import {mockCategories} from '../../mocks/fixtures';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import type {MediaKind, MediaQuery, MediaSummary, UUID} from '../../native-client/types';
 import {formatDurationAccessible, formatDurationCompact} from '../../utils';
@@ -91,22 +93,38 @@ export function LibraryScreen() {
 
   const [search, setSearch] = useState('');
   const [activeKind, setActiveKind] = useState<KindFilter | null>(null);
-  const [activeCategoryId, setActiveCategoryId] = useState<UUID | null>(null);
   const [sort, setSort] = useState<NonNullable<MediaQuery['sort']>>('recent');
   const [previewItem, setPreviewItem] = useState<MediaSummary | null>(null);
   const [selectedMediaId, setSelectedMediaId] = useState<UUID | null>(null);
+  const {
+    selectionMode,
+    selectedIds,
+    enterSelection,
+    exitSelection,
+    toggleSelected,
+    handleBulkAction,
+  } = useLibrarySelection();
+  // Sort is a secondary refinement collapsed by default — kept visible, it
+  // added another chip row on top of search and the kind filters, pushing
+  // the actual media grid below the fold on every phone
+  // (docs/decision-log.md). The kind filter row stays always visible since
+  // it is the filter people reach for constantly. Category filtering was
+  // removed outright, not just collapsed: `categoryId` has no backing
+  // Room table at all (no category-assignment UI exists anywhere either),
+  // so the chips only ever filtered against ids nothing could ever match.
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const hasSecondaryFilter = sort !== 'recent';
 
   const query = useMemo<MediaQuery>(
     () => ({
       search: search.length > 0 ? search : undefined,
       kinds: activeKind && activeKind !== 'missing' ? [activeKind] : undefined,
       onlyMissing: activeKind === 'missing' ? true : undefined,
-      categoryId: activeCategoryId ?? undefined,
       sort,
       offset: 0,
       limit: 100,
     }),
-    [search, activeKind, activeCategoryId, sort],
+    [search, activeKind, sort],
   );
 
   const media = useMediaList(query);
@@ -122,14 +140,17 @@ export function LibraryScreen() {
     [isTwoPane, navigation],
   );
 
-  const renderItem = useCallback(
-    ({item}: {item: MediaSummary}) => (
-      <View style={styles.gridCell}>
+  const renderCard = useCallback(
+    (item: MediaSummary) => (
+      <View style={styles.cardWrapper}>
         <MediaCard
           title={item.title}
           kind={item.kind}
           kindLabel={t(KIND_LABEL_KEY[item.kind])}
           thumbnailUri={thumbnailImageSource(item.thumbnailToken)?.uri}
+          aspectRatio={
+            item.widthPx && item.heightPx ? item.widthPx / item.heightPx : undefined
+          }
           durationLabel={item.durationMs ? formatDurationCompact(item.durationMs) : undefined}
           durationAccessibleLabel={
             item.durationMs ? formatDurationAccessible(item.durationMs, formatEnglishUnit) : undefined
@@ -142,13 +163,16 @@ export function LibraryScreen() {
           }
           isMissing={item.integrity === 'missing'}
           missingLabel={t('library.integrity.missing')}
-          onPress={() => openItem(item)}
-          onPlayPress={isPlayableKind(item.kind) ? () => setPreviewItem(item) : undefined}
+          onPress={() => (selectionMode ? toggleSelected(item.id) : openItem(item))}
+          onPlayPress={
+            !selectionMode && isPlayableKind(item.kind) ? () => setPreviewItem(item) : undefined
+          }
           playLabel={t('library.player.play', {title: item.title})}
         />
+        {selectionMode ? <SelectionCheckboxOverlay selected={selectedIds.has(item.id)} /> : null}
       </View>
     ),
-    [openItem, t],
+    [openItem, selectedIds, selectionMode, t, toggleSelected],
   );
 
   const gridPane = (
@@ -161,9 +185,22 @@ export function LibraryScreen() {
       and camera cutout (confirmed on a 720x1600 device: the title
       overlapped the clock). */}
       <Stack gap="xs" paddingHorizontal="md" paddingVertical="sm">
-        <Text variant="headlineMedium" isHeading>
-          {t('library.title')}
-        </Text>
+        <LibrarySelectionHeader
+          title={t('library.title')}
+          selectionMode={selectionMode}
+          backLabel={t('library.selection.back')}
+          selectLabel={t('library.selection.select')}
+          exportLabel={t('library.selection.export')}
+          deleteLabel={t('library.selection.delete')}
+          onSelect={enterSelection}
+          onBack={exitSelection}
+          onExport={() => handleBulkAction('export')}
+          onDelete={() => handleBulkAction('delete')}
+          selectTestID={testIds.library.selectButton}
+          backTestID={testIds.library.backButton}
+          exportTestID={testIds.library.exportButton}
+          deleteTestID={testIds.library.deleteButton}
+        />
 
         <TextField
           label={t('library.search.placeholder')}
@@ -172,7 +209,7 @@ export function LibraryScreen() {
           testID={testIds.library.searchField}
         />
 
-        <Stack direction="row" gap="xxs" wrap>
+        <ChipRow>
           {KIND_FILTERS.map(filter => (
             <Chip
               key={filter.value}
@@ -183,40 +220,35 @@ export function LibraryScreen() {
               }
             />
           ))}
-        </Stack>
+          <Chip
+            label={t(filtersExpanded ? 'library.filters.fewer' : 'library.filters.more')}
+            selected={filtersExpanded || hasSecondaryFilter}
+            icon={filtersExpanded ? 'chevronUp' : 'chevronDown'}
+            onPress={() => setFiltersExpanded(current => !current)}
+          />
+        </ChipRow>
 
-        {mockCategories.length > 0 ? (
-          <Stack direction="row" gap="xxs" wrap>
-            {mockCategories.map(category => (
-              <Chip
-                key={category.id}
-                label={category.name}
-                selected={activeCategoryId === category.id}
-                onPress={() =>
-                  setActiveCategoryId(current => (current === category.id ? null : category.id))
-                }
-              />
-            ))}
+        {filtersExpanded ? (
+          <Stack gap="xxs">
+            <ChipRow>
+              {SORTS.map(option => (
+                <Chip
+                  key={option.value}
+                  label={t(option.labelKey)}
+                  selected={sort === option.value}
+                  onPress={() => setSort(option.value)}
+                />
+              ))}
+            </ChipRow>
           </Stack>
         ) : null}
-
-        <Stack direction="row" gap="xxs" wrap>
-          {SORTS.map(option => (
-            <Chip
-              key={option.value}
-              label={t(option.labelKey)}
-              selected={sort === option.value}
-              onPress={() => setSort(option.value)}
-            />
-          ))}
-        </Stack>
       </Stack>
 
       <LibraryGridBody
         media={media}
         importMedia={importMedia}
         mediaGridColumns={mediaGridColumns}
-        renderItem={renderItem}
+        renderCard={renderCard}
       />
     </>
   );
@@ -228,7 +260,10 @@ export function LibraryScreen() {
           <View style={styles.gridPane}>{gridPane}</View>
           <View style={styles.detailPane}>
             {selectedMediaId ? (
-              <MediaDetailContent mediaId={selectedMediaId} />
+              <MediaDetailContent
+                mediaId={selectedMediaId}
+                onDeleted={() => setSelectedMediaId(null)}
+              />
             ) : (
               <EmptyState
                 icon="library"
@@ -271,7 +306,7 @@ export function LibraryScreen() {
 }
 
 const styles = StyleSheet.create({
-  gridCell: {flex: 1, padding: 4},
   gridPane: {flex: 5},
   detailPane: {flex: 4},
+  cardWrapper: {flex: 1},
 });
