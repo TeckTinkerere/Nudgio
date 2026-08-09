@@ -48,26 +48,35 @@ export function TimePicker({
     onChange({...value, minute: clampMinute(value.minute + delta * 5)});
 
   return (
-    <Stack testID={testID} direction="row" align="center" gap="md">
-      <Stepper
-        value={value.hour}
-        formatted={value.hour.toString()}
-        accessibleLabel={`${hourLabel}: ${value.hour}`}
-        onIncrease={() => stepHour(1)}
-        onDecrease={() => stepHour(-1)}
-        increaseLabel={`${increaseLabel} ${hourLabel}`}
-        decreaseLabel={`${decreaseLabel} ${hourLabel}`}
-      />
-      <Text variant="displaySmall">:</Text>
-      <Stepper
-        value={value.minute}
-        formatted={pad2(value.minute)}
-        accessibleLabel={`${minuteLabel}: ${pad2(value.minute)}`}
-        onIncrease={() => stepMinute(1)}
-        onDecrease={() => stepMinute(-1)}
-        increaseLabel={`${increaseLabel} ${minuteLabel}`}
-        decreaseLabel={`${decreaseLabel} ${minuteLabel}`}
-      />
+    // Column, not one long row: hour/minute steppers at `displaySmall` plus
+    // an AM/PM segmented control together are wider than a typical phone's
+    // available width once insets are subtracted, and `Stack` does not wrap
+    // by default — a single row silently clipped the segmented control off
+    // the right edge of the screen (unreachable, not just ugly). Stacking
+    // the segmented control on its own centered row below guarantees it
+    // fits at any phone width without depending on wrap/measurement.
+    <Stack testID={testID} gap="sm" align="center">
+      <Stack direction="row" align="center" justify="center" gap="md">
+        <Stepper
+          value={value.hour}
+          formatted={value.hour.toString()}
+          accessibleLabel={`${hourLabel}: ${value.hour}`}
+          onIncrease={() => stepHour(1)}
+          onDecrease={() => stepHour(-1)}
+          increaseLabel={`${increaseLabel} ${hourLabel}`}
+          decreaseLabel={`${decreaseLabel} ${hourLabel}`}
+        />
+        <Text variant="displaySmall">:</Text>
+        <Stepper
+          value={value.minute}
+          formatted={pad2(value.minute)}
+          accessibleLabel={`${minuteLabel}: ${pad2(value.minute)}`}
+          onIncrease={() => stepMinute(1)}
+          onDecrease={() => stepMinute(-1)}
+          increaseLabel={`${increaseLabel} ${minuteLabel}`}
+          decreaseLabel={`${decreaseLabel} ${minuteLabel}`}
+        />
+      </Stack>
 
       <SegmentedControl
         accessibilityLabel="AM or PM"
