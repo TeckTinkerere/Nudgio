@@ -21,7 +21,11 @@ type Props = NativeStackScreenProps<RootStackParamList, 'MediaDetail'>;
 export function MediaDetailScreen({navigation, route}: Props) {
   return (
     <Screen hasAppBar scrollable>
-      <MediaDetailContent mediaId={route.params.mediaId} onBack={() => navigation.goBack()} />
+      <MediaDetailContent
+        mediaId={route.params.mediaId}
+        onBack={() => navigation.goBack()}
+        onDeleted={() => navigation.goBack()}
+      />
     </Screen>
   );
 }
