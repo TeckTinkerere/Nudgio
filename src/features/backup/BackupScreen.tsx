@@ -18,6 +18,8 @@
  */
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useState} from 'react';
+import {StyleSheet} from 'react-native';
+import Animated, {ZoomIn} from 'react-native-reanimated';
 
 import {useAppContainer} from '../../app/di/useAppContainer';
 import type {RootStackParamList} from '../../app/navigation/types';
@@ -26,14 +28,16 @@ import {
   Banner,
   Button,
   Card,
+  Icon,
   ProgressBar,
   Screen,
   Stack,
   Text,
+  useTheme,
 } from '../../design-system';
-import {useOperationProgress} from '../../hooks';
+import type {IconName} from '../../design-system';
+import {useMediaList, useOperationProgress, useStartupSnapshot} from '../../hooks';
 import {useTranslation} from '../../localization';
-import {demoExportPreview} from '../../native-client';
 import type {ExportResult} from '../../native-client/types';
 import {formatBytes} from '../../utils';
 
@@ -41,12 +45,72 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Backup'>;
 
 type ExportPhase = 'idle' | 'exporting' | 'done' | 'failed';
 
+interface SummaryRowProps {
+  readonly icon: IconName;
+  readonly label: string;
+  readonly value: string;
+}
+
+/** Icon-accented summary row — previously plain label/value text pairs with no visual anchor. */
+function SummaryRow({icon, label, value}: SummaryRowProps) {
+  const theme = useTheme();
+  return (
+    <Stack direction="row" align="center" gap="sm">
+      <Icon name={icon} size="sm" color={theme.color.onSurfaceVariant} />
+      <Text variant="bodyLarge" tone="variant" style={styles.flexFill}>
+        {label}
+      </Text>
+      <Text variant="bodyLarge" tabularNumbers>
+        {value}
+      </Text>
+    </Stack>
+  );
+}
+
+/**
+ * Reduced-motion-safe success reveal (MR-03 "On success"): a tonal checkmark
+ * circle scales/fades in once, then everything else appears normally.
+ * `ZoomIn` is skipped entirely under `reduceMotion` rather than swapped for a
+ * smaller motion — the checkmark is decorative, the text beside it already
+ * carries the "it worked" message on its own.
+ */
+function SuccessCheckmark() {
+  const theme = useTheme();
+  const styles = StyleSheet.create({
+    circle: {
+      width: 72,
+      height: 72,
+      borderRadius: theme.radius.full,
+      backgroundColor: theme.color.successContainer,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+  });
+  const circle = (
+    <Stack style={styles.circle} align="center" justify="center">
+      <Icon name="check" size="lg" color={theme.color.onSuccessContainer} />
+    </Stack>
+  );
+  if (theme.a11y.reduceMotion) {
+    return circle;
+  }
+  return <Animated.View entering={ZoomIn.springify().damping(14)}>{circle}</Animated.View>;
+}
+
 export function BackupScreen({navigation}: Props) {
   const t = useTranslation();
   const container = useAppContainer();
   const [phase, setPhase] = useState<ExportPhase>('idle');
   const [result, setResult] = useState<ExportResult | null>(null);
   const progress = useOperationProgress('export', phase === 'exporting');
+  const startup = useStartupSnapshot();
+  // Sized to the real total so this sums every item's real `sizeBytes`
+  // exactly once, not a paginated slice — `beginExport` has no dedicated
+  // "estimate size" query of its own, so this is the same real per-item
+  // data the Library grid already reads, just totalled client-side.
+  const allMedia = useMediaList({sort: 'recent', offset: 0, limit: startup.data?.mediaCount ?? 0});
+  const estimatedBytes =
+    allMedia.data?.items.reduce((sum, item) => sum + Number(item.sizeBytes), 0) ?? 0;
 
   const startExport = async () => {
     setPhase('exporting');
@@ -85,31 +149,22 @@ export function BackupScreen({navigation}: Props) {
             />
 
             <Card>
-              <Stack gap="xs">
-                <Stack direction="row" justify="space-between">
-                  <Text variant="bodyLarge" tone="variant">
-                    {t('backup.export.mediaCount')}
-                  </Text>
-                  <Text variant="bodyLarge" tabularNumbers>
-                    {demoExportPreview.mediaCount}
-                  </Text>
-                </Stack>
-                <Stack direction="row" justify="space-between">
-                  <Text variant="bodyLarge" tone="variant">
-                    {t('backup.export.reminderCount')}
-                  </Text>
-                  <Text variant="bodyLarge" tabularNumbers>
-                    {demoExportPreview.reminderCount}
-                  </Text>
-                </Stack>
-                <Stack direction="row" justify="space-between">
-                  <Text variant="bodyLarge" tone="variant">
-                    {t('backup.export.estimatedSize')}
-                  </Text>
-                  <Text variant="bodyLarge" tabularNumbers>
-                    {formatBytes(demoExportPreview.estimatedBytes)}
-                  </Text>
-                </Stack>
+              <Stack gap="sm">
+                <SummaryRow
+                  icon="library"
+                  label={t('backup.export.mediaCount')}
+                  value={(startup.data?.mediaCount ?? 0).toString()}
+                />
+                <SummaryRow
+                  icon="reminders"
+                  label={t('backup.export.reminderCount')}
+                  value={(startup.data?.activeReminderCount ?? 0).toString()}
+                />
+                <SummaryRow
+                  icon="backup"
+                  label={t('backup.export.estimatedSize')}
+                  value={formatBytes(estimatedBytes)}
+                />
               </Stack>
             </Card>
 
@@ -126,7 +181,8 @@ export function BackupScreen({navigation}: Props) {
           <ProgressBar progress={progressFraction} label={t('backup.export.exporting')} />
         ) : result ? (
           <Stack gap="lg">
-            <Stack gap="xs" align="center" paddingVertical="xl">
+            <Stack gap="sm" align="center" paddingVertical="xl">
+              <SuccessCheckmark />
               <Text variant="headlineMedium" isHeading align="center">
                 {t('backup.export.successTitle')}
               </Text>
@@ -155,3 +211,7 @@ export function BackupScreen({navigation}: Props) {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  flexFill: {flex: 1},
+});
