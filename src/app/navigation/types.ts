@@ -21,11 +21,24 @@ export type RootStackParamList = {
   [rootRoutes.onboarding]: undefined;
   [rootRoutes.tabs]: NavigatorScreenParams<TabParamList> | undefined;
   [rootRoutes.mediaDetail]: {readonly mediaId: UUID};
+  [rootRoutes.editMediaAsset]: {readonly mediaId: UUID};
   [rootRoutes.reminderDetail]: {readonly reminderId: UUID};
   [rootRoutes.reminderEditor]: {
     readonly reminderId: UUID | undefined;
-    /** Pre-selects this media when creating a new reminder — e.g. arriving from `MediaDetailScreen`'s "Add reminder" (MR-03). Ignored when editing an existing reminder, which already has its own `mediaId`. */
+    /**
+     * Pre-selects this media when creating a new reminder — e.g. arriving
+     * from `MediaDetailScreen`'s "Add reminder" (MR-03), or the value
+     * `SelectMediaScreen` merges back in (`navigation.navigate(..., {merge:
+     * true})`) once the user confirms a pick. `ReminderEditorForm` re-applies
+     * this on every change, not just at mount, so it doubles as both the
+     * initial prefill and the picker's return value. Ignored when editing an
+     * existing reminder, which already has its own `mediaId`.
+     */
     readonly mediaId?: UUID;
+  };
+  [rootRoutes.selectMedia]: {
+    /** Highlights the already-chosen asset in the grid, if any. */
+    readonly selectedMediaId?: UUID;
   };
   [rootRoutes.health]: undefined;
   [rootRoutes.backup]: undefined;
