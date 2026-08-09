@@ -747,6 +747,42 @@ class MediaReminderModule(
     }
 
     /**
+     * Backup screen "Share" — see `BackupExporter.buildShareIntent`'s doc;
+     * same `currentActivity`-required, fire-and-forget shape as
+     * `exportMediaAssets`. `fileName` is `ExportResult.fileName`, already
+     * returned to JS by the `beginExport` call this always follows.
+     */
+    @ReactMethod
+    fun shareBackupExport(fileName: String, promise: Promise) {
+        val activity = reactApplicationContext.currentActivity
+        if (activity == null) {
+            NativeErrorEnvelope.reject(
+                promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
+                NativeErrorEnvelope.Category.MEDIA, field = "activity",
+            )
+            return
+        }
+        val exporter = BackupExporter(reactApplicationContext, database, preferences)
+        runCatching { exporter.buildShareIntent(fileName) }
+            .onSuccess { intent ->
+                if (intent == null) {
+                    NativeErrorEnvelope.reject(
+                        promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
+                        NativeErrorEnvelope.Category.BACKUP, field = "fileName",
+                    )
+                    return@onSuccess
+                }
+                try {
+                    activity.startActivity(Intent.createChooser(intent, null))
+                    promise.resolve(Arguments.createMap().apply { putString("status", "ok") })
+                } catch (error: Exception) {
+                    failSafe(promise, error, "shareBackupExport")
+                }
+            }
+            .onFailure { failSafe(promise, it, "shareBackupExport") }
+    }
+
+    /**
      * `uriToken` is a `content://`/`file://` URI string (from whatever
      * document-picker flow the JS side uses to let the user choose a file —
      * the picker UI itself is a documented follow-up, see docs/decision-log.md).

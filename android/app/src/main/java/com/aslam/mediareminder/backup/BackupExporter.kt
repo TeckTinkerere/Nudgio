@@ -1,6 +1,8 @@
 package com.aslam.mediareminder.backup
 
 import android.content.Context
+import android.content.Intent
+import androidx.core.content.FileProvider
 import com.aslam.mediareminder.BuildConfig
 import com.aslam.mediareminder.data.PreferencesRepository
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
@@ -172,6 +174,34 @@ class BackupExporter(
         val dir = File(base, "backups")
         dir.mkdirs()
         return dir
+    }
+
+    /**
+     * Backup screen "Share" (MR-03/MR-10): the counterpart to
+     * [com.aslam.mediareminder.media.MediaLibraryService.buildExportIntent]
+     * for a single finished backup archive rather than a media selection —
+     * same shape (read-only `content://` grant via the app's `FileProvider`,
+     * the app's job ends once the chooser opens), just `ACTION_SEND` since
+     * there is exactly one file. `fileName` is looked up by name inside the
+     * one directory this class ever writes to, never a caller-supplied path,
+     * so this cannot be used to share an arbitrary file. `null` means the
+     * named export no longer exists (e.g. cleared by OS storage pressure
+     * between the export finishing and the user tapping Share).
+     */
+    fun buildShareIntent(fileName: String): Intent? {
+        val dir = exportDirectory()
+        val file = File(dir, fileName)
+        // `fileName` echoes back this class' own `ExportOutcome.fileName`, but
+        // resolve-and-verify rather than trust it blindly — the same
+        // path-traversal caution `BackupZipStructuralValidator` applies to
+        // ZIP entry names.
+        if (!file.canonicalFile.startsWith(dir.canonicalFile) || !file.isFile) return null
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        return Intent(Intent.ACTION_SEND).apply {
+            type = "application/zip"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
     }
 
     private fun writeStoredEntry(zip: ZipOutputStream, path: String, bytes: ByteArray) {

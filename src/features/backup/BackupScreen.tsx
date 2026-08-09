@@ -10,11 +10,12 @@
  * was nothing standing in the way of wiring this one for real. Progress
  * ticks come from the native `operationProgress` event stream via
  * `useOperationProgress` (moved to `src/hooks/` once media import needed the
- * same subscription — see that file's doc). "Share" is not yet wired to an
- * OS share sheet — Done always works. A document-picker primitive
- * (`pickDocument`, built for media import) now exists and could unblock
- * `ImportScreen`'s own "pick a backup archive" gap; not done here, tracked
- * in TODO.md.
+ * same subscription — see that file's doc). "Share" opens the OS share sheet
+ * for the finished archive via `shareBackupExport` (same `ACTION_SEND`/
+ * `FileProvider` shape `Library`'s "Export selected" already uses for media).
+ * A document-picker primitive (`pickDocument`, built for media import) now
+ * exists and could unblock `ImportScreen`'s own "pick a backup archive" gap;
+ * not done here, tracked in TODO.md.
  */
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useState} from 'react';
@@ -23,6 +24,7 @@ import Animated, {ZoomIn} from 'react-native-reanimated';
 
 import {useAppContainer} from '../../app/di/useAppContainer';
 import type {RootStackParamList} from '../../app/navigation/types';
+import {useToast} from '../../app/toast/ToastProvider';
 import {
   AppBar,
   Banner,
@@ -100,8 +102,10 @@ function SuccessCheckmark() {
 export function BackupScreen({navigation}: Props) {
   const t = useTranslation();
   const container = useAppContainer();
+  const {showToast} = useToast();
   const [phase, setPhase] = useState<ExportPhase>('idle');
   const [result, setResult] = useState<ExportResult | null>(null);
+  const [sharing, setSharing] = useState(false);
   const progress = useOperationProgress('export', phase === 'exporting');
   const startup = useStartupSnapshot();
   // Sized to the real total so this sums every item's real `sizeBytes`
@@ -121,6 +125,16 @@ export function BackupScreen({navigation}: Props) {
     } else {
       container.logger.warn('backupScreen.exportFailed', {code: outcome.error.code});
       setPhase('failed');
+    }
+  };
+
+  const shareExport = async () => {
+    if (!result) {return;}
+    setSharing(true);
+    const outcome = await container.repositories.backup.shareBackupExport(result.fileName);
+    setSharing(false);
+    if (!outcome.ok) {
+      showToast({message: t('error.unexpected.effect'), tone: 'error'});
     }
   };
 
@@ -198,7 +212,15 @@ export function BackupScreen({navigation}: Props) {
             </Stack>
 
             <Stack direction="row" gap="xs" justify="center">
-              <Button label={t('backup.export.share')} icon="share" onPress={() => undefined} />
+              <Button
+                label={t('backup.export.share')}
+                icon="share"
+                loading={sharing}
+                onPress={() => {
+                  // eslint-disable-next-line no-void -- fire-and-forget: UI feedback is toast-driven on failure only.
+                  void shareExport();
+                }}
+              />
               <Button
                 label={t('backup.export.done')}
                 variant="outlined"

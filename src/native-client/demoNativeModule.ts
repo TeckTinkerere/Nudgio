@@ -483,6 +483,8 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
       sha256: '9f2c7a41b8e0d3f5a6c1b2e4d7f809152a3c6e8b0d4f7a1c3e5b8d0f2a4c6e81',
     }),
 
+    shareBackupExport: async () => ({status: 'ok', affectedCount: 1}),
+
     inspectBackup: async () => mockBackupInspection,
 
     commitImport: async request => ({

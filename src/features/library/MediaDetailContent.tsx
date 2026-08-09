@@ -22,8 +22,10 @@ import {Image, Pressable, StyleSheet} from 'react-native';
 import {DeleteFlushOverlay} from './DeleteFlushOverlay';
 import {MediaPreviewPlayer} from './MediaPreviewPlayer';
 import {useDeleteMedia} from './useDeleteMedia';
+import {useExportMedia} from './useExportMedia';
 import {useMediaDetail} from './useMediaDetail';
 import type {RootStackParamList} from '../../app/navigation/types';
+import {useToast} from '../../app/toast/ToastProvider';
 import {rootRoutes} from '../../constants/routes';
 import {
   AppBar,
@@ -92,6 +94,8 @@ export function MediaDetailContent({mediaId, onBack, onDeleted}: MediaDetailCont
   const media = useMediaDetail(mediaId);
   const reminders = useReminderList();
   const deleteMedia = useDeleteMedia();
+  const exportMedia = useExportMedia();
+  const {showToast} = useToast();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [flushing, setFlushing] = useState(false);
@@ -152,6 +156,13 @@ export function MediaDetailContent({mediaId, onBack, onDeleted}: MediaDetailCont
   const canPlay = isPlayableKind(item.kind) && item.integrity !== 'missing';
   const openEditAsset = () =>
     navigation.navigate(rootRoutes.editMediaAsset, {mediaId: item.id});
+
+  const exportItem = () => {
+    exportMedia.mutate([item.id], {
+      onSuccess: () => showToast({message: t('library.selection.exportSuccess', {count: 1}), tone: 'success'}),
+      onError: () => showToast({message: t('library.selection.exportError'), tone: 'error'}),
+    });
+  };
 
   const performDelete = (cascadeDeleteReminders: boolean) => {
     setDeleteDialogOpen(false);
@@ -239,7 +250,13 @@ export function MediaDetailContent({mediaId, onBack, onDeleted}: MediaDetailCont
             onPress={() => setPreviewOpen(true)}
           />
           <Button label={t('library.detail.editDetails')} variant="outlined" icon="edit" onPress={openEditAsset} />
-          <Button label={t('library.detail.exportItem')} variant="outlined" icon="upload" onPress={() => undefined} />
+          <Button
+            label={t('library.detail.exportItem')}
+            variant="outlined"
+            icon="upload"
+            loading={exportMedia.isPending}
+            onPress={exportItem}
+          />
         </Stack>
 
         {item.notes ? (

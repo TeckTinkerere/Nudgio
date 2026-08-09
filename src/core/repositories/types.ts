@@ -104,6 +104,7 @@ export interface SettingsRepository {
 
 export interface BackupRepository {
   beginExport(request: ExportRequest): Promise<Result<ExportResult, AppError>>;
+  shareBackupExport(fileName: string): Promise<Result<MutationResult, AppError>>;
   inspectBackup(uriToken: string): Promise<Result<BackupInspection, AppError>>;
   commitImport(request: ImportCommitRequest): Promise<Result<MutationResult, AppError>>;
   cancelOperation(id: UUID): Promise<Result<MutationResult, AppError>>;

@@ -100,6 +100,7 @@ export interface MediaReminderClient {
   dismissDueSession(sessionId: UUID, nonce: string): Promise<Result<ActionResult, AppError>>;
 
   beginExport(request: ExportRequest): Promise<Result<ExportResult, AppError>>;
+  shareBackupExport(fileName: string): Promise<Result<MutationResult, AppError>>;
   inspectBackup(uriToken: string): Promise<Result<BackupInspection, AppError>>;
   commitImport(request: ImportCommitRequest): Promise<Result<MutationResult, AppError>>;
   cancelOperation(id: UUID): Promise<Result<MutationResult, AppError>>;
@@ -256,6 +257,9 @@ export const createMediaReminderClient = (
       call('dismissDueSession', native => native.dismissDueSession(sessionId, nonce)),
 
     beginExport: request => call('beginExport', native => native.beginExport(request)),
+
+    shareBackupExport: fileName =>
+      call('shareBackupExport', native => native.shareBackupExport(fileName)),
 
     inspectBackup: uriToken => call('inspectBackup', native => native.inspectBackup(uriToken)),
 

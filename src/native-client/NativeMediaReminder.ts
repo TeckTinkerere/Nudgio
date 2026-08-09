@@ -475,6 +475,14 @@ export interface Spec extends TurboModule {
    * streams via `operationProgress` (`DeviceEventEmitter`) throughout.
    */
   beginExport(request: ExportRequestWire): Promise<ExportResultWire>;
+
+  /**
+   * Backup screen "Share" — opens the OS share sheet for the just-finished
+   * export archive (`ExportResultWire.fileName`), same "resolves once the
+   * chooser is shown" shape as `exportMediaAssets`. Rejects
+   * `MR_MEDIA_UNAVAILABLE` if the named file no longer exists.
+   */
+  shareBackupExport(fileName: string): Promise<MutationResultWire>;
   inspectBackup(uriToken: string): Promise<BackupInspectionWire>;
   commitImport(request: ImportCommitRequestWire): Promise<MutationResultWire>;
   cancelOperation(id: string): Promise<MutationResultWire>;
