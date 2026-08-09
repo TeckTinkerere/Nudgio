@@ -69,6 +69,9 @@ export interface MediaSummaryWire {
   readonly sizeBytes: string;
   readonly thumbnailToken?: string;
   readonly sourceToken: string;
+  /** See `MediaSummary`'s doc — present on every card, not just the detail DTO. */
+  readonly widthPx?: number;
+  readonly heightPx?: number;
   readonly category?: NamedRefWire;
   readonly tags: readonly NamedRefWire[];
   readonly activeReminderCount: number;
@@ -84,6 +87,8 @@ export interface MediaDetailWire {
   readonly sizeBytes: string;
   readonly thumbnailToken?: string;
   readonly sourceToken: string;
+  readonly widthPx?: number;
+  readonly heightPx?: number;
   readonly category?: NamedRefWire;
   readonly tags: readonly NamedRefWire[];
   readonly activeReminderCount: number;
@@ -91,8 +96,6 @@ export interface MediaDetailWire {
   readonly createdAt: string;
   readonly notes?: string;
   readonly mimeType: string;
-  readonly widthPx?: number;
-  readonly heightPx?: number;
   readonly updatedAt: string;
   readonly entityVersion: number;
 }
@@ -144,6 +147,12 @@ export interface UpdateMediaRequestWire {
   readonly notes?: string;
 }
 
+/** See `DeleteMediaRequest` (domain type) for the `cascadeDeleteReminders` rule. */
+export interface DeleteMediaRequestWire {
+  readonly id: string;
+  readonly cascadeDeleteReminders?: boolean;
+}
+
 // --- Reminders ------------------------------------------------------------------
 
 /**
@@ -184,11 +193,14 @@ export interface ReminderSummaryWire {
   readonly mediaId: string;
   readonly mediaKind: string;
   readonly thumbnailToken?: string;
+  /** Absent only when the joined media row itself is null (see `ReminderDtoWriter.kt`'s doc). */
+  readonly sourceToken?: string;
   readonly profileId: string;
   readonly enabledIntent: boolean;
   readonly effectiveState: string;
   readonly nextOccurrence: OccurrenceSummaryWire | null;
   readonly repeatSummary: string;
+  readonly schedule: ScheduleRuleWire;
 }
 
 export interface ReminderDetailWire {
@@ -414,10 +426,9 @@ export interface PreferencePatchWire {
  * DL-005 onward); the backup group (`beginExport` through `cancelOperation`)
  * is implemented as of the backup-engine slice (DL-025 onward); the media
  * library's read side (`listMedia`/`getMedia`), import
- * (`pickDocument`/`beginMediaImport`) and rename (`updateMedia`) are
- * implemented as of DL-053/DL-054 and this slice — see
- * `MediaReminderModule.kt` and `android/.../media/`. `deleteMedia` remains
- * declared-but-unimplemented.
+ * (`pickDocument`/`beginMediaImport`), rename (`updateMedia`) and delete
+ * (`deleteMedia`) are implemented as of DL-053/DL-054 and this slice — see
+ * `MediaReminderModule.kt` and `android/.../media/`.
  */
 export interface Spec extends TurboModule {
   // --- Implemented in the foundation ---------------------------------------
@@ -450,7 +461,7 @@ export interface Spec extends TurboModule {
   saveReminder(request: SaveReminderRequestWire): Promise<SaveReminderResultWire>;
   setReminderEnabled(id: string, enabled: boolean): Promise<EnableResultWire>;
   deleteReminder(id: string): Promise<MutationResultWire>;
-  scheduleTestReminder(mode: 'locked' | 'unlocked'): Promise<TestReminderResultWire>;
+  scheduleTestReminder(request: Object): Promise<TestReminderResultWire>;
 
   playDueSession(sessionId: string, nonce: string): Promise<ActionResultWire>;
   snoozeDueSession(sessionId: string, minutes: number, nonce: string): Promise<ActionResultWire>;
@@ -483,9 +494,28 @@ export interface Spec extends TurboModule {
   /** MR-03 "Edit details" — see `UpdateMediaRequestWire`'s doc for the optional-field rules. */
   updateMedia(request: UpdateMediaRequestWire): Promise<MediaDetailWire>;
 
-  // --- Declared contract, not yet implemented --------------------------------
-  deleteMedia(request: Object): Promise<MutationResultWire>;
+  /** MR-03 "Delete" — see `DeleteMediaRequestWire`'s doc for the cascade rule. */
+  deleteMedia(request: DeleteMediaRequestWire): Promise<MutationResultWire>;
 
+  /**
+   * Library "Export selected" (MR-10 "Sharing and privacy"). Opens the OS
+   * share sheet for the given assets' real files — resolves once the
+   * chooser is shown, not once another app finishes receiving them (there
+   * is no OS callback for that). Rejects `MR_MEDIA_UNAVAILABLE` if none of
+   * the ids resolve to a still-existing file.
+   */
+  exportMediaAssets(ids: readonly string[]): Promise<MutationResultWire>;
+
+  /**
+   * Triggers the real OS runtime-permission dialog for `POST_NOTIFICATIONS`
+   * (MR-06 `notifications` capability's `request_runtime` action) — resolves
+   * `{granted: true}` immediately pre-API-33, where the permission does not
+   * exist, or if it is already granted; otherwise resolves once the user
+   * answers the system dialog.
+   */
+  requestNotificationPermission(): Promise<Object>;
+
+  // --- Declared contract, not yet implemented --------------------------------
   saveProfile(request: Object): Promise<ReminderProfileWire>;
   resetBuiltInProfile(id: string): Promise<ReminderProfileWire>;
 

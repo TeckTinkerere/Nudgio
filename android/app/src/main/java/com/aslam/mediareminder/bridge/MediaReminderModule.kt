@@ -1,9 +1,16 @@
 package com.aslam.mediareminder.bridge
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.provider.OpenableColumns
+import android.provider.Settings
+import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.ActivityEventListener
+import com.facebook.react.modules.core.PermissionAwareActivity
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -89,6 +96,9 @@ class MediaReminderModule(
     private val pendingPickers = ConcurrentHashMap<Int, Promise>()
     private val nextPickerRequestCode = AtomicInteger(PICKER_REQUEST_CODE_BASE)
 
+    /** Separate counter from [nextPickerRequestCode] so a permission request in flight can never collide with a picker's `onActivityResult` request code. */
+    private val nextPermissionRequestCode = AtomicInteger(PERMISSION_REQUEST_CODE_BASE)
+
     init {
         // ADR-011: the Photo Picker/SAF result arrives through the hosting
         // Activity's `onActivityResult`, not through this module directly —
@@ -123,6 +133,15 @@ class MediaReminderModule(
                 // purpose is querying a just-finished operation's result.
                 database.operationJournalDao().deleteFinishedBefore(now - OPERATION_JOURNAL_RETENTION_MS)
             }.onFailure { NativeLogger.error("retention.sweepFailed", cause = it) }
+        }
+
+        // Self-heals library rows imported before thumbnail generation
+        // existed (see `MediaLibraryService.backfillMissingThumbnails`'s
+        // doc) — a separate `runCatching` so a failure here can't block
+        // either sweep above.
+        moduleScope.launch {
+            runCatching { mediaLibrary.backfillMissingThumbnails() }
+                .onFailure { NativeLogger.error("media.thumbnailBackfillFailed", cause = it) }
         }
     }
 
@@ -420,9 +439,105 @@ class MediaReminderModule(
         }
     }
 
+    /**
+     * MR-03 "Delete": removes the asset's DB row plus its on-disk file and
+     * cached thumbnail (`MediaLibraryService.deleteMedia`). `media_id` on
+     * `reminders` carries no FK (see `ReminderEntity`'s doc comment), so
+     * nothing at the DB layer forces a decision about attached reminders —
+     * `cascadeDeleteReminders` is what the JS confirm dialog's two
+     * destructive choices actually select between: `true` deletes each
+     * attached reminder the same way `deleteReminder` would (alarm
+     * rescheduling and schedule-rule/occurrence cleanup included); `false`
+     * only disables them, leaving an inert reminder whose joined media is
+     * now null — a case `ReminderDtoWriter` already treats as a null-safe
+     * fallback rather than a crash.
+     */
     @ReactMethod
-    fun deleteMedia(request: ReadableMap, promise: Promise) =
-        NativeErrorEnvelope.rejectNotImplemented(promise, "deleteMedia")
+    fun deleteMedia(request: ReadableMap, promise: Promise) {
+        moduleScope.launch {
+            runCatching {
+                val id = request.takeIf { it.hasKey("id") }?.getString("id")
+                val cascade = request.hasKey("cascadeDeleteReminders") &&
+                    request.getBoolean("cascadeDeleteReminders")
+
+                if (id != null) {
+                    for (reminderId in mediaLibrary.attachedReminderIds(id)) {
+                        if (cascade) {
+                            reminderMutations.delete(reminderId)
+                        } else {
+                            reminderMutations.setEnabled(reminderId, false)
+                        }
+                    }
+                }
+
+                mediaLibrary.deleteMedia(request)
+            }
+                .onSuccess { outcome ->
+                    when (outcome) {
+                        is MediaLibraryService.DeleteMediaOutcome.Success -> promise.resolve(
+                            Arguments.createMap().apply {
+                                putString("status", "ok")
+                                putInt("affectedCount", 1)
+                            },
+                        )
+                        is MediaLibraryService.DeleteMediaOutcome.NotFound -> NativeErrorEnvelope.reject(
+                            promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
+                            NativeErrorEnvelope.Category.MEDIA, field = "id",
+                        )
+                        is MediaLibraryService.DeleteMediaOutcome.Invalid -> NativeErrorEnvelope.reject(
+                            promise, "MR_VALIDATION_FAILED", "error.validationFailed",
+                            NativeErrorEnvelope.Category.VALIDATION, field = outcome.field,
+                        )
+                    }
+                }
+                .onFailure { failSafe(promise, it, "deleteMedia") }
+        }
+    }
+
+    /**
+     * Library "Export selected" — see `MediaLibraryService.buildExportIntent`'s
+     * doc for why this opens the OS share sheet rather than writing an
+     * archive. Needs `currentActivity` the same way `pickDocument` does, but
+     * fire-and-forget (`startActivity`, not `startActivityForResult`): unlike
+     * a picker, nothing meaningful comes back from a share chooser to await.
+     */
+    @ReactMethod
+    fun exportMediaAssets(ids: ReadableArray, promise: Promise) {
+        val activity = reactApplicationContext.currentActivity
+        if (activity == null) {
+            NativeErrorEnvelope.reject(
+                promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
+                NativeErrorEnvelope.Category.MEDIA, field = "activity",
+            )
+            return
+        }
+
+        val idList = (0 until ids.size()).mapNotNull { ids.getString(it) }
+        moduleScope.launch {
+            runCatching { mediaLibrary.buildExportIntent(idList) }
+                .onSuccess { intent ->
+                    if (intent == null) {
+                        NativeErrorEnvelope.reject(
+                            promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
+                            NativeErrorEnvelope.Category.MEDIA, field = "ids",
+                        )
+                        return@onSuccess
+                    }
+                    try {
+                        activity.startActivity(Intent.createChooser(intent, null))
+                        promise.resolve(
+                            Arguments.createMap().apply {
+                                putString("status", "ok")
+                                putInt("affectedCount", idList.size)
+                            },
+                        )
+                    } catch (error: Exception) {
+                        failSafe(promise, error, "exportMediaAssets")
+                    }
+                }
+                .onFailure { failSafe(promise, it, "exportMediaAssets") }
+        }
+    }
 
     @ReactMethod
     fun getReminder(id: String, promise: Promise) {
@@ -500,19 +615,100 @@ class MediaReminderModule(
     fun resetBuiltInProfile(id: String, promise: Promise) =
         NativeErrorEnvelope.rejectNotImplemented(promise, "resetBuiltInProfile")
 
+    /**
+     * Triggers the real OS "Allow notifications?" dialog (MR-06 capability
+     * state machine, `notifications` capability's `request_runtime` action) —
+     * previously nothing in this bridge ever called
+     * [PermissionAwareActivity.requestPermissions], so a user who denied (or
+     * was never asked) at first install had no way to be re-prompted short of
+     * finding the OS Settings screen themselves.
+     *
+     * `POST_NOTIFICATIONS` only exists as a runtime permission from API 33
+     * (Tiramisu) onward — earlier versions have notifications enabled by
+     * default with no separate grant step, so this resolves `granted: true`
+     * immediately rather than asking for a permission that does not exist.
+     */
     @ReactMethod
-    fun openCapabilitySettings(kind: String, promise: Promise) =
-        NativeErrorEnvelope.rejectNotImplemented(promise, "openCapabilitySettings")
+    fun requestNotificationPermission(promise: Promise) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            promise.resolve(Arguments.createMap().apply { putBoolean("granted", true) })
+            return
+        }
 
+        val alreadyGranted = ContextCompat.checkSelfPermission(
+            reactApplicationContext,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (alreadyGranted) {
+            promise.resolve(Arguments.createMap().apply { putBoolean("granted", true) })
+            return
+        }
+
+        val activity = reactApplicationContext.currentActivity as? PermissionAwareActivity
+        if (activity == null) {
+            NativeErrorEnvelope.reject(
+                promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
+                NativeErrorEnvelope.Category.MEDIA, field = "activity",
+            )
+            return
+        }
+
+        val requestCode = nextPermissionRequestCode.getAndIncrement()
+        activity.requestPermissions(
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            requestCode,
+        ) { _, _, grantResults ->
+            val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            promise.resolve(Arguments.createMap().apply { putBoolean("granted", granted) })
+            true
+        }
+    }
+
+    /**
+     * MR-06 `open_special_access` action: deep-links to the one OS Settings
+     * screen for a capability that has no (or no longer usable) in-app
+     * runtime dialog — `notifications` after a permanent denial
+     * (`requestPermissions` above then silently no-ops instead of showing
+     * anything), and `exact_alarm`, which Android never offers a runtime
+     * dialog for at all.
+     */
     @ReactMethod
-    fun scheduleTestReminder(mode: String, promise: Promise) {
-        // `mode` (locked/unlocked) selects which adaptive-presentation path
-        // MR-06 wants exercised; the locked/full-screen path itself is out
-        // of scope for this pass (see `NotificationCoordinator`'s scope
-        // note), so every mode currently produces the same notification.
-        // Accepting and ignoring the parameter — rather than rejecting it —
-        // keeps the JS call site stable for when that path lands.
-        runCatching { reminderMutations.scheduleTest() }
+    fun openCapabilitySettings(kind: String, promise: Promise) {
+        val intent = when (kind) {
+            "notifications" -> Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                putExtra(Settings.EXTRA_APP_PACKAGE, reactApplicationContext.packageName)
+            }
+            "exact_alarm" -> Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                data = Uri.parse("package:${reactApplicationContext.packageName}")
+            }
+            else -> null
+        }
+        if (intent == null) {
+            NativeErrorEnvelope.rejectNotImplemented(promise, "openCapabilitySettings")
+            return
+        }
+
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { reactApplicationContext.startActivity(intent) }
+            .onSuccess { promise.resolve(Arguments.createMap()) }
+            .onFailure { failSafe(promise, it, "openCapabilitySettings") }
+    }
+
+    /**
+     * Settings "Preview alarm styles": `request` carries `title`/`body`
+     * (already localized by JS from the tapped profile's own copy) and
+     * `fullScreenWhenLocked` (that profile's real field) — this used to take
+     * a bare `mode: 'locked' | 'unlocked'` string that nothing ever set to
+     * anything but a placeholder, since no caller existed yet; repurposed
+     * now that Settings is the first real caller.
+     */
+    @ReactMethod
+    fun scheduleTestReminder(request: ReadableMap, promise: Promise) {
+        val title = request.getString("title").orEmpty()
+        val body = request.getString("body").orEmpty()
+        val fullScreenWhenLocked = request.hasKey("fullScreenWhenLocked") &&
+            request.getBoolean("fullScreenWhenLocked")
+        runCatching { reminderMutations.scheduleTest(title, body, fullScreenWhenLocked) }
             .onSuccess { promise.resolve(it) }
             .onFailure { failSafe(promise, it, "scheduleTestReminder") }
     }
@@ -826,5 +1022,8 @@ class MediaReminderModule(
          * coincidence, not globally reserved.
          */
         private const val PICKER_REQUEST_CODE_BASE = 9100
+
+        /** Kept well clear of [PICKER_REQUEST_CODE_BASE]'s range so the two request-code spaces can never collide. */
+        private const val PERMISSION_REQUEST_CODE_BASE = 9200
     }
 }

@@ -56,6 +56,11 @@ object MediaDtoWriter {
             val thumbnailToken = MediaThumbnailUri.resolveThumbnail(entity, storage)
             if (thumbnailToken != null) putString("thumbnailToken", thumbnailToken) else putNull("thumbnailToken")
             putString("sourceToken", MediaThumbnailUri.resolveSource(entity, storage))
+            // The Library grid needs real dimensions on every card, not just
+            // the detail view, to render each thumbnail at its own natural
+            // aspect ratio instead of a fixed 16:9/square crop.
+            if (entity.widthPx != null) putInt("widthPx", entity.widthPx) else putNull("widthPx")
+            if (entity.heightPx != null) putInt("heightPx", entity.heightPx) else putNull("heightPx")
             putNull("category")
             putArray("tags", Arguments.createArray())
             putInt("activeReminderCount", activeReminderCount)
@@ -74,8 +79,6 @@ object MediaDtoWriter {
         val notes = entity.notes
         if (notes != null) map.putString("notes", notes) else map.putNull("notes")
         map.putString("mimeType", entity.mimeType)
-        if (entity.widthPx != null) map.putInt("widthPx", entity.widthPx)
-        if (entity.heightPx != null) map.putInt("heightPx", entity.heightPx)
         map.putString("updatedAt", Instant.ofEpochMilli(entity.updatedAt).toString())
         map.putInt("entityVersion", entity.entityVersion)
         return map

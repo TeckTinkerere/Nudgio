@@ -16,10 +16,19 @@ import java.time.Instant
  * by posting a notification directly, with nothing to reconcile afterward.
  */
 object TestAlarmScheduler {
-    fun schedule(context: Context, at: Instant) {
+    fun schedule(
+        context: Context,
+        at: Instant,
+        previewTitle: String,
+        previewBody: String,
+        previewFullScreen: Boolean,
+    ) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, AlarmDispatchReceiver::class.java).apply {
             action = AlarmIds.ACTION_TEST_ALARM_DUE
+            putExtra(AlarmIds.EXTRA_PREVIEW_TITLE, previewTitle)
+            putExtra(AlarmIds.EXTRA_PREVIEW_BODY, previewBody)
+            putExtra(AlarmIds.EXTRA_PREVIEW_FULL_SCREEN, previewFullScreen)
         }
         val pendingIntent = PendingIntent.getBroadcast(
             context,

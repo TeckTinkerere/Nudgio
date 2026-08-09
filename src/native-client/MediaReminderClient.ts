@@ -17,7 +17,9 @@ import {getNativeMediaReminder, type Spec} from './NativeMediaReminder';
 import type {
   ActionResult,
   BackupInspection,
+  CapabilityKind,
   CapabilitySnapshot,
+  DeleteMediaRequest,
   EnableResult,
   ExportRequest,
   ExportResult,
@@ -27,6 +29,7 @@ import type {
   MediaQuery,
   MediaSummary,
   MutationResult,
+  NotificationPermissionResult,
   Page,
   PickedDocument,
   PreferencePatch,
@@ -36,7 +39,7 @@ import type {
   ReminderSummary,
   SaveReminderRequest,
   SaveReminderResult,
-  TestMode,
+  TestReminderRequest,
   TestReminderResult,
   UpdateMediaRequest,
   UUID,
@@ -65,6 +68,7 @@ export interface MediaReminderClientDeps {
 export interface MediaReminderClient {
   getStartupSnapshot(): Promise<Result<StartupSnapshot, AppError>>;
   getCapabilitySnapshot(): Promise<Result<CapabilitySnapshot, AppError>>;
+  openCapabilitySettings(kind: CapabilityKind): Promise<Result<unknown, AppError>>;
   getPreferences(): Promise<Result<PreferencesSnapshot, AppError>>;
   setPreferences(patch: PreferencePatch): Promise<Result<PreferencesSnapshot, AppError>>;
   getDynamicColorScheme(): Promise<Result<unknown | null, AppError>>;
@@ -76,13 +80,16 @@ export interface MediaReminderClient {
   pickDocument(mimeTypes: readonly string[]): Promise<Result<PickedDocument | null, AppError>>;
   beginMediaImport(request: ImportRequest): Promise<Result<MediaDetail, AppError>>;
   updateMedia(request: UpdateMediaRequest): Promise<Result<MediaDetail, AppError>>;
+  deleteMedia(request: DeleteMediaRequest): Promise<Result<MutationResult, AppError>>;
+  exportMediaAssets(ids: readonly UUID[]): Promise<Result<MutationResult, AppError>>;
+  requestNotificationPermission(): Promise<Result<NotificationPermissionResult, AppError>>;
 
   listReminders(): Promise<Result<Page<ReminderSummary>, AppError>>;
   getReminder(id: UUID): Promise<Result<ReminderDetail, AppError>>;
   saveReminder(request: SaveReminderRequest): Promise<Result<SaveReminderResult, AppError>>;
   setReminderEnabled(id: UUID, enabled: boolean): Promise<Result<EnableResult, AppError>>;
   deleteReminder(id: UUID): Promise<Result<MutationResult, AppError>>;
-  scheduleTestReminder(mode: TestMode): Promise<Result<TestReminderResult, AppError>>;
+  scheduleTestReminder(request: TestReminderRequest): Promise<Result<TestReminderResult, AppError>>;
 
   playDueSession(sessionId: UUID, nonce: string): Promise<Result<ActionResult, AppError>>;
   snoozeDueSession(
@@ -194,6 +201,9 @@ export const createMediaReminderClient = (
     getCapabilitySnapshot: () =>
       call('getCapabilitySnapshot', native => native.getCapabilitySnapshot()),
 
+    openCapabilitySettings: kind =>
+      call('openCapabilitySettings', native => native.openCapabilitySettings(kind)),
+
     getPreferences: () => call('getPreferences', native => native.getPreferences()),
 
     setPreferences: patch =>
@@ -215,6 +225,13 @@ export const createMediaReminderClient = (
 
     updateMedia: request => call('updateMedia', native => native.updateMedia(request)),
 
+    deleteMedia: request => call('deleteMedia', native => native.deleteMedia(request)),
+
+    exportMediaAssets: ids => call('exportMediaAssets', native => native.exportMediaAssets(ids)),
+
+    requestNotificationPermission: () =>
+      call('requestNotificationPermission', native => native.requestNotificationPermission()),
+
     listReminders: () => call('listReminders', native => native.listReminders()),
 
     getReminder: id => call('getReminder', native => native.getReminder(id)),
@@ -226,8 +243,8 @@ export const createMediaReminderClient = (
 
     deleteReminder: id => call('deleteReminder', native => native.deleteReminder(id)),
 
-    scheduleTestReminder: mode =>
-      call('scheduleTestReminder', native => native.scheduleTestReminder(mode)),
+    scheduleTestReminder: request =>
+      call('scheduleTestReminder', native => native.scheduleTestReminder(request)),
 
     playDueSession: (sessionId, nonce) =>
       call('playDueSession', native => native.playDueSession(sessionId, nonce)),

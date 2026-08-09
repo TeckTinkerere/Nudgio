@@ -234,10 +234,16 @@ class ReminderMutationService(
         }
     }
 
-    /** MR-03 "Test reminder": fires in [TEST_DELAY_MS], independent of the single global reminder alarm (a distinct `AlarmManager` request code). */
-    fun scheduleTest(): WritableMap {
+    /**
+     * Settings "Preview alarm styles" (MR-03 "Test reminder"): fires in
+     * [TEST_DELAY_MS], independent of the single global reminder alarm (a
+     * distinct `AlarmManager` request code). `title`/`body` are
+     * already-localized strings JS built for the tapped profile;
+     * `fullScreenWhenLocked` mirrors that profile's real field.
+     */
+    fun scheduleTest(title: String, body: String, fullScreenWhenLocked: Boolean): WritableMap {
         val scheduledAt = Instant.now().plusMillis(TEST_DELAY_MS)
-        TestAlarmScheduler.schedule(context, scheduledAt)
+        TestAlarmScheduler.schedule(context, scheduledAt, title, body, fullScreenWhenLocked)
         return Arguments.createMap().apply {
             putString("sessionId", UUID.randomUUID().toString())
             putString("scheduledAt", scheduledAt.toString())

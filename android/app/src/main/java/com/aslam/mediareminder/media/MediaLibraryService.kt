@@ -1,5 +1,6 @@
 package com.aslam.mediareminder.media
 
+import android.content.Intent
 import androidx.sqlite.db.SimpleSQLiteQuery
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.data.db.entity.MediaAssetEntity
@@ -132,10 +133,117 @@ class MediaLibraryService(private val database: MediaReminderDatabase, private v
         object Conflict : UpdateMediaOutcome()
     }
 
+    /**
+     * MR-03 "Delete": every deleted asset's bytes and cached thumbnail come
+     * off disk immediately, not just its DB row — the whole point of the
+     * user-facing delete flow is that removed media stops counting against
+     * app storage, not that it becomes merely unlisted. `File.delete()` is a
+     * safe no-op (returns `false`) when a path is already missing, so a
+     * previously "missing" asset (source file already gone, per
+     * `IntegrityState`) deletes cleanly too.
+     */
+    suspend fun attachedReminderIds(id: String): List<String> =
+        database.reminderDao().getByMediaId(id).map { it.id }
+
+    suspend fun deleteMedia(request: ReadableMap): DeleteMediaOutcome {
+        val id = request.takeIf { it.hasKey("id") }?.getString("id")
+            ?: return DeleteMediaOutcome.Invalid("id")
+        val existing = mediaDao.getById(id) ?: return DeleteMediaOutcome.NotFound
+
+        mediaDao.delete(existing)
+        storage.fileFor(existing.storageKey).delete()
+        storage.thumbnailFileFor(existing.id).delete()
+
+        return DeleteMediaOutcome.Success
+    }
+
+    sealed class DeleteMediaOutcome {
+        object Success : DeleteMediaOutcome()
+        object NotFound : DeleteMediaOutcome()
+        data class Invalid(val field: String) : DeleteMediaOutcome()
+    }
+
+    /**
+     * Library "Export selected" (MR-10 "Sharing and privacy"). There is no
+     * native "export a subset" archive format — that is `BackupExporter`'s
+     * whole-library ZIP, a distinct feature. This hands the selected files'
+     * real bytes to the OS share sheet instead (`ACTION_SEND_MULTIPLE`,
+     * read-only `content://` grants via `MediaStorage.contentUriFor`), which
+     * is what "export" means for a multi-select action in most gallery apps:
+     * the app's job ends once the chooser opens, not once some other app
+     * finishes receiving the files. `null` means none of the requested ids
+     * resolved to a still-existing file — nothing to share.
+     */
+    suspend fun buildExportIntent(ids: List<String>): Intent? {
+        val entities = mediaDao.getByIds(ids)
+        val uris = entities
+            .map { storage.fileFor(it.storageKey) }
+            .filter { it.exists() }
+            .map { storage.contentUriFor(it) }
+        if (uris.isEmpty()) return null
+
+        val kinds = entities.map { it.kind }.toSet()
+        val mimeType = if (kinds.size == 1) MIME_TYPE_PREFIX[kinds.first()] ?: "*/*" else "*/*"
+
+        return Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = mimeType
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    }
+
+    /**
+     * One-time, best-effort catch-up for assets imported before thumbnail
+     * generation existed, or where it failed on the first try (see
+     * `MediaDao.getMissingThumbnails`'s doc — real library rows were found
+     * in exactly this state, docs/decision-log.md). Runs off the hot list/
+     * detail query path entirely (triggered once from
+     * `MediaReminderModule`'s init) so it never adds thumbnail-generation
+     * latency to an ordinary grid/detail fetch; the JS side picks up a
+     * newly-backfilled thumbnail the next time it refetches that query
+     * (list focus/navigation, or the next app start at worst).
+     *
+     * Two passes: rows with no cached thumbnail at all, then rows that
+     * claim one but whose file is missing or fails to decode (`MediaThumbnailer
+     * .isValid`) — a truncated write or storage fault can leave `thumbnail_path`
+     * pointing at bytes that were never a real cache hit, and nothing before
+     * this ever re-checked a path once it was set.
+     */
+    suspend fun backfillMissingThumbnails() {
+        for (entity in mediaDao.getMissingThumbnails()) {
+            regenerateThumbnail(entity)
+        }
+        for (entity in mediaDao.getWithThumbnails()) {
+            if (!MediaThumbnailer.isValid(storage.thumbnailFileFor(entity.id))) {
+                regenerateThumbnail(entity)
+            }
+        }
+    }
+
+    private suspend fun regenerateThumbnail(entity: MediaAssetEntity) {
+        val sourceFile = storage.fileFor(entity.storageKey)
+        val thumbnailFile = storage.thumbnailFileFor(entity.id)
+        if (sourceFile.exists() && MediaThumbnailer.generate(sourceFile, entity.kind, thumbnailFile)) {
+            mediaDao.updateThumbnailPath(entity.id, thumbnailFile.name)
+        } else {
+            thumbnailFile.delete()
+            mediaDao.clearThumbnailPath(entity.id)
+        }
+    }
+
     private suspend fun activeReminderCounts(items: List<MediaAssetEntity>): Map<String, Int> {
         if (items.isEmpty()) return emptyMap()
         return mediaDao
             .countActiveRemindersFor(items.map { it.id })
             .associate { it.mediaId to it.activeCount }
+    }
+
+    companion object {
+        private val MIME_TYPE_PREFIX = mapOf(
+            MediaAssetEntity.KIND_VIDEO to "video/*",
+            MediaAssetEntity.KIND_AUDIO to "audio/*",
+            MediaAssetEntity.KIND_IMAGE to "image/*",
+            MediaAssetEntity.KIND_TEXT to "text/*",
+        )
     }
 }

@@ -46,11 +46,26 @@ object ReminderDtoWriter {
         putString("mediaKind", media?.kind ?: "video")
         val thumbnailToken = media?.let { MediaThumbnailUri.resolveThumbnail(it, storage) }
         if (thumbnailToken != null) putString("thumbnailToken", thumbnailToken) else putNull("thumbnailToken")
+        // Lets the Reminders list preview-play a reminder's media in place
+        // (same `sourceToken` contract `MediaSummary` already carries) —
+        // absent only when `media` itself is null, the same "no FK yet"
+        // edge case `mediaKind`'s fallback above documents.
+        val sourceToken = media?.let { MediaThumbnailUri.resolveSource(it, storage) }
+        if (sourceToken != null) putString("sourceToken", sourceToken) else putNull("sourceToken")
         putString("profileId", reminder.profileId)
         putBoolean("enabledIntent", reminder.enabledIntent)
         putString("effectiveState", reminder.effectiveState)
         if (nextOccurrence != null) putMap("nextOccurrence", writeOccurrence(nextOccurrence)) else putNull("nextOccurrence")
         putString("repeatSummary", RepeatSummaryFormatter.summarize(ScheduleRuleMapper.toDomain(ruleEntity)))
+        // The "Upcoming" 5-day view (client-side occurrence projection, same
+        // "local approximation for display only" precedent the reminder
+        // editor's own Preview card already established — MR-08's "UI never
+        // calculates authoritative next occurrence" governs real scheduling,
+        // not a read-only forward-looking display list) needs every
+        // reminder's own rule, not just its single precomputed
+        // `nextOccurrence` — so this is now on the list endpoint too, not
+        // only `ReminderDetail`.
+        putMap("schedule", ScheduleRuleBridge.writeRule(ScheduleRuleMapper.toDomain(ruleEntity)))
     }
 
     /** Extends [writeSummary]'s map with `ReminderDetail`'s extra fields — a `WritableNativeMap` accepts more `put*` calls right up until it is consumed by `promise.resolve()`. */
@@ -64,7 +79,6 @@ object ReminderDtoWriter {
         val map = writeSummary(reminder, ruleEntity, nextOccurrence, media, storage)
         val notes = reminder.notes
         if (notes != null) map.putString("notes", notes) else map.putNull("notes")
-        map.putMap("schedule", ScheduleRuleBridge.writeRule(ScheduleRuleMapper.toDomain(ruleEntity)))
         map.putMap(
             "snooze",
             Arguments.createMap().apply {

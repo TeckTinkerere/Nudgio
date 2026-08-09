@@ -14,9 +14,12 @@
 import type {
   ActionResult,
   BackupInspection,
+  CapabilityKind,
   CapabilitySnapshot,
+  NotificationPermissionResult,
   EnableResult,
   ExportRequest,
+  DeleteMediaRequest,
   ExportResult,
   ImportCommitRequest,
   ImportRequest,
@@ -33,7 +36,7 @@ import type {
   ReminderSummary,
   SaveReminderRequest,
   SaveReminderResult,
-  TestMode,
+  TestReminderRequest,
   TestReminderResult,
   UpdateMediaRequest,
   UUID,
@@ -57,6 +60,10 @@ export interface MediaRepository {
   pickDocument(mimeTypes: readonly string[]): Promise<Result<PickedDocument | null, AppError>>;
   beginImport(request: ImportRequest): Promise<Result<MediaDetail, AppError>>;
   update(request: UpdateMediaRequest): Promise<Result<MediaDetail, AppError>>;
+  /** MR-03 "Delete" — see `DeleteMediaRequest`'s doc for the cascade rule. */
+  remove(request: DeleteMediaRequest): Promise<Result<MutationResult, AppError>>;
+  /** MR-10 "Export selected" — opens the OS share sheet for these assets' real files. */
+  exportSelected(ids: readonly UUID[]): Promise<Result<MutationResult, AppError>>;
   /**
    * Cancels an in-flight `beginImport`. Not `BackupRepository`'s own method
    * reused across a domain boundary — `cancelOperation` is one generic
@@ -74,7 +81,7 @@ export interface ReminderRepository {
   save(request: SaveReminderRequest): Promise<Result<SaveReminderResult, AppError>>;
   setEnabled(id: UUID, enabled: boolean): Promise<Result<EnableResult, AppError>>;
   remove(id: UUID): Promise<Result<MutationResult, AppError>>;
-  scheduleTest(mode: TestMode): Promise<Result<TestReminderResult, AppError>>;
+  scheduleTest(request: TestReminderRequest): Promise<Result<TestReminderResult, AppError>>;
   play(sessionId: UUID, nonce: string): Promise<Result<ActionResult, AppError>>;
   snooze(sessionId: UUID, minutes: number, nonce: string): Promise<Result<ActionResult, AppError>>;
   dismiss(sessionId: UUID, nonce: string): Promise<Result<ActionResult, AppError>>;
@@ -86,6 +93,8 @@ export interface ProfileRepository {
 
 export interface CapabilityRepository {
   getSnapshot(): Promise<Result<CapabilitySnapshot, AppError>>;
+  requestNotificationPermission(): Promise<Result<NotificationPermissionResult, AppError>>;
+  openSettings(kind: CapabilityKind): Promise<Result<unknown, AppError>>;
 }
 
 export interface SettingsRepository {

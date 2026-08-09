@@ -195,17 +195,47 @@ class NotificationCoordinator(private val context: Context) {
      * buttons off a test notification was judged not worth the schema
      * contortion for what MR-03 frames as a capability smoke test.
      */
-    fun postTestNotification() {
+    /**
+     * Settings "Preview alarm styles" (MR-03 "Test reminder", extended to be
+     * profile-aware rather than a single fixed notification). `title`/`body`
+     * are already-localized strings JS built from the profile the user
+     * tapped — native never owns this copy. `fullScreenWhenLocked` mirrors
+     * that profile's real field: when true, this attaches the same
+     * `setFullScreenIntent` a real Standard/Persistent alarm would, targeting
+     * [AlarmActivity] in its no-session preview mode (see that class'
+     * `EXTRA_PREVIEW_*` handling) so the user sees the actual takeover
+     * surface, not just a description of it.
+     */
+    fun postTestNotification(title: String, body: String, fullScreenWhenLocked: Boolean) {
         ensureChannels()
-        val notification = NotificationCompat.Builder(context, CHANNEL_REMINDER)
+        val channelId = if (fullScreenWhenLocked) CHANNEL_ALARM else CHANNEL_REMINDER
+        val category = if (fullScreenWhenLocked) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER
+        val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Test reminder")
-            .setContentText("This is what your reminders look like.")
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setCategory(category)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-            .build()
-        manager.notify(TEST_NOTIFICATION_ID, notification)
+            .setContentIntent(previewAlarmActivityIntent(title, body))
+        if (fullScreenWhenLocked) {
+            builder.setFullScreenIntent(previewAlarmActivityIntent(title, body), true)
+        }
+        manager.notify(TEST_NOTIFICATION_ID, builder.build())
+    }
+
+    private fun previewAlarmActivityIntent(title: String, body: String): PendingIntent {
+        val intent = Intent(context, AlarmActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(AlarmIds.EXTRA_PREVIEW_TITLE, title)
+            putExtra(AlarmIds.EXTRA_PREVIEW_BODY, body)
+        }
+        return PendingIntent.getActivity(
+            context,
+            TEST_NOTIFICATION_ID,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 
     private fun actionFor(
