@@ -2074,3 +2074,96 @@ healthy (`/status` still 200) 15 seconds after start, past the point both
 prior crashes occurred at. Not a complete guarantee against every possible
 future race with a concurrent session's build — only a targeted fix for the
 one directory pattern that has now caused it twice.
+
+## DL-067 — `main` was 14 commits behind the actively-developed branch
+
+**Date:** 2026-08-10
+**Context:** A repo-wide audit (checking every local/remote branch and every
+`.claude/worktrees/*` checkout for uncommitted or unmerged work) found `main`
+had not moved since `claude/app-testing-8d62fc`'s merge — every commit from
+the media-library build-out through DL-065's Upcoming rename existed only on
+`claude/recover-uncommitted-ui-work`, which had zero divergence from `main`
+(14 commits ahead, 0 behind). Every other stale branch/worktree (`claude/
+elastic-banach-bd5254`, `claude/missing-changes-after-install-516369`,
+`claude/remote-control-22fe65`, the `upstash-plugin-install-804b6e` worktree)
+had a clean working tree and no unique commits — nothing else was at risk of
+being lost. `claude/apk-download-webpage-8f855b` (3 commits, a live-clock
+animation for the `web/` GitHub Pages download page) diverged from `main` by
+5 commits and was left alone — it is not app code and merging it was out of
+scope for this pass.
+**Decision:** Fast-forwarded `main` to `claude/recover-uncommitted-ui-work`
+(`git merge --ff-only`, safe since `main` was a strict ancestor — no rebase
+or history rewrite). Also added `android/.kotlin/`/`android/app/.kotlin/`
+(the Kotlin compiler daemon's cache directory, never previously excluded) to
+`.gitignore`.
+**Consequence:** `main` now carries every feature landed this cycle. No
+history was rewritten and no other branch's work was touched.
+
+## DL-068 — Guarded notification posting and migrated the alarm activity's back gesture
+
+**Date:** 2026-08-10
+**Context:** `./gradlew lintDebug` has hard-failed on the same 5 errors since
+DL-041 (`KNOWN_ISSUES.md`/`TODO.md`): three unguarded `manager.notify()`
+calls in `NotificationCoordinator.kt` (`MissingPermission` — `POST_NOTIFICATIONS`
+can be revoked post-grant on API 33+, which would otherwise throw
+`SecurityException`, not just silently no-op), plus `AlarmActivity.kt`'s
+deprecated `onBackPressed()` override (`MissingSuperCall` +
+`GestureBackNavigation`).
+**Decision:** Added a single private `NotificationCoordinator.postNotification()`
+that checks `ContextCompat.checkSelfPermission` before calling
+`NotificationManagerCompat.notify()` (lint's data-flow check recognizes this
+exact guard pattern) and routed all three call sites through it, rather than
+annotating each with `@SuppressLint`. Migrated `AlarmActivity`'s Back handling
+to `OnBackPressedDispatcher`/`OnBackPressedCallback`, per the housekeeping
+item already tracked to do both fixes together (the dispatcher migration is
+what future-proofs the same code path if predictive back is ever enabled).
+**Consequence:** All 5 lint errors are fixed at the source, not suppressed.
+A revoked notification permission after grant now degrades to "notification
+silently not shown" (already an accepted, documented outcome elsewhere in
+this codebase) instead of crashing the receiver/service that posts it.
+
+## DL-069 — Due-alarm notifications no longer duplicate the reminder label
+
+**Date:** 2026-08-10
+**Context:** `KNOWN_ISSUES.md`'s "Open — Medium" list carried this since
+before media import existed: `AlarmDispatchReceiver`/`AlarmRingingService`
+passed `reminder.label` as both the notification's title *and* body, because
+`mediaTitle` had nothing real to source from yet. Media import has been real
+since DL-053; every `ReminderEntity.mediaId` is now a live foreign key.
+**Decision:** Added `AlarmNotificationText.resolveBody()` (`alarm/` package):
+looks up the linked `MediaAssetEntity` and uses its `title` as the
+notification body, falling back to `RepeatSummaryFormatter`'s plain-language
+schedule summary (already used for `AlarmActivity`'s own repeat-summary text)
+if the media row is ever missing, and only as a last resort `reminder.label`
+again. Wired into both call sites that build the due notification
+(`AlarmDispatchReceiver.dispatch`, `AlarmRingingService.promote`) plus the
+in-app foreground event payload.
+**Consequence:** A due alarm's notification now reads, e.g., title "Take
+medication" / body "beach_sunset.mp4" (or "Every day at 8:00 AM" if the
+media row can't be read) instead of the same string twice.
+
+## DL-070 — Wired the two remaining dead "Export"/"Share" buttons to real OS actions
+
+**Date:** 2026-08-10
+**Context:** An audit of Settings/Library/Backup for "every function serves
+its real purpose" (nothing that looks actionable but silently no-ops) found
+two: Media Detail's "Export this item" (`MediaDetailContent.tsx`,
+`onPress={() => undefined}`) and the Backup success screen's "Share"
+(`BackupScreen.tsx`, same). Library's bulk "Export selected" already had a
+real native implementation (`MediaLibraryService.buildExportIntent`,
+DL-061) that the single-item button simply never called; Backup's "Share"
+had no native counterpart at all — `BackupExporter` writes the archive but
+nothing ever built a share `Intent` for it.
+**Decision:** `MediaDetailContent`'s Export button now calls the existing
+`useExportMedia()` mutation with a one-item array — no new native code
+needed. For Backup, added `BackupExporter.buildShareIntent(fileName)`
+(`ACTION_SEND` + `FileProvider` content URI, scoped to files inside its own
+`exportDirectory()` with a canonical-path containment check against
+traversal, since `fileName` is bridge input) and a new
+`shareBackupExport(fileName)` bridge method/JS client/repository method,
+following `exportMediaAssets`'s existing shape exactly (same
+`currentActivity`-required, fire-and-forget chooser launch).
+**Consequence:** Both buttons now do what their label says. No new
+permission or manifest entry was needed — `FileProvider` and the `backups`
+`external-files-path` grant already existed for exactly this purpose
+(`file_paths.xml`'s own doc comment anticipated it).
