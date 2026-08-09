@@ -1,14 +1,17 @@
 package com.aslam.mediareminder.notifications
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.aslam.mediareminder.R
 import com.aslam.mediareminder.alarm.AlarmActionReceiver
 import com.aslam.mediareminder.alarm.AlarmActivity
@@ -130,7 +133,7 @@ class NotificationCoordinator(private val context: Context) {
         ongoing: Boolean,
         useFullScreenIntent: Boolean = false,
     ) {
-        manager.notify(
+        postNotification(
             notificationIdFor(sessionId),
             buildDueNotification(sessionId, reminderLabel, mediaTitle, nonce, useAlarmChannel, ongoing, useFullScreenIntent),
         )
@@ -154,6 +157,25 @@ class NotificationCoordinator(private val context: Context) {
     }
 
     /**
+     * Single guarded posting path (KNOWN_ISSUES.md "MissingPermission" x3):
+     * on API 33+, `POST_NOTIFICATIONS` can be revoked at any time even after
+     * being granted at launch (Settings > App info > Notifications > Off),
+     * and `NotificationManagerCompat.notify()` would otherwise throw
+     * `SecurityException` for the runtime-permission case. A silently
+     * dropped notification is an acceptable degradation for an app whose
+     * alarm activity/ringing service are independent of this call; a crash
+     * is not.
+     */
+    private fun postNotification(id: Int, notification: Notification) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        manager.notify(id, notification)
+    }
+
+    /**
      * ADR-017 / MR-06 "Reboot and direct boot": "the app can reschedule a
      * generic due alert" before first unlock. Deliberately hardcoded,
      * generic English copy with no reminder label or media title — Room
@@ -174,7 +196,7 @@ class NotificationCoordinator(private val context: Context) {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
-        manager.notify(GENERIC_DIRECT_BOOT_NOTIFICATION_ID, notification)
+        postNotification(GENERIC_DIRECT_BOOT_NOTIFICATION_ID, notification)
     }
 
     fun cancelGenericDueNotification() {
@@ -221,7 +243,7 @@ class NotificationCoordinator(private val context: Context) {
         if (fullScreenWhenLocked) {
             builder.setFullScreenIntent(previewAlarmActivityIntent(title, body), true)
         }
-        manager.notify(TEST_NOTIFICATION_ID, builder.build())
+        postNotification(TEST_NOTIFICATION_ID, builder.build())
     }
 
     private fun previewAlarmActivityIntent(title: String, body: String): PendingIntent {

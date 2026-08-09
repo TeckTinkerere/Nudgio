@@ -8,6 +8,7 @@ import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.PopupMenu
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import com.aslam.mediareminder.R
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
@@ -68,6 +69,7 @@ class AlarmActivity : AppCompatActivity() {
         setContentView(R.layout.activity_alarm)
         bindViews()
         loadSession(intent)
+        onBackPressedDispatcher.addCallback(this, backPressedCallback)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -99,11 +101,15 @@ class AlarmActivity : AppCompatActivity() {
      * satisfies), so the Gentle "stop" branch that same spec line describes
      * has no reachable case here — Back always collapses: it finishes this
      * activity without touching the session, ringing service or
-     * notification, all of which are independent of this UI.
+     * notification, all of which are independent of this UI. Uses
+     * [OnBackPressedDispatcher] rather than the deprecated `onBackPressed()`
+     * override so this keeps working unchanged if predictive back
+     * (`android:enableOnBackInvokedCallback`) is ever enabled.
      */
-    @Suppress("DEPRECATION")
-    override fun onBackPressed() {
-        finish()
+    private val backPressedCallback = object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+            finish()
+        }
     }
 
     private fun applyWindowFlags() {
