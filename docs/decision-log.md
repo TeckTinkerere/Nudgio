@@ -1633,3 +1633,421 @@ and `npm test` (44/44) all green. Reminders list and Reminder Detail are
 **not yet verified on a physical device** for the same reason as DL-057 —
 still no device connected this session to confirm the redesigned screens
 render and the newly-wired toggle/navigation actually work end-to-end.
+
+## DL-059 — first real on-device pass surfaced a stub delete, fake Today data, and a broken edit path; full screen-polish sweep
+
+**Date:** 2026-08-09
+**Context:** A device finally connected and immediately surfaced problems no
+amount of static verification had caught, plus direct user feedback on visual
+density across four screens. In order surfaced:
+- **`TimePicker`'s AM/PM `SegmentedControl` was clipped off the right edge
+  of the screen** — a single `Stack direction="row"` with two `displaySmall`
+  steppers plus the segmented control was wider than a typical phone at that
+  font scale, and `Stack` does not wrap by default. Fixed by stacking the
+  segmented control on its own centered row below the steppers instead of
+  fighting for horizontal space with them.
+- **Library's filter chips (search + kind + category + sort, all `Stack
+  wrap`) consumed most of the screen before any media rendered.** New
+  `design-system/components/ChipRow.tsx` (horizontal-scroll wrapper,
+  MR-13 explicitly allows scroll as the wrap alternative) replaces every
+  wrapped chip group in Library and Settings; Library's category/sort rows
+  are now collapsed behind a "More filters" toggle chip, default-hidden.
+- **Reminders list was a plain `ListRow`** with a small thumbnail box and no
+  visible scheduled time at all — the opposite of what an alarm-list should
+  lead with. Rewritten as a `Card` row with a large tonal time chip
+  (hour:minute + AM/PM, `titleLarge` tabular) as the leading element, using
+  `AnimatedPressable` for the body so the enable `Toggle` stays a sibling,
+  never nested (MR-13).
+- **`deleteMedia` was a native stub** (`NativeErrorEnvelope.rejectNotImplemented`)
+  — the Delete button's confirm handler only closed the dialog and triggered
+  a haptic; nothing was ever removed from disk or Room, so deleted media
+  stayed forever, which is exactly what the user flagged as "app size will
+  keep growing." Implemented for real: `MediaLibraryService.deleteMedia`
+  deletes the DB row plus the on-disk original and cached thumbnail
+  (`File.delete()` no-ops safely if already missing); `MediaReminderModule`
+  orchestrates the two destructive dialog paths via the new
+  `cascadeDeleteReminders` flag — `true` deletes every attached reminder the
+  same way `deleteReminder` would (alarm rescheduling included, via
+  `reminderMutations.delete`); `false`/omitted only disables them
+  (`reminderMutations.setEnabled(id, false)`), since `reminders.media_id`
+  carries no FK (nothing else forces the decision). New `ReminderDao
+  .getByMediaId` finds the affected reminders. JS: `DeleteMediaRequest`/
+  `useDeleteMedia` (write-through the same invalidate pattern as
+  `useSaveReminder`), and a new `DeleteFlushOverlay` — water floods up from
+  the bottom with rising bubbles while the item's icon sinks/rotates/fades,
+  reduced-motion-safe (falls back to a quick opacity cross-fade). Wired only
+  *after* the native call resolves successfully, and `MediaDetailContent`
+  stops reading `media.data` entirely once flushing starts (an early
+  `FlushingMediaView` return) — invalidating the media caches on success
+  means the still-mounted detail query can flip to "not found" mid-animation
+  otherwise, which would have raced the flush.
+- **Today's occurrence timeline was mock fixture data**
+  (`mockTodayOccurrences`, fabricated titles like "Weekly check-in with
+  Mom") rendered alongside the user's real reminders — indistinguishable
+  from real reminders the user never created. Rewritten to derive the
+  timeline from `useReminderList()`'s real `nextOccurrence` per reminder.
+  Trade-off accepted: since only the *next* occurrence is available (no
+  occurrence-log query yet), a reminder already handled today has already
+  advanced past today and drops off the list — real data over a fabricated
+  history.
+- **`ReminderEditorScreen`'s edit path read `findMockReminder`**, so opening
+  "Edit" on any real, saved reminder silently found nothing and the form
+  fell back to blank defaults. Split into a thin `ReminderEditorScreen`
+  (loads the real reminder via new `useReminderDetail`, gates on
+  pending/error before the form ever mounts — required because the form's
+  fields seed once from `useState`'s initializer, so async data arriving
+  after mount would never reach already-rendered fields) and the actual
+  `ReminderEditorForm`, which now takes `existing`/`prefillMediaId` as props.
+  `ReminderDetailScreen` had the same `findMockReminder`/`findMockMedia`
+  problem plus two more decorative controls found while fixing it: the
+  enable `Toggle` was local-`useState`-only (never called
+  `setReminderEnabled`) and Delete's confirm only closed the dialog and
+  navigated back (never called `deleteReminder`) — both now call the real,
+  already-existing mutations (new `useDeleteReminder` for the latter).
+- Also granted `SCHEDULE_EXACT_ALARM` via `adb shell appops set` on the test
+  device (Today's "Exact timing is off" banner is a real, correct read of
+  `AlarmManager.canScheduleExactAlarms()`, not a bug — the device just never
+  had the permission granted).
+- Visual pass on the remaining screens the plan had marked lighter-touch:
+  Settings gained tonal `SettingsRowIcon` chips per row and a staggered
+  per-section `FadeInUp` reveal; Backup/Import gained icon-accented summary
+  rows and a shared tonal checkmark/hero-circle reveal on success; Import's
+  three-button mode row became `RadioCard`s (title/description/notice,
+  matching the reminder editor's Alert style pattern) instead of a plain
+  filled/outlined/destructive button row; Statistics' `StatTile` gained an
+  optional decorative `icon` (never an alert/warning glyph, matching its own
+  "no attention/error tone on purpose" rule) and daily breakdown rows gained
+  a proportional 3-segment bar (`primary`/`secondary`/`outline`, explicitly
+  not a chart per MR-04); About's link rows became real tappable `ListRow`s
+  via `Linking.openURL` (opening the OS browser needs no permission from
+  Nudgio itself, so this does not touch MR-06's no-network invariant).
+**Consequence:** `npx tsc --noEmit`, full `eslint src/` (max-warnings=0), and
+`npm test` (44/44) all green throughout. Kotlin: `compileDebugKotlin`,
+`./gradlew test` (all variants), and `assembleDebug`/`installDebug` all
+green. On-device verification of this slice was interrupted mid-session by
+a Metro port collision with a second, concurrent session building on a
+separate git worktree — confirmed via a bundle error whose stack trace
+pointed at `.claude/worktrees/elastic-banach-bd5254`, not this tree. Visual
+confirmation of this entire slice is pending the user coordinating that
+session before the next on-device check.
+
+## DL-060 — Library selection mode, a dedicated Edit Media Asset screen, and app-wide save/delete toasts
+
+**Date:** 2026-08-09
+**Context:** A follow-up 9-section spec ("Library Layout, Editing, Selection,
+and Offline Media Requirements") asked for three previously-missing pieces:
+multi-select bulk Export/Delete in Library, a full "Edit Media Asset" screen
+replacing the existing rename dialog, and a top-of-screen toast confirming
+every save/delete across Reminders, Import, and Library.
+**Decision:**
+- **Selection mode** (`useLibrarySelection.ts`): `selectionMode`/`selectedIds`
+  state plus the bulk-action flow live in one hook, not `LibraryScreen`
+  itself, so the screen's own render stays thin. `LibrarySelectionHeader.tsx`
+  swaps the normal "Library" title + "Select" text button for a literal
+  black Back button (a small custom `Pressable`, since `IconButton`'s `tone`
+  prop only maps to semantic theme colors and can't take an arbitrary
+  background) + Export/Delete, per the spec's literal color requirement —
+  `neutral.black`/`neutral.white` are named token constants
+  (`design-system/tokens/palette.ts`), not literal color values, so this
+  doesn't trip `no-color-literals` even inside `src/features/**` (same
+  precedent `MediaCard`'s play-button scrim already established).
+  `SelectionCheckboxOverlay.tsx` draws a decorative checkmark badge per card
+  (`pointerEvents="none"`) — the whole `MediaCard` stays the tap target that
+  toggles selection, so no second focusable control is needed. Zero
+  selected + Export/Delete tapped triggers a `haptic: 'warning'` info toast
+  and stays in selection mode; a real action always exits selection only
+  *after* it resolves, and only on success — failure keeps the selection
+  intact with an error toast so the user can retry without reselecting.
+- **Edit Media Asset screen** (`EditMediaAssetScreen.tsx`, new
+  `EditMediaAsset` route): a full pushed screen with the same title/notes
+  fields and `useUpdateMedia` mutation the old `RenameMediaDialog` used, now
+  reachable both from a new `IconButton` beside the title on Media Detail
+  and from the existing "Edit details" button. `RenameMediaDialog.tsx` is
+  deleted outright (and its now-orphaned `renameTitle`/`renameBody`
+  localization keys removed) rather than left as unreachable dead code —
+  nothing else referenced it.
+- **Toasts**: wired directly inside the mutation hooks
+  (`useSaveReminder`/`useDeleteReminder`/`useImportMedia`), not at each call
+  site, so every current and future caller gets the same confirmation for
+  free. `useSaveReminder` distinguishes "created" vs "updated" wording off
+  `variables.id` (present only when editing). Only success is toasted —
+  existing failure UI (Dialogs/Banners) is left as the one error surface per
+  flow rather than doubling up with a second, competing alert (MR-13 "no
+  competing alerts"). This required moving `ToastProvider`'s own
+  `useHaptics` import from the `../../hooks` barrel to a direct file import
+  (`../../hooks/useHaptics`) — `useImportMedia` lives behind that same
+  barrel and now imports `ToastProvider`, so leaving the barrel import in
+  place would have created an import cycle.
+**Consequence:** `npx tsc --noEmit`, full-project `eslint` (`--max-warnings=0`,
+excluding the pre-existing unrelated `web/app.js` `curly` violations), and
+`npm test` (44/44) all green. Not yet verified on a physical device this
+slice — same no-device-connected constraint as DL-057/DL-058.
+
+## DL-061 — `MainActivity` crashed on restore, silently swallowing a fired alarm
+
+**Date:** 2026-08-09
+**Context:** User report: "the alarm is not working" plus an already-timed-out
+vibration. `adb shell dumpsys alarm`/the Room `occurrences` table both showed
+the alarm actually fired exactly on schedule (`exactAllowReason=permission` —
+`SCHEDULE_EXACT_ALARM` was genuinely granted) and `AlarmRingingService` ran in
+the foreground for the full timeout window before self-stopping — so the OS
+scheduling layer was never the problem. `adb logcat` instead showed a `FATAL
+EXCEPTION` on `MainActivity`: `IllegalStateException: Screen fragments should
+never be restored`, thrown from `react-native-screens`' `ScreenStackFragment`
+constructor whenever Android recreates `MainActivity` with a non-null
+`savedInstanceState` — exactly what happens when the process is frozen/killed
+while an alarm rings (observed repeatedly in `am_app_frozen` logcat lines
+around the same window) and the user then reopens the app from the launcher or
+a notification. The crash meant the user could never actually get into the
+app to see or interact with the fired alarm, even though it rang correctly.
+**Decision:** `MainActivity.kt` never overrode `onCreate`, so it never applied
+`react-native-screens`' documented Android setup requirement. Added:
+```kotlin
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(null)
+}
+```
+Passing `null` skips Android's own fragment-state restoration entirely — JS
+re-derives the correct current screen from scratch on cold start regardless,
+so nothing is actually lost by not restoring it the Android way.
+`AlarmActivity` was checked and does not need the same fix: it extends
+`AppCompatActivity` directly, not `ReactActivity`, and never hosts a
+`react-native-screens` navigator.
+**Consequence:** `./gradlew compileDebugKotlin`/`installDebug` both green;
+installed to the connected device. Not yet re-verified against a real fired
+alarm on-device (would require waiting for/triggering another occurrence) —
+the fix itself is the single documented, standard remedy for this exact
+`react-native-screens` exception, and the crash's stack trace matches it
+exactly, so confidence is high without needing to reproduce the original
+crash first.
+
+## DL-062 — Reminder editor's media picker becomes a dedicated screen, not a text-list sheet
+
+**Date:** 2026-08-09
+**Context:** User request: replace the "choose media" dropdown (`MediaPickerSheet`
+— a plain `Sheet` listing icon+title rows, no thumbnails, no preview) with a
+full page that lets people browse thumbnails and preview/play before picking,
+tapping an asset previews it rather than opening the media-editing page, and
+picking one returns to the reminder editor automatically.
+**Decision:**
+- New `SelectMediaScreen.tsx` (route `SelectMedia`) reuses Library's own
+  `LibraryGridBody`/`MediaCard` wholesale — real aspect-ratio-preserving
+  thumbnails, the same search/kind-filter chips, the same empty/loading
+  states and "Import media" empty-state action — so this screen looks and
+  behaves like Library itself rather than a second, parallel implementation.
+  `MediaCard` gained a `selected` prop (primary-color border highlight) so
+  the already-chosen asset is visibly marked in the grid.
+- Tapping a card opens `MediaSelectionPreviewModal.tsx` (new) instead of
+  navigating anywhere: video/audio delegate to the existing
+  `MediaPreviewPlayer` (which gained an optional `footer` slot, unused by
+  its other two callers — Library and Media Detail — so their behavior is
+  unchanged); image renders a full-resolution `<Image>` in the same
+  black-chrome modal shell; text shows its kind icon (no fabricated content
+  — matches how the rest of the app already treats text-kind media). Every
+  variant has the same persistent "Use this" button.
+- Confirming a selection calls
+  `navigation.navigate({name: 'ReminderEditor', params: {mediaId}, merge:
+  true})` — the standard React Navigation pattern for returning a value from
+  a pushed screen without a non-serializable function-callback param (which
+  would trigger "Non-serializable values were found in the navigation
+  state"). This pops `SelectMediaScreen` and merges the picked id into
+  `ReminderEditor`'s already-mounted route params.
+  `ReminderEditorForm`'s existing `prefillMediaId` prop previously only
+  seeded `mediaId` state once, via `useState`'s initializer (correct for the
+  "arrived via MediaDetailScreen's Add reminder" case, since that only
+  matters at mount) — a new `useEffect` on `prefillMediaId` now re-applies it
+  on every change too, so the same prop doubles as both the initial prefill
+  and the picker's live return value with no new params/props needed.
+- `MediaPickerSheet.tsx` is deleted outright (not left unreachable) along
+  with its now-orphaned `reminders.editor.noMediaBody` copy key; its
+  `MEDIA_KIND_ICON` map (still needed by the "What" card's fallback avatar)
+  moved into `ReminderEditorScreen.tsx` directly.
+**Consequence:** `npx tsc --noEmit`, full-project `eslint`
+(`--max-warnings=0`, excluding the pre-existing unrelated `web/app.js`
+`curly` violations), and `npm test` (44/44) all green. Known, unchanged
+limitation carried over from the sheet it replaces: `ReminderEditorForm`
+resolves `mediaId` into a displayable `MediaSummary` via a capped
+`useMediaList({limit: 200})` lookup, not a by-id fetch — an asset outside
+that window (findable in the new picker's own, separately-filtered search,
+which has no such cap) would set a valid `mediaId` the "What" card can't yet
+render. Not fixed here: real library size today is nowhere near 200 items,
+and the sheet it replaces had the identical cap with no way to exceed it at
+all, so this is a pre-existing constraint made *reachable* rather than a
+regression introduced by this change.
+
+## DL-063 — Real notification-permission prompting, Settings alarm previews, and a `openCapabilitySettings` implementation
+
+**Date:** 2026-08-09
+**Context:** User asked for two things after DL-061/062: (1) the app should
+proactively prompt for notification access at launch, the way most Android
+apps do, rather than silently staying blocked forever once denied once with
+no runtime dialog left to show; and every reminder Save while blocked should
+re-remind the user to fix it. (2) Settings should let the user preview what
+each of the three alert profiles (Gentle/Standard/Persistent) actually looks
+and sounds like before assigning one to a real reminder.
+**Decision:**
+- New native `requestNotificationPermission()` (`MediaReminderModule.kt`):
+  the first real caller of `PermissionAwareActivity.requestPermissions()` in
+  this bridge — resolves `{granted: true}` immediately pre-API-33 or if
+  already granted, otherwise shows the real OS dialog and resolves once
+  answered. Wired end-to-end (native → `NativeMediaReminder.ts` →
+  `MediaReminderClient.ts` → `CapabilityRepository` → new
+  `useRequestNotificationPermissionOnLaunch`, called once from
+  `StartupGate.tsx` right after the startup snapshot resolves, gated on the
+  `notifications` capability item's status).
+- `openCapabilitySettings(kind)` — previously a permanent
+  `rejectNotImplemented` stub with no JS-side caller at all — is now real for
+  `notifications` (`Settings.ACTION_APP_NOTIFICATION_SETTINGS`, the fallback
+  once a permanent denial means the OS will never show the runtime dialog
+  again) and `exact_alarm` (`Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM`).
+  Threaded through the same repository/hook chain as a new
+  `useOpenCapabilitySettings` hook. `ReminderEditorForm`'s Save handler now
+  checks the `notifications` capability every time (not once, not cached, per
+  explicit request) and — if blocked — shows a `Dialog` ("Save anyway" /
+  "Open Settings") instead of saving immediately; "Save anyway" still
+  completes the save, since a reminder is still a valid, useful Room row even
+  without a working alert channel yet.
+- Settings "Preview alarm styles": each of the three profile rows now shows
+  its real description (`PROFILE_DESCRIPTION_KEY`, extracted out of
+  `ReminderEditorScreen.tsx` into a new shared `profileDisplay.ts` — it was
+  about to be needed in two files) plus a "Preview" button
+  (`useScheduleTestReminder`, new). This required repurposing
+  `scheduleTestReminder`: its old `mode: 'locked' | 'unlocked'` parameter had
+  no real caller anywhere and, per its own doc comment, "every mode currently
+  produces the same notification" — dead scaffolding for a feature that never
+  landed. It now takes `{title, body, fullScreenWhenLocked}`, all supplied by
+  JS (native still owns no display copy — MR-18) so the preview notification
+  genuinely differs per profile instead of always being the same generic
+  string. When `fullScreenWhenLocked` is true, the preview notification uses
+  the same `setFullScreenIntent` a real Standard/Persistent alarm would,
+  targeting `AlarmActivity` in a new no-session "preview mode"
+  (`EXTRA_PREVIEW_TITLE`/`EXTRA_PREVIEW_BODY`): `loadSession` shows the given
+  title/body directly instead of querying Room, hides Accept/Snooze/the
+  "silence sound" overflow (none apply without a real session), and Dismiss
+  just closes the screen. `AlarmActivity` needed no changes to its real,
+  session-backed path — the preview branch returns before any of that code
+  runs.
+**Consequence:** `./gradlew compileDebugKotlin`/`testDebugUnitTest` green;
+`npx tsc --noEmit`, full-project `eslint --max-warnings=0` (excluding the
+pre-existing unrelated `web/app.js` `curly` violations), and `npm test`
+(44/44) all green. Verified live on device that the underlying permission
+mechanics are sound (`SCHEDULE_EXACT_ALARM` grant, exact-alarm firing) in
+DL-061; the notification-permission prompt itself and the new Settings
+preview flow were implemented and build-verified in this slice but not yet
+exercised on-device end to end (session moved on to a much larger follow-up
+request before that on-device pass happened).
+
+## DL-064 — "Today" renamed to "Upcoming" and rebuilt as a 5-day occurrence view
+
+**Date:** 2026-08-09
+**Context:** Direct product request, with a reference screenshot: rename
+"Today" to "Upcoming" everywhere it is user-visible, and turn the screen from
+"each reminder's single next occurrence" into a real 5-day (today + 4)
+chronological forward view, still built from the same real reminder data —
+explicitly "do not create mock alarms, duplicate alarm records, or a second
+source of truth."
+**Decision:**
+- **Rename, scoped correctly.** Only visible strings changed (`nav.today`,
+  `today.title`, both still keyed `nav.today`/`today.title` — the request was
+  explicit: "keep the existing internal route key" — so `tabRoutes.today`
+  stays `'Today'`, every `testIds.today.*` id is unchanged, and the first
+  date-section heading is still literally "Today" per "do not rename
+  date-section headings." `TodayScreen.tsx` was renamed to
+  `UpcomingScreen.tsx` (component `TodayScreen` -> `UpcomingScreen`) for
+  future readers; nothing importing it needed to change beyond the two
+  files that reference it directly (`TabNavigator.tsx`, the feature's own
+  `index.ts`).
+- **The 5-day list is a display projection, not a second scheduling
+  engine.** `ReminderSummary` (the *list* endpoint's DTO — previously only
+  `ReminderDetail`, the single-item fetch, carried `schedule`) now also
+  carries each reminder's own `ScheduleRuleDto`
+  (`ReminderDtoWriter.writeSummary`, one additive line — the rule entity was
+  already being loaded there for `repeatSummary` anyway). New pure
+  `projectUpcomingOccurrences.ts` walks 5 local-midnight-anchored days
+  (built via the `(year, month, day, ...)` `Date` constructor, never
+  millisecond addition, so month/year rollover and DST are handled by the
+  constructor itself rather than by hand) and, per reminder, tests its rule
+  against each day (`once`/`daily`/`weekdays`/`monthly`/`yearly`/`custom`,
+  clamping day-of-month against the real days-in-month like the reminder
+  editor's own Preview card already does). This is explicitly the same
+  "local approximation for display only" category MR-08 already carves out
+  for that Preview card — nothing computed here is ever written back into
+  Room or a schedule call; the one real global alarm stays entirely
+  native-scheduled. `LocalDate`/`LocalTime` values are parsed by splitting on
+  the separator rather than via `new Date(string)`, which would silently
+  treat a date-only string as UTC midnight and land on the wrong calendar
+  day in a negative-UTC-offset zone.
+- **Next-reminder card** now shows `occurrences[0]` (the earliest entry in
+  the whole 5-day projection, already sorted) instead of the first pending
+  item found in an unsorted-by-construction per-reminder list, with
+  "Today at {time}" / "Tomorrow at {time}" / "{Weekday} at {time}" context
+  text. **Rows drop the per-item "Upcoming" `StatusPill`** (redundant once
+  the whole page is already named Upcoming — its 7 backing
+  `today.occurrence.*` copy keys were removed as newly-orphaned, not left
+  unreachable) and gain a play-preview `IconButton` for video/audio media.
+- **"Preview sound" reuses `MediaPreviewPlayer`** (the same modal Library,
+  the Reminders list and the reminder-editor picker already use) via one
+  `previewReminder` state on this screen, rather than a new inline
+  play/pause icon-swap control — this still satisfies "one shared preview
+  controller," "no overlapping players," and "stops when leaving the page"
+  for free (the Modal's own mount lifecycle already guarantees the last
+  one), at the cost of not matching the spec's literal inline icon-swap
+  interaction. Documented as a deliberate scope trade-off, not an oversight.
+- **Refresh strategy**: `useFocusEffect` recomputes `now` (and therefore the
+  whole projection) each time the screen regains focus — covers "returning
+  to the page" and reasonably covers "app resumed after midnight," but there
+  is deliberately no continuous in-foreground midnight-rollover timer (the
+  feature's own "avoid unnecessary continuous timers" instruction, weighed
+  against the added complexity of a wake timer for a screen that already
+  refetches on focus/pull).
+**Consequence:** 15 new unit tests for `projectUpcomingOccurrences`
+(daily/weekdays/monthly/yearly/custom, month-boundary, leap-year
+day-of-month clamping, past-occurrence exclusion, disabled/archived
+exclusion, `needs_setup` inclusion, stable/unique ids, chronological sort —
+all against a fixed injected `now`, never the real clock) plus 2
+screen-level tests (heading reads "Upcoming" not "Today"; exactly 5 sections
+render, each keeping its heading with "No alarms scheduled" when empty).
+`npx tsc --noEmit`, full-project `eslint --max-warnings=0`, and `npm test`
+(61/61) all green. `./gradlew compileDebugKotlin`/`testDebugUnitTest` green.
+**Not yet verified on a physical device** — wireless ADB dropped mid-session
+before `installDebug` could push this build; the APK is built and ready, it
+just was not reachable to push.
+**Explicitly deferred, not built in this slice** (flagged rather than
+silently dropped): the per-alarm "Play in Silent / Do Not Disturb" setting
+and its full permission-state machine (spec sections 8-9) — a genuinely
+separate, safety-sensitive feature (new schema field, new editor UI, native
+`NotificationManager` policy-access checks, `AlarmRingingService` behavior
+changes) that deserves its own focused pass rather than being rushed
+alongside a full screen rewrite; and the inline per-row play/pause icon-swap
+interaction (see above — the shared full-screen preview modal was used
+instead).
+
+## DL-065 — Metro's `blockList` did not exclude other git worktrees on the same machine
+
+**Date:** 2026-08-09
+**Context:** Metro (the JS dev server this device's app fetches its bundle
+from) crashed twice in a row while pushing DL-064's build — each time a few
+seconds after reporting "Dev server ready," not immediately. The crash log:
+`Error: ENOENT: no such file or directory, watch
+'...\.claude\worktrees\upstash-plugin-install-804b6e\android\app\.cxx\...'`
+— a different git worktree on this same machine (a separate, concurrent
+Claude Code session actively running its own native build there) deleted or
+recreated a directory while this tree's Metro was still crawling/watching
+it, and Metro's file watcher throws an *unhandled* error on that race rather
+than logging and continuing — taking down the whole dev server, not just
+that one watch. This is the same root-cause *shape* `metro.config.js`'s
+existing `blockList` comment already documents for `android/build` (Windows'
+watcher choking on someone else's churning build output), just triggered by
+a different tree instead of this one's own.
+**Decision:** Added `/\.claude\/worktrees\/.*/` to `blockList` — this tree's
+Metro has no legitimate reason to watch anything under a sibling worktree at
+all (each worktree either runs its own Metro on its own port, or isn't
+running a JS dev server at that moment), so the fix is a blanket exclusion
+of the whole directory rather than trying to enumerate every
+build/`.cxx`/`.gradle` subpath a concurrent session's build might touch, the
+way the existing `android/build` entries do for this tree's own output.
+**Consequence:** Restarted Metro after the fix and confirmed it stayed
+healthy (`/status` still 200) 15 seconds after start, past the point both
+prior crashes occurred at. Not a complete guarantee against every possible
+future race with a concurrent session's build — only a targeted fix for the
+one directory pattern that has now caused it twice.
