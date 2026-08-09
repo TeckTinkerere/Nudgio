@@ -1,2 +1,2 @@
-/** Public surface of the Today feature. Only the screen is exported. */
-export {TodayScreen} from './TodayScreen';
+/** Public surface of the Today feature ("Upcoming" — see `UpcomingScreen`'s own doc for the rename). Only the screen is exported. */
+export {UpcomingScreen} from './UpcomingScreen';

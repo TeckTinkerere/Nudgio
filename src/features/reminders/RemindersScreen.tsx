@@ -1,10 +1,18 @@
 /**
  * Reminders screen (MR-03 "Reminders" destination).
  *
- * Lists reminders with enable state and next occurrence. `ListRow` already
- * implements the MR-13 "switch never nested in a clickable row" pattern this
- * screen needs. The list itself is virtualized (`VirtualizedList`) rather
- * than mapped, since MR-09 anticipates up to 10,000 reminders.
+ * Each row leads with the next occurrence's time at `titleLarge` in a tonal
+ * chip, the way native alarm-clock apps make the time the primary datum of
+ * an alarm row — the previous plain `ListRow` (small thumbnail, title,
+ * repeat-summary subtitle) never actually showed the scheduled time as its
+ * own element, which read as a generic settings list rather than an alarm
+ * list. The switch stays a sibling of the pressable body, not nested inside
+ * it (MR-13 "switch never nested in a clickable row") — `AnimatedPressable`
+ * wraps only the time+label body, `Toggle` sits outside it, matching the
+ * sibling structure `ListRow` itself uses internally.
+ *
+ * The list itself is virtualized (`VirtualizedList`) rather than mapped,
+ * since MR-09 anticipates up to 10,000 reminders.
  *
  * `mediaKind`/`thumbnailToken` on `ReminderSummary` only became real
  * recently — `ReminderDtoWriter.kt` used to hardcode `"video"` and never
@@ -13,7 +21,7 @@
  */
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {useCallback} from 'react';
+import {useCallback, useState} from 'react';
 import {Image, StyleSheet, View} from 'react-native';
 
 import {useSetReminderEnabled} from './useSetReminderEnabled';
@@ -21,13 +29,17 @@ import type {RootStackParamList} from '../../app/navigation/types';
 import {testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
 import {
+  AnimatedPressable,
   AppBar,
+  Card,
   EmptyState,
   ErrorState,
   Icon,
-  ListRow,
+  IconButton,
   LoadingState,
   Screen,
+  Stack,
+  Text,
   Toggle,
   VirtualizedList,
 } from '../../design-system';
@@ -37,6 +49,7 @@ import {useReminderList} from '../../hooks';
 import {useTranslation} from '../../localization';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import type {MediaKind, ReminderSummary} from '../../native-client/types';
+import {MediaPreviewPlayer} from '../library/MediaPreviewPlayer';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
@@ -47,59 +60,129 @@ const MEDIA_ICON: Record<MediaKind, IconName> = {
   text: 'text',
 };
 
+/** Only these two kinds have anything `MediaPreviewPlayer` can play — matches `LibraryScreen`'s own gate. */
+const isPlayableKind = (kind: MediaKind): kind is 'video' | 'audio' =>
+  kind === 'video' || kind === 'audio';
+
+interface TimeParts {
+  readonly time: string;
+  readonly period: string;
+}
+
+const formatTimeParts = (iso: string): TimeParts => {
+  const parts = new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).formatToParts(new Date(iso));
+  const hour = parts.find(part => part.type === 'hour')?.value ?? '';
+  const minute = parts.find(part => part.type === 'minute')?.value ?? '';
+  const period = parts.find(part => part.type === 'dayPeriod')?.value ?? '';
+  return {time: `${hour}:${minute}`, period};
+};
+
 export function RemindersScreen() {
   const t = useTranslation();
   const theme = useTheme();
   const navigation = useNavigation<Navigation>();
   const reminders = useReminderList();
   const setEnabled = useSetReminderEnabled();
+  const [previewItem, setPreviewItem] = useState<ReminderSummary | null>(null);
 
-  const avatarStyle = StyleSheet.create({
-    box: {
-      width: theme.layout.listRowMinHeight - theme.spacing.sm,
-      height: theme.layout.listRowMinHeight - theme.spacing.sm,
+  const styles = StyleSheet.create({
+    card: {marginBottom: theme.spacing.xs},
+    timeBox: {
+      minWidth: theme.layout.reminderThumbnailSize,
+      height: theme.layout.reminderThumbnailSize,
       borderRadius: theme.radius.card,
-      backgroundColor: theme.color.surfaceContainerHigh,
-      alignItems: 'center',
-      justifyContent: 'center',
+      backgroundColor: theme.color.primaryContainer,
+      paddingHorizontal: theme.spacing.xs,
+    },
+    mediaIcon: {
+      width: 20,
+      height: 20,
+      borderRadius: theme.radius.chip,
       overflow: 'hidden',
     },
+    flexFill: {flex: 1},
   });
 
   const renderReminder = useCallback(
     ({item}: {item: ReminderSummary}) => {
       const thumbnail = thumbnailImageSource(item.thumbnailToken);
+      const timeParts = item.nextOccurrence ? formatTimeParts(item.nextOccurrence.scheduledAt) : null;
+      const accessibleLabel = [item.label, item.repeatSummary].filter(Boolean).join('. ');
+      const canPreview = isPlayableKind(item.mediaKind) && item.sourceToken !== undefined;
+
       return (
-        <ListRow
-          title={item.label}
-          subtitle={item.repeatSummary}
-          onPress={() => navigation.navigate(rootRoutes.reminderDetail, {reminderId: item.id})}
-          leading={
-            <View style={avatarStyle.box}>
-              {thumbnail ? (
-                <Image
-                  source={thumbnail}
-                  style={StyleSheet.absoluteFillObject}
-                  resizeMode="cover"
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
-                />
+        <Card style={styles.card} padding="xs">
+          <Stack direction="row" align="center" gap="sm">
+            <Stack style={styles.timeBox} align="center" justify="center">
+              {timeParts ? (
+                <>
+                  <Text
+                    variant="titleLarge"
+                    tabularNumbers
+                    style={{color: theme.color.onPrimaryContainer}}>
+                    {timeParts.time}
+                  </Text>
+                  <Text variant="labelMedium" style={{color: theme.color.onPrimaryContainer}}>
+                    {timeParts.period}
+                  </Text>
+                </>
               ) : (
-                <Icon name={MEDIA_ICON[item.mediaKind]} size="md" color={theme.color.onSurfaceVariant} />
+                <Icon name="reminders" size="md" color={theme.color.onPrimaryContainer} />
               )}
-            </View>
-          }
-          trailing={
+            </Stack>
+
+            <AnimatedPressable
+              style={styles.flexFill}
+              accessibilityRole="button"
+              accessibilityLabel={accessibleLabel}
+              onPress={() => navigation.navigate(rootRoutes.reminderDetail, {reminderId: item.id})}>
+              <Stack gap={2}>
+                <Text variant="titleMedium" numberOfLines={1}>
+                  {item.label}
+                </Text>
+                <Stack direction="row" align="center" gap="xxs">
+                  <View style={styles.mediaIcon}>
+                    {thumbnail ? (
+                      <Image
+                        source={thumbnail}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                        accessibilityElementsHidden
+                        importantForAccessibility="no-hide-descendants"
+                      />
+                    ) : (
+                      <Icon name={MEDIA_ICON[item.mediaKind]} size="xs" color={theme.color.onSurfaceVariant} />
+                    )}
+                  </View>
+                  <Text variant="bodyMedium" tone="variant" numberOfLines={1} style={styles.flexFill}>
+                    {item.repeatSummary}
+                  </Text>
+                </Stack>
+              </Stack>
+            </AnimatedPressable>
+
+            {canPreview ? (
+              <IconButton
+                name="play"
+                label={t('library.player.play', {title: item.label})}
+                onPress={() => setPreviewItem(item)}
+              />
+            ) : null}
+
             <Toggle
               value={item.enabledIntent}
               onValueChange={enabled => setEnabled.mutate({id: item.id, enabled})}
               label={t('reminders.list.enableToggle', {label: item.label})}
             />
-          }
-        />
+          </Stack>
+        </Card>
       );
     },
-    [avatarStyle, navigation, setEnabled, t, theme.color.onSurfaceVariant],
+    [navigation, setEnabled, styles, t, theme.color.onPrimaryContainer, theme.color.onSurfaceVariant],
   );
 
   return (
@@ -133,6 +216,18 @@ export function RemindersScreen() {
           renderItem={renderReminder}
         />
       )}
+
+      {previewItem && isPlayableKind(previewItem.mediaKind) && previewItem.sourceToken ? (
+        <MediaPreviewPlayer
+          visible
+          onDismiss={() => setPreviewItem(null)}
+          title={previewItem.label}
+          sourceToken={previewItem.sourceToken}
+          kind={previewItem.mediaKind}
+          closeLabel={t('library.player.close')}
+          loadErrorLabel={t('library.player.loadError')}
+        />
+      ) : null}
     </Screen>
   );
 }
