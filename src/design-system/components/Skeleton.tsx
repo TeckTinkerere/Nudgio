@@ -15,7 +15,7 @@ import type {RadiusToken} from '../tokens';
 
 export interface SkeletonProps {
   readonly width?: DimensionValue;
-  readonly height?: number;
+  readonly height?: DimensionValue;
   readonly radius?: RadiusToken;
   readonly testID?: string;
 }

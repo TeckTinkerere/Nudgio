@@ -1,9 +1,17 @@
 /**
  * Media grid/list card (MR-04 "Media card").
  *
- * "Aspect ratio 16:9 for video, square treatment for image/audio fallback.
- * Duration/type label sits on a high-contrast scrim. Broken preview uses icon
- * and text, never an empty gray rectangle."
+ * Renders at the caller-supplied `aspectRatio` — the real source's own
+ * `width / height` — never a fixed 16:9/square crop: a portrait photo or
+ * video keeps its full proportional height, matching how it actually looks
+ * (explicit product direction superseding MR-04's original "16:9 for video,
+ * square for image/audio fallback" text; see docs/decision-log.md). Falls
+ * back to 16:9 (video) / 1:1 (everything else) only when the caller has no
+ * real dimensions to give it — the fallback icon tile and kinds with
+ * nothing visual to size (audio/text).
+ *
+ * Duration/type label sits on a high-contrast scrim. Broken preview uses
+ * icon and text, never an empty gray rectangle.
  *
  * MR-13 TalkBack example: "Video. Morning remembrance. 1 minute 33 seconds.
  * Two active reminders." — the whole card is one accessible node composed
@@ -12,13 +20,14 @@
  * no English copy of its own, matching every other design-system component
  * (`StatusPill`, `Banner`, `EmptyState`, ...).
  */
-import {memo, useState} from 'react';
-import {Image, Pressable, View} from 'react-native';
+import {memo, useEffect, useState} from 'react';
+import {Image, Pressable, StyleSheet, View} from 'react-native';
 
 import {Icon, type IconName} from '../icons';
 import {withAlpha} from '../theme/colorUtils';
 import {useRippleConfig, useSurfaceStyle, useTheme} from '../theme/useTheme';
 import {neutral} from '../tokens';
+import {Skeleton} from './Skeleton';
 import {Text} from './Text';
 
 export type MediaCardKind = 'video' | 'audio' | 'image' | 'text';
@@ -37,6 +46,15 @@ export interface MediaCardProps {
   readonly kindLabel: string;
   /** Local `file://` or app-provided preview URI. Omit to force the fallback tile. */
   readonly thumbnailUri?: string;
+  /**
+   * The real source's `width / height` — every card renders at this exact
+   * ratio (never cropped into a fixed 16:9/square frame) so a portrait
+   * photo or video keeps its full proportional height. Omitted only for
+   * kinds with nothing visual to size (audio/text) or when the source's
+   * pixel dimensions are unknown, in which case the fallback tile's own
+   * icon-only content justifies a plain square.
+   */
+  readonly aspectRatio?: number;
   /** Pre-formatted compact duration, e.g. "1:33". Omit for kinds with no duration. */
   readonly durationLabel?: string;
   /** Pre-formatted accessible phrase, e.g. "1 minute 33 seconds" (`formatDurationAccessible`). */
@@ -58,6 +76,8 @@ export interface MediaCardProps {
   readonly onPlayPress?: () => void;
   /** Localized, e.g. "Play". Required whenever `onPlayPress` is given. */
   readonly playLabel?: string;
+  /** Highlights the card as the current pick — the reminder-editor media picker's own "already chosen" state. */
+  readonly selected?: boolean;
   readonly testID?: string;
 }
 
@@ -72,6 +92,7 @@ export const MediaCard = memo(function MediaCardImpl({
   kind,
   kindLabel,
   thumbnailUri,
+  aspectRatio,
   durationLabel,
   durationAccessibleLabel,
   activeReminderCount = 0,
@@ -81,17 +102,35 @@ export const MediaCard = memo(function MediaCardImpl({
   onPress,
   onPlayPress,
   playLabel,
+  selected = false,
   testID,
 }: MediaCardProps) {
   const theme = useTheme();
   const surface = useSurfaceStyle('level1');
   const ripple = useRippleConfig();
-  const isSquare = kind === 'audio' || kind === 'image' || kind === 'text';
+  // Real, per-item ratio when the caller has one (video frame / image pixel
+  // dimensions) — never a fixed 16:9/square crop. Falls back to a plain
+  // square only for kinds with nothing visual to size, or a pathological
+  // `0`/`NaN` ratio that would otherwise collapse the cell to zero height.
+  const resolvedAspectRatio =
+    aspectRatio !== undefined && Number.isFinite(aspectRatio) && aspectRatio > 0
+      ? aspectRatio
+      : kind === 'video'
+        ? 16 / 9
+        : 1;
   // MR-09: the thumbnail cache "may be cleared at any time" — a token that
   // was valid when the list loaded can 404 by the time this cell renders.
   // `imageFailed` catches that at display time, the same "icon and text,
   // never a broken rectangle" fallback `isMissing`/no-token already use.
   const [imageFailed, setImageFailed] = useState(false);
+  // A card is a memoized, recycled list cell — a fresh `thumbnailUri` means
+  // this is now showing a different item, so both flags reset instead of
+  // carrying over the previous item's already-loaded/failed state.
+  const [imageLoaded, setImageLoaded] = useState(false);
+  useEffect(() => {
+    setImageFailed(false);
+    setImageLoaded(false);
+  }, [thumbnailUri]);
   const showFallback = isMissing || !thumbnailUri || imageFailed;
   const canPlay = onPlayPress !== undefined && (kind === 'video' || kind === 'audio') && !isMissing;
 
@@ -117,19 +156,20 @@ export const MediaCard = memo(function MediaCardImpl({
       testID={testID}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={onPress ? {selected} : undefined}
       android_ripple={onPress ? ripple : undefined}
       style={{
         flex: 1,
         borderRadius: theme.radius.card,
         overflow: 'hidden',
         backgroundColor: surface.backgroundColor,
-        borderWidth: surface.borderWidth,
-        borderColor: surface.borderColor,
+        borderWidth: selected ? 2 : surface.borderWidth,
+        borderColor: selected ? theme.color.primary : surface.borderColor,
       }}>
       <View
         style={{
           width: '100%',
-          aspectRatio: isSquare ? 1 : 16 / 9,
+          aspectRatio: resolvedAspectRatio,
           backgroundColor: theme.color.surfaceContainerHigh,
         }}>
         {showFallback ? (
@@ -152,15 +192,27 @@ export const MediaCard = memo(function MediaCardImpl({
             ) : null}
           </View>
         ) : (
-          <Image
-            source={{uri: thumbnailUri}}
-            style={{width: '100%', height: '100%'}}
-            resizeMode="cover"
-            onError={() => setImageFailed(true)}
-            // Decorative: the accessible name lives on the Pressable.
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          />
+          <>
+            <Image
+              source={{uri: thumbnailUri}}
+              style={{width: '100%', height: '100%'}}
+              resizeMode="cover"
+              onLoadEnd={() => setImageLoaded(true)}
+              onError={() => setImageFailed(true)}
+              // Decorative: the accessible name lives on the Pressable.
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            />
+            {/* Never a blank/empty cell while the real thumbnail decodes —
+            `onLoadEnd` fires on success and failure alike, so this never
+            outlives the point where either the image or the fallback icon
+            (via `imageFailed`) takes over. */}
+            {imageLoaded ? null : (
+              <View style={StyleSheet.absoluteFill}>
+                <Skeleton width="100%" height="100%" radius="none" />
+              </View>
+            )}
+          </>
         )}
 
         {canPlay ? (
