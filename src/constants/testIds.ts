@@ -41,6 +41,8 @@ export const testIds = {
   onboarding: {
     screen: 'onboarding.screen',
     continueButton: 'onboarding.continueButton',
+    backButton: 'onboarding.backButton',
+    skipButton: 'onboarding.skipButton',
   },
   appShell: {
     startupLoading: 'appShell.startupLoading',
