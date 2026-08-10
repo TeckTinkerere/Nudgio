@@ -45,6 +45,10 @@ Thumbs.db
 .artifacts/
 **/.artifacts/
 
+# Local release staging (the APK/checksums themselves are GitHub Release
+# assets, not repo content — MR-18 "release assets are never committed").
+/releases/
+
 # Local secrets and signing material (MR-12, MR-18)
 *.jks
 *.p12
