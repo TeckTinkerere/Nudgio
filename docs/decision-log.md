@@ -2217,3 +2217,49 @@ needs a real session/profile choice, a separate follow-up.
 pill over a "not built yet" placeholder. `capability.*` keys are no longer
 dead: any future caller (the Upcoming banner, if it's ever migrated off its
 own generic copy) gets correct, already-verified strings for free.
+
+## DL-073 — First real signed `assembleRelease`, and the actual root cause of the night's build failures
+
+**Date:** 2026-08-10
+**Context:** `assembleRelease` had never succeeded on this machine
+(`KNOWN_ISSUES.md`'s "minifyEnabled has never been build-verified"). Tonight's
+attempts failed for what looked like a rotating cast of unrelated Windows
+issues — a `Metaspace` OOM inside `react-native-video`'s own lint analysis, a
+stuck default-`GRADLE_USER_HOME` daemon+client pair left over from a command
+issued before this session's context was compacted (found no live process
+was driving it — every other CCD session showed `isRunning: false` — killed
+both), corrupted `.cxx` caches from that kill, and finally a *persistent*
+lock on one specific file
+(`react-native-safe-area-context/android/build/.../classes.jar`) that
+survived a full manual clean and reproduced identically across five separate
+`assembleRelease` invocations. Directly confirmed with `[System.IO.File]::Delete()`
+that the file was locked by something *outside* Gradle, with no Gradle
+process even running at the time.
+**Decision:** Two independent fixes, not one: (1) the user added a Windows
+Defender exclusion for the project folder, which did not by itself resolve
+the specific lock; (2) discovered a second, unrelated stale Gradle daemon —
+`C:\ndg-gh` (an isolated `GRADLE_USER_HOME` created earlier tonight to route
+around the *first* stuck daemon, itself never stopped) — running with
+memory settings that predated this session's `gradle.properties` bump,
+proving it was an orphan. `./gradlew --stop` against its own
+`GRADLE_USER_HOME` reported "No Gradle daemons are running" (a stale/
+detached registry), so it was killed directly (`Stop-Process`) after
+confirming via CIM `CommandLine` that it was a Gradle daemon process, not
+unrelated software. The very next `assembleRelease` attempt succeeded.
+Root cause, in hindsight: an orphaned daemon from an earlier, different
+`GRADLE_USER_HOME` most likely still held its own open file handle into a
+build path it had touched before, independent of which project cache the
+*current* invocation was configured to use. Separately, and orthogonally,
+`minifyEnabled` was temporarily set `false` (see version-stamp commit) —
+that trade-off is unrelated to this fix and still needs its own follow-up.
+**Consequence:** `app-release.apk` exists, signed with the real release
+keystore (verified via `apksigner verify --print-certs`,
+`CN=Nudgio`/`O=Nudgio`), `versionCode=2`/`versionName=1.0.0` (verified via
+`aapt2 dump badging`), zero `INTERNET` permission. Staged at
+`releases/v1.0.0/Nudgio-1.0.0.apk` with a generated `SHA256SUMS.txt`
+(`scripts/release/checksums.js`). Lesson for next time: when a build
+environment misbehaves in a way that survives a full clean, check for
+orphaned daemons across *every* `GRADLE_USER_HOME` this session has ever
+used, not just the default one — `jps`/process listing plus each daemon's
+own `-cp` argument (which encodes its `GRADLE_USER_HOME`) is enough to spot
+one without needing elevated tooling.
