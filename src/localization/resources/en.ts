@@ -30,10 +30,17 @@ export const en = {
     'Import videos, audio or images and schedule them as private reminders. Nothing is uploaded.',
   'onboarding.purpose.continue': 'Continue',
   'onboarding.purpose.privacyDetails': 'View privacy details',
+  'onboarding.adaptive.title': 'It shows up the way you need it to',
   'onboarding.adaptive.body':
     'When your phone is locked, a reminder can open like an alarm. While you are using your phone, Android shows a compact notification instead.',
   'onboarding.permissions.title': 'Permissions, only when needed',
+  'onboarding.permissions.body':
+    "You'll be asked for notification and exact-alarm permissions the first time they're actually needed to schedule a reminder — never upfront, and never for anything else.",
   'onboarding.start': 'Start with my library',
+  'onboarding.back': 'Back',
+  'onboarding.skip': 'Skip',
+  // Translator note: {current}/{total} are 1-based page numbers, e.g. "1 of 3".
+  'onboarding.pageIndicator': '{current} of {total}',
 
   // --- Upcoming (formerly "Today" — internal keys/route unchanged, MR-03) ----
   'today.title': 'Upcoming',
@@ -257,6 +264,27 @@ export const en = {
   'health.lastSchedulerCheck': 'Last scheduler check',
   'health.oemNote':
     'Your device manufacturer may delay background alerts. Use Test reminder after changing battery settings.',
+  'health.action.allow': 'Allow',
+  'health.action.openSettings': 'Open settings',
+  'health.capability.notifications.title': 'Notifications',
+  'health.capability.exact_alarm.title': 'Exact alarm timing',
+  'health.capability.battery_environment.title': 'Battery settings',
+  'health.capability.scheduler.title': 'Scheduler',
+  'health.capability.full_screen_intent.title': 'Full-screen alarms',
+  'health.capability.channels.title': 'Notification channels',
+  // Native `CapabilityItem.effectKey` values (MR-08). Kept in this exact
+  // shape — one key per observed state, plain-language consequence, no
+  // "failure" wording for a state the user has not actually done anything
+  // wrong to reach (MR-03 "Copy style").
+  'capability.notifications.ready': 'Reminders can show a notification.',
+  'capability.notifications.blocked': 'Reminders cannot show a notification until this is allowed.',
+  'capability.exactAlarm.ready': 'Reminders fire at the exact time you set.',
+  'capability.exactAlarm.limited': 'Android may deliver reminders a little later than the exact time you set.',
+  'capability.batteryEnvironment.ready': 'Background alerts are not restricted.',
+  'capability.batteryEnvironment.limited':
+    'Your battery settings may delay background alerts. This is expected — Nudgio never asks to be exempted.',
+  'capability.batteryEnvironment.unknown': "This device doesn't report battery-restriction status.",
+  'capability.scheduler.ready': 'The next reminder is registered with Android.',
 
   // --- Backup (MR-03) ----------------------------------------------------------
   'backup.export.title': 'Export',

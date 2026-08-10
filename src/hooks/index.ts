@@ -24,5 +24,6 @@ export type {OperationProgressState} from './useOperationProgress';
 export {usePreferences, useUpdatePreferences} from './usePreferences';
 export {useProfiles} from './useProfiles';
 export {useReminderList} from './useReminderList';
+export {useRequestNotificationPermission} from './useRequestNotificationPermission';
 export {useStartupSnapshot} from './useStartupSnapshot';
 export {useViewState} from './useViewState';
