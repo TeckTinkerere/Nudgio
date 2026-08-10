@@ -2167,3 +2167,53 @@ following `exportMediaAssets`'s existing shape exactly (same
 permission or manifest entry was needed — `FileProvider` and the `backups`
 `external-files-path` grant already existed for exactly this purpose
 (`file_paths.xml`'s own doc comment anticipated it).
+
+## DL-071 — Onboarding's pages 2-3 and a real Skip
+
+**Date:** 2026-08-10
+**Context:** Onboarding was one page (purpose) ending in the only CTA,
+"Start with my library" — pages 2-3 (adaptive presentation, permissions-by-
+intent) and a working Skip were left as "UX content work," and
+`RootNavigator`'s own doc comment ("the user can skip setup") described a
+capability the screen never actually had.
+**Decision:** Rebuilt as a real 3-page flow (dot indicator, Back/Continue,
+reanimated crossfade gated on `reduceMotion`) reusing `EmptyState` per page
+rather than a new carousel component/dependency. Added a top-right Skip
+visible on pages 1-2 that calls the same `hasCompletedOnboarding` write the
+final page's primary action does — both are genuinely identical outcomes
+(there is no separate "demo" content to differentiate them; MR-05's text-
+card kind has no create path yet, so a "skip and explore with a demo text
+card" affordance from the original spec text would have been fake content,
+not a real shortcut, and was not built).
+**Consequence:** All 3 pages exist with real copy (added the missing
+`onboarding.adaptive.title`/`onboarding.permissions.body` keys); Skip
+actually skips. `npx tsc --noEmit` and `eslint --max-warnings=0` both clean;
+no new component tests added for this screen (matches this codebase's own
+established residual-risk shape for UI-only additions, e.g. DL-057/058).
+
+## DL-072 — Health screen's real per-item capability rows
+
+**Date:** 2026-08-10
+**Context:** `HealthScreen.tsx` showed only the overall status pill; its own
+doc comment said full rows were deferred with "the alarm/capability slice."
+`useCapabilitySnapshot()` and every native per-kind status/`effectKey` it
+needed already existed and were unused. Worse: `CapabilityItem.effectKey`
+had been dead data end to end since it was introduced — nothing in the JS
+layer ever localized it (the Upcoming screen's capability banner uses its
+own separate, generic copy instead), so the exact `capability.*` keys
+`CapabilitySnapshotProvider.kt` emits (`capability.notifications.ready`,
+`capability.exactAlarm.limited`, etc.) did not exist in `en.ts` — calling
+`t()` on any of them would have rendered `undefined`.
+**Decision:** Added the missing `capability.*` keys verbatim (matching the
+Kotlin source's strings exactly, not paraphrased) plus a title/icon per
+`CapabilityKind`. Built real rows: status pill, `effectKey` body text, and —
+only for the two actions that have a real handler — a button wired to a new
+`useRequestNotificationPermission` hook (`request_runtime`) or the existing
+`useOpenCapabilitySettings` (`open_special_access`/`open_channel`/
+`open_app`). `run_test` (the `scheduler` row's eventual action) stays
+unwired, per the file's own already-documented deferral — Test reminder
+needs a real session/profile choice, a separate follow-up.
+**Consequence:** Health is now a real, working screen instead of a status
+pill over a "not built yet" placeholder. `capability.*` keys are no longer
+dead: any future caller (the Upcoming banner, if it's ever migrated off its
+own generic copy) gets correct, already-verified strings for free.
