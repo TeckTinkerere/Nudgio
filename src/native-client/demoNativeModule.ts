@@ -373,16 +373,32 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
     saveReminder: async (request: SaveReminderRequest): Promise<SaveReminderResult> => {
       const now = new Date().toISOString() as Instant;
       const existing = request.id ? reminders.get(request.id) : undefined;
-      // Reads the live, mutable `media` map (not the static `mockMedia`
-      // fixture) so a reminder saved against something imported earlier in
-      // this same demo session resolves its real kind, not a 'video' guess.
-      const referencedMedia = media.get(request.mediaId);
+      let mediaId = request.mediaId ?? existing?.mediaId;
+      if (mediaId === undefined) {
+        mediaId = randomId();
+        const note: MediaDetail = {
+          id: mediaId,
+          kind: 'text',
+          title: request.label,
+          sizeBytes: String(request.label.length) as ByteCount,
+          tags: [],
+          activeReminderCount: 0,
+          integrity: 'healthy',
+          createdAt: now,
+          mimeType: 'text/plain',
+          updatedAt: now,
+          entityVersion: 1,
+          sourceToken: `demo://media/${mediaId}` as MediaSourceToken,
+        };
+        media.set(mediaId, note);
+      }
+      const referencedMedia = media.get(mediaId);
       const nextOccurrenceInstant = estimateNextOccurrence(request.schedule);
 
       const reminder: ReminderDetail = {
         id: existing?.id ?? randomId(),
         label: request.label,
-        mediaId: request.mediaId,
+        mediaId,
         mediaKind: referencedMedia?.kind ?? 'video',
         thumbnailToken: undefined,
         sourceToken: referencedMedia?.sourceToken,

@@ -1,10 +1,5 @@
 /**
- * Covers the two most user-visible parts of the Today -> Upcoming rename
- * (MR-03): the page heading actually reads "Upcoming", and the schedule
- * below it always renders exactly 5 day sections regardless of whether any
- * reminder has an occurrence in the window (spec: "keep the date heading
- * and show No alarms scheduled"). Detailed occurrence-matching correctness
- * lives in `projectUpcomingOccurrences.test.ts`, which this does not repeat.
+ * Upcoming screen tests: heading copy and first-run empty CTA.
  */
 import {NavigationContainer} from '@react-navigation/native';
 import {screen, waitFor} from '@testing-library/react-native';
@@ -28,12 +23,10 @@ describe('UpcomingScreen', () => {
     expect(screen.queryByText('Today', {exact: true})).toBeNull();
   });
 
-  it('renders exactly 5 day sections, each keeping its heading when empty', async () => {
+  it('offers Create reminder as the empty-state primary action', async () => {
     withProviders(<UpcomingScreen />);
 
-    // The mock native module's reminder list is empty by default, so every
-    // one of the 5 sections falls back to the empty-day row.
-    await waitFor(() => expect(screen.getAllByText('No alarms scheduled')).toHaveLength(5));
-    expect(screen.getByText('TODAY')).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('Create reminder')).toBeTruthy());
+    expect(screen.queryByText('No alarms scheduled')).toBeNull();
   });
 });

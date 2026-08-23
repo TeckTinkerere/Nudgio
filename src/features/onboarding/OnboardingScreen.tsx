@@ -11,8 +11,8 @@
  */
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {useState} from 'react';
-import {Linking, StyleSheet, View} from 'react-native';
+import {useEffect, useState} from 'react';
+import {BackHandler, Linking, StyleSheet, View} from 'react-native';
 import Animated, {FadeIn} from 'react-native-reanimated';
 
 import type {RootStackParamList} from '../../app/navigation/types';
@@ -66,6 +66,17 @@ export function OnboardingScreen() {
   const theme = useTheme();
   const haptics = useHaptics();
   const [page, setPage] = useState<PageIndex>(0);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (page === 0) {
+        return false;
+      }
+      setPage(current => (current - 1) as PageIndex);
+      return true;
+    });
+    return () => sub.remove();
+  }, [page]);
 
   const handleStart = () => {
     updatePreferences.mutate(

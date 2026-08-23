@@ -115,8 +115,9 @@ export function LibraryGridBody({
           ))}
         </View>
       )}
-      showSeparators={false}
-      horizontalPadding="xs"
+        showSeparators={false}
+        horizontalPadding="xs"
+        clearsFab
     />
   );
 }

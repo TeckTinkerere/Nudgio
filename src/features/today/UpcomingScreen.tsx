@@ -32,7 +32,7 @@
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useCallback, useMemo, useState} from 'react';
-import {Image, StyleSheet} from 'react-native';
+import {StyleSheet} from 'react-native';
 import type {ListRenderItem} from 'react-native';
 
 import {statusKindFor, statusLabelKeyFor} from './capabilityStatus';
@@ -48,34 +48,26 @@ import {rootRoutes} from '../../constants/routes';
 import {
   Banner,
   Card,
-  Dialog,
   EmptyState,
   ErrorState,
   Icon,
   IconButton,
   LoadingState,
-  ProgressBar,
   Screen,
+  ScreenHeader,
   Stack,
   StatusPill,
   Text,
   VirtualizedList,
 } from '../../design-system';
 import type {IconName} from '../../design-system';
-import {useTheme} from '../../design-system/theme/useTheme';
 import {spacing} from '../../design-system/tokens';
 import {
-  importErrorCopy,
-  importPhaseLabelKey,
-  importProgressFraction,
-  STORAGE_INSUFFICIENT_MIN_MB,
-  useImportMedia,
   usePreferences,
   useReminderList,
   useStartupSnapshot,
 } from '../../hooks';
 import {formatLocalTime, useTranslation} from '../../localization';
-import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import type {MediaKind, ReminderSummary} from '../../native-client/types';
 import {MediaPreviewPlayer} from '../library/MediaPreviewPlayer';
 
@@ -96,15 +88,13 @@ const isPlayableKind = (kind: MediaKind): kind is 'video' | 'audio' => kind === 
 
 type Row =
   | {readonly type: 'header'; readonly key: string; readonly label: string}
-  | {readonly type: 'empty'; readonly key: string}
+  | {readonly type: 'rest'; readonly key: string}
   | {readonly type: 'occurrence'; readonly key: string; readonly entry: UpcomingOccurrence};
 
 export function UpcomingScreen() {
   const t = useTranslation();
-  const theme = useTheme();
   const navigation = useNavigation<Navigation>();
   const startup = useStartupSnapshot();
-  const importMedia = useImportMedia();
   const reminders = useReminderList();
   const preferences = usePreferences();
   const [previewReminder, setPreviewReminder] = useState<ReminderSummary | null>(null);
@@ -154,15 +144,24 @@ export function UpcomingScreen() {
       }
     }
 
-    return dayAnchors.flatMap((day, offset): Row[] => {
+    const built: Row[] = [];
+    let skippedEmpty = false;
+    for (const [offset, day] of dayAnchors.entries()) {
       const dateKey = localDateKey(day);
       const dayEntries = byDate.get(dateKey) ?? [];
-      const header: Row = {type: 'header', key: `header-${dateKey}`, label: headingFor(day, offset)};
       if (dayEntries.length === 0) {
-        return [header, {type: 'empty', key: `empty-${dateKey}`}];
+        skippedEmpty = true;
+        continue;
       }
-      return [header, ...dayEntries.map(entry => ({type: 'occurrence' as const, key: entry.id, entry}))];
-    });
+      built.push({type: 'header', key: `header-${dateKey}`, label: headingFor(day, offset)});
+      for (const entry of dayEntries) {
+        built.push({type: 'occurrence', key: entry.id, entry});
+      }
+    }
+    if (skippedEmpty && built.length > 0) {
+      built.push({type: 'rest', key: 'rest-empty'});
+    }
+    return built;
   }, [dayAnchors, occurrences, headingFor]);
 
   const renderRow: ListRenderItem<Row> = useCallback(
@@ -174,10 +173,10 @@ export function UpcomingScreen() {
           </Text>
         );
       }
-      if (item.type === 'empty') {
+      if (item.type === 'rest') {
         return (
           <Text variant="bodyMedium" tone="variant" style={styles.emptyDayRow}>
-            {t('today.section.empty')}
+            {t('today.restOfWeekEmpty')}
           </Text>
         );
       }
@@ -236,62 +235,20 @@ export function UpcomingScreen() {
   const snapshot = startup.data;
   const hasReminders = snapshot.activeReminderCount > 0;
   const overallStatus = snapshot.capability.overall;
-
-  const nextEntry = occurrences[0];
-  const nextThumbnail = nextEntry ? thumbnailImageSource(nextEntry.reminder.thumbnailToken) : undefined;
-  const tomorrowAnchor = dayAnchors[1] ?? now;
-  const nextContextLabel = nextEntry
-    ? (() => {
-        const time = formatLocalTime(nextEntry.dateTime, use24Hour);
-        if (nextEntry.localDate === localDateKey(now)) {
-          return t('today.nextReminder.todayAt', {time});
-        }
-        if (nextEntry.localDate === localDateKey(tomorrowAnchor)) {
-          return t('today.nextReminder.tomorrowAt', {time});
-        }
-        return t('today.nextReminder.weekdayAt', {
-          weekday: new Intl.DateTimeFormat(languageTag, {weekday: 'long'}).format(nextEntry.dateTime),
-          time,
-        });
-      })()
-    : undefined;
-  const nextCanPlay =
-    nextEntry !== undefined &&
-    isPlayableKind(nextEntry.reminder.mediaKind) &&
-    Boolean(nextEntry.reminder.sourceToken);
-
-  // A themed avatar container for the hero's media icon — dynamic (reads
-  // `theme.color`), so it is wrapped in `StyleSheet.create` per-render rather
-  // than a raw inline object (see `MediaPreviewPlayer`'s doc comment for why
-  // this is the pattern here instead of a static module-level style).
-  const heroStyles = StyleSheet.create({
-    avatar: {
-      width: theme.layout.reminderThumbnailSize,
-      height: theme.layout.reminderThumbnailSize,
-      borderRadius: theme.radius.full,
-      backgroundColor: theme.color.primaryContainer,
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
-    },
-  });
+  const hasOccurrences = occurrences.length > 0;
 
   const header = (
     <Stack gap="lg" paddingVertical="md">
-      <Stack direction="row" align="center" justify="space-between">
-        <Text variant="headlineMedium" isHeading>
-          {t('today.title')}
-        </Text>
-        <StatusPill
-          kind={statusKindFor(overallStatus)}
-          label={t(statusLabelKeyFor(overallStatus))}
-        />
-      </Stack>
+      <ScreenHeader
+        title={t('today.title')}
+        trailing={
+          <StatusPill
+            kind={statusKindFor(overallStatus)}
+            label={t(statusLabelKeyFor(overallStatus))}
+          />
+        }
+      />
 
-      {/*
-        MR-03: "A single high-salience card appears only for a condition
-        that affects active reminders... It never blocks browsing."
-      */}
       {overallStatus === 'needs_action' && hasReminders ? (
         <Banner
           testID={testIds.today.capabilityBanner}
@@ -305,78 +262,17 @@ export function UpcomingScreen() {
         />
       ) : null}
 
-      {nextEntry ? (
-        <Stack gap="xs">
-          <Text variant="labelLarge" tone="variant">
-            {t('today.nextReminder')}
-          </Text>
-          <Card testID={testIds.today.nextReminderCard}>
-            <Stack direction="row" gap="sm" align="center">
-              <Stack style={heroStyles.avatar} align="center" justify="center">
-                {nextThumbnail ? (
-                  <Image
-                    source={nextThumbnail}
-                    style={StyleSheet.absoluteFill}
-                    resizeMode="cover"
-                    accessibilityElementsHidden
-                    importantForAccessibility="no-hide-descendants"
-                  />
-                ) : (
-                  <Icon
-                    name={MEDIA_ICON[nextEntry.reminder.mediaKind] ?? 'reminders'}
-                    size="lg"
-                    color={theme.color.onPrimaryContainer}
-                  />
-                )}
-              </Stack>
-              <Stack style={styles.flexFill} gap={2}>
-                <Text variant="titleLarge">{nextEntry.reminder.label}</Text>
-                <Text variant="bodyMedium" tone="variant">
-                  {nextContextLabel}
-                </Text>
-              </Stack>
-            </Stack>
-            <Stack direction="row" gap="xs" justify="flex-end" paddingVertical="xs">
-              <IconButton
-                name="play"
-                label={t('today.playPreview')}
-                disabled={!nextCanPlay}
-                onPress={() => setPreviewReminder(nextEntry.reminder)}
-              />
-              <IconButton
-                name="edit"
-                label={t('today.edit')}
-                onPress={() =>
-                  navigation.navigate(rootRoutes.reminderEditor, {
-                    reminderId: nextEntry.reminder.id,
-                  })
-                }
-              />
-              <IconButton
-                name="more"
-                label={t('today.more')}
-                onPress={() =>
-                  navigation.navigate(rootRoutes.reminderDetail, {
-                    reminderId: nextEntry.reminder.id,
-                  })
-                }
-              />
-            </Stack>
-          </Card>
-        </Stack>
-      ) : importMedia.isImporting ? (
-        <ProgressBar
-          testID={testIds.today.emptyState}
-          progress={importProgressFraction(importMedia.progress)}
-          label={t(importPhaseLabelKey(importMedia.progress?.phase) ?? 'library.import.copying')}
-        />
-      ) : (
+      {hasOccurrences ? null : (
         <EmptyState
           testID={testIds.today.emptyState}
           icon="today"
           title={t('today.empty.title')}
           body={t('today.empty.body')}
-          action={{label: t('today.empty.importMedia'), onPress: () => importMedia.importMedia()}}
+          action={{
+            label: t('today.empty.createReminder'),
+            onPress: () =>
+              navigation.navigate(rootRoutes.reminderEditor, {reminderId: undefined}),
+          }}
         />
       )}
     </Stack>
@@ -385,25 +281,13 @@ export function UpcomingScreen() {
   return (
     <Screen edgeToEdge testID={testIds.today.screen}>
       <VirtualizedList
-        data={rows}
+        data={hasOccurrences ? rows : []}
         keyExtractor={row => row.key}
         renderItem={renderRow}
         showSeparators={false}
+        clearsFab
         ListHeaderComponent={header}
       />
-      {importMedia.error ? (
-        <Dialog
-          visible
-          title={t(importErrorCopy(importMedia.error).titleKey)}
-          body={t(
-            importErrorCopy(importMedia.error).bodyKey,
-            importErrorCopy(importMedia.error).bodyKey === 'library.import.errorInsufficientSpace'
-              ? {megabytes: STORAGE_INSUFFICIENT_MIN_MB}
-              : undefined,
-          )}
-          cancel={{label: t('action.close'), onPress: () => importMedia.reset()}}
-        />
-      ) : null}
       {previewReminder && isPlayableKind(previewReminder.mediaKind) && previewReminder.sourceToken ? (
         <MediaPreviewPlayer
           visible

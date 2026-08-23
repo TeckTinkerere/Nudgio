@@ -32,6 +32,8 @@ export {ProgressBar} from './ProgressBar';
 export type {ProgressBarProps} from './ProgressBar';
 export {RadioCard} from './RadioCard';
 export type {RadioCardProps} from './RadioCard';
+export {ScreenHeader} from './ScreenHeader';
+export type {ScreenHeaderProps} from './ScreenHeader';
 export {SegmentedControl} from './SegmentedControl';
 export type {SegmentedControlOption, SegmentedControlProps} from './SegmentedControl';
 export {Sheet} from './Sheet';

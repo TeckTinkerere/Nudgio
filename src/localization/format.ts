@@ -67,3 +67,38 @@ export const formatLocalTime = (date: Date, use24Hour: boolean | null): string =
     minute: '2-digit',
     hour12: use24Hour === null ? undefined : !use24Hour,
   }).format(date);
+
+/**
+ * Whether clocks should use a 24-hour cycle. `null` follows the device by
+ * formatting 13:00 and checking whether the hour part is `13`.
+ */
+export const is24HourClock = (use24Hour: boolean | null): boolean => {
+  if (use24Hour !== null) {
+    return use24Hour;
+  }
+  const hour = new Intl.DateTimeFormat(undefined, {hour: 'numeric'}).formatToParts(
+    new Date(2020, 0, 1, 13, 0, 0),
+  );
+  return hour.some(part => part.type === 'hour' && part.value === '13');
+};
+
+export interface FormattedClockParts {
+  readonly time: string;
+  readonly period: string;
+}
+
+/** Time + optional day-period for alarm-style rows. Honors the 12/24 preference. */
+export const formatClockParts = (date: Date, use24Hour: boolean | null): FormattedClockParts => {
+  if (is24HourClock(use24Hour)) {
+    return {time: formatLocalTime(date, true), period: ''};
+  }
+  const parts = new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).formatToParts(date);
+  const hour = parts.find(part => part.type === 'hour')?.value ?? '';
+  const minute = parts.find(part => part.type === 'minute')?.value ?? '';
+  const period = parts.find(part => part.type === 'dayPeriod')?.value ?? '';
+  return {time: `${hour}:${minute}`, period};
+};

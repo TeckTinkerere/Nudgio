@@ -30,7 +30,6 @@ import {testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
 import {
   AnimatedPressable,
-  AppBar,
   Card,
   EmptyState,
   ErrorState,
@@ -38,6 +37,7 @@ import {
   IconButton,
   LoadingState,
   Screen,
+  ScreenHeader,
   Stack,
   Text,
   Toggle,
@@ -45,8 +45,8 @@ import {
 } from '../../design-system';
 import type {IconName} from '../../design-system';
 import {useTheme} from '../../design-system/theme/useTheme';
-import {useReminderList} from '../../hooks';
-import {useTranslation} from '../../localization';
+import {usePreferences, useReminderList} from '../../hooks';
+import {formatClockParts, useTranslation} from '../../localization';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import type {MediaKind, ReminderSummary} from '../../native-client/types';
 import {MediaPreviewPlayer} from '../library/MediaPreviewPlayer';
@@ -64,30 +64,15 @@ const MEDIA_ICON: Record<MediaKind, IconName> = {
 const isPlayableKind = (kind: MediaKind): kind is 'video' | 'audio' =>
   kind === 'video' || kind === 'audio';
 
-interface TimeParts {
-  readonly time: string;
-  readonly period: string;
-}
-
-const formatTimeParts = (iso: string): TimeParts => {
-  const parts = new Intl.DateTimeFormat(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  }).formatToParts(new Date(iso));
-  const hour = parts.find(part => part.type === 'hour')?.value ?? '';
-  const minute = parts.find(part => part.type === 'minute')?.value ?? '';
-  const period = parts.find(part => part.type === 'dayPeriod')?.value ?? '';
-  return {time: `${hour}:${minute}`, period};
-};
-
 export function RemindersScreen() {
   const t = useTranslation();
   const theme = useTheme();
   const navigation = useNavigation<Navigation>();
   const reminders = useReminderList();
+  const preferences = usePreferences();
   const setEnabled = useSetReminderEnabled();
   const [previewItem, setPreviewItem] = useState<ReminderSummary | null>(null);
+  const use24Hour = preferences.data?.use24HourTime ?? null;
 
   const styles = StyleSheet.create({
     card: {marginBottom: theme.spacing.xs},
@@ -110,7 +95,9 @@ export function RemindersScreen() {
   const renderReminder = useCallback(
     ({item}: {item: ReminderSummary}) => {
       const thumbnail = thumbnailImageSource(item.thumbnailToken);
-      const timeParts = item.nextOccurrence ? formatTimeParts(item.nextOccurrence.scheduledAt) : null;
+      const timeParts = item.nextOccurrence
+        ? formatClockParts(new Date(item.nextOccurrence.scheduledAt), use24Hour)
+        : null;
       const accessibleLabel = [item.label, item.repeatSummary].filter(Boolean).join('. ');
       const canPreview = isPlayableKind(item.mediaKind) && item.sourceToken !== undefined;
 
@@ -126,9 +113,11 @@ export function RemindersScreen() {
                     style={{color: theme.color.onPrimaryContainer}}>
                     {timeParts.time}
                   </Text>
-                  <Text variant="labelMedium" style={{color: theme.color.onPrimaryContainer}}>
-                    {timeParts.period}
-                  </Text>
+                  {timeParts.period ? (
+                    <Text variant="labelMedium" style={{color: theme.color.onPrimaryContainer}}>
+                      {timeParts.period}
+                    </Text>
+                  ) : null}
                 </>
               ) : (
                 <Icon name="reminders" size="md" color={theme.color.onPrimaryContainer} />
@@ -182,17 +171,17 @@ export function RemindersScreen() {
         </Card>
       );
     },
-    [navigation, setEnabled, styles, t, theme.color.onPrimaryContainer, theme.color.onSurfaceVariant],
+    [navigation, setEnabled, styles, t, theme.color.onPrimaryContainer, theme.color.onSurfaceVariant, use24Hour],
   );
 
   return (
     <Screen
-      hasAppBar
       edgeToEdge={reminders.isSuccess && reminders.data.items.length > 0}
       testID={testIds.reminders.screen}>
-      <AppBar title={t('reminders.title')} />
+      <Stack paddingHorizontal="md">
+        <ScreenHeader title={t('reminders.title')} />
+      </Stack>
 
-      {/* `isPending`, not `isLoading` — see TodayScreen for why. */}
       {reminders.isPending ? (
         <LoadingState label={t('loading.startingUp')} />
       ) : reminders.isError ? (
@@ -205,8 +194,12 @@ export function RemindersScreen() {
       ) : reminders.data.items.length === 0 ? (
         <EmptyState
           icon="reminders"
-          title={t('today.empty.title')}
-          body={t('today.empty.body')}
+          title={t('reminders.empty.title')}
+          body={t('reminders.empty.body')}
+          action={{
+            label: t('reminders.empty.createReminder'),
+            onPress: () => navigation.navigate(rootRoutes.reminderEditor, {reminderId: undefined}),
+          }}
         />
       ) : (
         <VirtualizedList
@@ -214,6 +207,7 @@ export function RemindersScreen() {
           data={reminders.data.items}
           keyExtractor={item => item.id}
           renderItem={renderReminder}
+          clearsFab
         />
       )}
 

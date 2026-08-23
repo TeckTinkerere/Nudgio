@@ -1,29 +1,28 @@
 /**
  * Local time-of-day picker.
  *
- * No native date/time picker library is installed (this build stays on the
- * existing dependency set — see the routing decision earlier in this
- * session). Hour/minute steppers plus an AM/PM segmented control give the
- * same MR-03 "Date and time are separate controls" result with large,
- * accessible touch targets and no new dependency. Local to `features/
- * reminders` rather than the design system: it is domain-specific to
- * scheduling, not a general-purpose primitive other features need yet.
+ * Stores hours in 0–23. Display follows the same 12/24 preference as
+ * `formatLocalTime` so the editor never disagrees with Upcoming/Reminders.
  */
 import {IconButton, SegmentedControl, Stack, Text} from '../../design-system';
+import {is24HourClock} from '../../localization';
 
 export interface TimeOfDayValue {
-  /** 1-12. */
+  /** 0–23. */
   readonly hour: number;
-  /** 0-59, always a multiple of 5 from this control. */
+  /** 0–59, always a multiple of 5 from this control. */
   readonly minute: number;
-  readonly period: 'AM' | 'PM';
 }
 
 export interface TimePickerProps {
   readonly value: TimeOfDayValue;
   readonly onChange: (next: TimeOfDayValue) => void;
+  readonly use24Hour: boolean | null;
   readonly hourLabel: string;
   readonly minuteLabel: string;
+  readonly periodLabel: string;
+  readonly amLabel: string;
+  readonly pmLabel: string;
   readonly increaseLabel: string;
   readonly decreaseLabel: string;
   readonly testID?: string;
@@ -31,36 +30,58 @@ export interface TimePickerProps {
 
 const pad2 = (n: number): string => n.toString().padStart(2, '0');
 
-const clampHour = (hour: number): number => ((hour - 1 + 12) % 12) + 1;
+const clampHour24 = (hour: number): number => (hour + 24) % 24;
 const clampMinute = (minute: number): number => (minute + 60) % 60;
+
+const toPeriod = (hour: number): 'AM' | 'PM' => (hour < 12 ? 'AM' : 'PM');
+const toHour12 = (hour: number): number => {
+  const mod = hour % 12;
+  return mod === 0 ? 12 : mod;
+};
+
+const fromHour12 = (hour12: number, period: 'AM' | 'PM'): number => {
+  if (period === 'AM') {
+    return hour12 === 12 ? 0 : hour12;
+  }
+  return hour12 === 12 ? 12 : hour12 + 12;
+};
 
 export function TimePicker({
   value,
   onChange,
+  use24Hour,
   hourLabel,
   minuteLabel,
+  periodLabel,
+  amLabel,
+  pmLabel,
   increaseLabel,
   decreaseLabel,
   testID,
 }: TimePickerProps) {
-  const stepHour = (delta: number) => onChange({...value, hour: clampHour(value.hour + delta)});
+  const use24 = is24HourClock(use24Hour);
+  const period = toPeriod(value.hour);
+
+  const stepHour = (delta: number) => {
+    if (use24) {
+      onChange({...value, hour: clampHour24(value.hour + delta)});
+      return;
+    }
+    const next12 = ((toHour12(value.hour) - 1 + delta + 12) % 12) + 1;
+    onChange({...value, hour: fromHour12(next12, period)});
+  };
+
   const stepMinute = (delta: number) =>
     onChange({...value, minute: clampMinute(value.minute + delta * 5)});
 
+  const hourDisplay = use24 ? pad2(value.hour) : toHour12(value.hour).toString();
+
   return (
-    // Column, not one long row: hour/minute steppers at `displaySmall` plus
-    // an AM/PM segmented control together are wider than a typical phone's
-    // available width once insets are subtracted, and `Stack` does not wrap
-    // by default — a single row silently clipped the segmented control off
-    // the right edge of the screen (unreachable, not just ugly). Stacking
-    // the segmented control on its own centered row below guarantees it
-    // fits at any phone width without depending on wrap/measurement.
     <Stack testID={testID} gap="sm" align="center">
       <Stack direction="row" align="center" justify="center" gap="md">
         <Stepper
-          value={value.hour}
-          formatted={value.hour.toString()}
-          accessibleLabel={`${hourLabel}: ${value.hour}`}
+          formatted={hourDisplay}
+          accessibleLabel={`${hourLabel}: ${hourDisplay}`}
           onIncrease={() => stepHour(1)}
           onDecrease={() => stepHour(-1)}
           increaseLabel={`${increaseLabel} ${hourLabel}`}
@@ -68,7 +89,6 @@ export function TimePicker({
         />
         <Text variant="displaySmall">:</Text>
         <Stepper
-          value={value.minute}
           formatted={pad2(value.minute)}
           accessibleLabel={`${minuteLabel}: ${pad2(value.minute)}`}
           onIncrease={() => stepMinute(1)}
@@ -78,21 +98,22 @@ export function TimePicker({
         />
       </Stack>
 
-      <SegmentedControl
-        accessibilityLabel="AM or PM"
-        options={[
-          {value: 'AM', label: 'AM'},
-          {value: 'PM', label: 'PM'},
-        ]}
-        value={value.period}
-        onChange={period => onChange({...value, period})}
-      />
+      {use24 ? null : (
+        <SegmentedControl
+          accessibilityLabel={periodLabel}
+          options={[
+            {value: 'AM', label: amLabel},
+            {value: 'PM', label: pmLabel},
+          ]}
+          value={period}
+          onChange={next => onChange({...value, hour: fromHour12(toHour12(value.hour), next)})}
+        />
+      )}
     </Stack>
   );
 }
 
 interface StepperProps {
-  readonly value: number;
   readonly formatted: string;
   readonly accessibleLabel: string;
   readonly onIncrease: () => void;

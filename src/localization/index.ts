@@ -1,8 +1,10 @@
 export {
+  formatClockParts,
   formatEnglishUnit,
   formatLocalDate,
   formatLocalTime,
   interpolate,
+  is24HourClock,
 } from './format';
 export {en} from './resources/en';
 export {TranslationContext} from './TranslationContext';

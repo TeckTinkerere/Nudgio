@@ -7,11 +7,13 @@ import com.aslam.mediareminder.alarm.ScheduleRuleMapper
 import com.aslam.mediareminder.alarm.SchedulerCoordinator
 import com.aslam.mediareminder.alarm.TestAlarmScheduler
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
+import com.aslam.mediareminder.data.db.entity.MediaAssetEntity
 import com.aslam.mediareminder.data.db.entity.ReminderEntity
 import com.aslam.mediareminder.media.MediaStorage
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
+import java.security.MessageDigest
 import java.time.Instant
 import java.util.UUID
 
@@ -78,7 +80,11 @@ class ReminderMutationService(
     }
 
     suspend fun save(request: ReadableMap): SaveOutcome {
-        val mediaId = request.getString("mediaId") ?: return SaveOutcome.Invalid("mediaId")
+        val requestedMediaId = if (request.hasKey("mediaId")) {
+            request.getString("mediaId")?.takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
         val label = request.getString("label")?.trim().orEmpty()
         if (label.isEmpty()) return SaveOutcome.Invalid("label")
         val profileId = request.getString("profileId") ?: return SaveOutcome.Invalid("profileId")
@@ -111,6 +117,12 @@ class ReminderMutationService(
         val now = Instant.now().toEpochMilli()
         val reminderId = existing?.id ?: requestedId ?: UUID.randomUUID().toString()
         val effectiveState = if (enabledIntent) ReminderEntity.STATE_ACTIVE else ReminderEntity.STATE_DISABLED
+        val pendingTextAsset = if (requestedMediaId == null && existing?.mediaId == null) {
+            preparePlainTextAsset(label)
+        } else {
+            null
+        }
+        val mediaId = requestedMediaId ?: existing?.mediaId ?: requireNotNull(pendingTextAsset).id
 
         val entity = ReminderEntity(
             id = reminderId,
@@ -132,6 +144,9 @@ class ReminderMutationService(
 
         var conflicted = false
         database.withTransaction {
+            if (pendingTextAsset != null) {
+                database.mediaDao().insert(pendingTextAsset.toEntity(now))
+            }
             if (existing == null) {
                 reminderDao.insert(entity)
             } else {
@@ -220,6 +235,51 @@ class ReminderMutationService(
             if (nextOccurrence != null) putMap("nextOccurrence", ReminderDtoWriter.writeOccurrence(nextOccurrence)) else putNull("nextOccurrence")
         }
         return EnableOutcome.Success(result)
+    }
+
+    /**
+     * Text-only reminders still need a `media_assets` row (schema FK).
+     * Writes a small UTF-8 file under app-owned storage — no gallery permission.
+     */
+    private fun preparePlainTextAsset(title: String): PendingTextAsset {
+        val id = UUID.randomUUID().toString()
+        val storageKey = storage.newStorageKey("text/plain")
+        val bytes = title.toByteArray(Charsets.UTF_8)
+        storage.fileFor(storageKey).writeBytes(bytes)
+        val sha256 = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        return PendingTextAsset(
+            id = id,
+            title = title.take(MediaAssetEntity.MAX_TITLE_LENGTH),
+            storageKey = storageKey,
+            sizeBytes = bytes.size.toLong(),
+            sha256 = sha256,
+        )
+    }
+
+    private data class PendingTextAsset(
+        val id: String,
+        val title: String,
+        val storageKey: String,
+        val sizeBytes: Long,
+        val sha256: String,
+    ) {
+        fun toEntity(now: Long) = MediaAssetEntity(
+            id = id,
+            kind = MediaAssetEntity.KIND_TEXT,
+            title = title,
+            notes = null,
+            storageKey = storageKey,
+            mimeType = "text/plain",
+            sizeBytes = sizeBytes,
+            sha256 = sha256,
+            durationMs = null,
+            widthPx = null,
+            heightPx = null,
+            categoryId = null,
+            integrityState = MediaAssetEntity.INTEGRITY_HEALTHY,
+            createdAt = now,
+            updatedAt = now,
+        )
     }
 
     /** FK `CASCADE` on `schedule_rules`/`occurrences`/`active_alarm_session` does the rest of the cleanup. */

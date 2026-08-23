@@ -17,7 +17,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {Divider} from '../layout/Divider';
 import {useTheme} from '../theme/useTheme';
-import {resolveSpace, type SpacingToken} from '../tokens';
+import {layout, resolveSpace, type SpacingToken} from '../tokens';
 
 
 export interface VirtualizedListProps<T>
@@ -29,6 +29,8 @@ export interface VirtualizedListProps<T>
   /** Renders a hairline between rows. Off for card grids, which own their own gaps. */
   readonly showSeparators?: boolean;
   readonly horizontalPadding?: SpacingToken | number;
+  /** Extra bottom padding so the last row clears a tab-hosted FAB. */
+  readonly clearsFab?: boolean;
   readonly testID?: string;
 }
 
@@ -36,6 +38,7 @@ export function VirtualizedList<T>({
   renderItem,
   showSeparators = true,
   horizontalPadding = 'md',
+  clearsFab = false,
   data,
   testID,
   ...flatListProps
@@ -58,7 +61,7 @@ export function VirtualizedList<T>({
         // Bottom inset lives on the content, matching `Screen`'s scrollable
         // variant, so the list's own scroll track still reaches the physical
         // edge (MR-04 "Insets and system UI").
-        paddingBottom: insets.bottom + theme.spacing.xl,
+        paddingBottom: insets.bottom + theme.spacing.xl + (clearsFab ? layout.fabClearance : 0),
       }}
       // MR-13 ACC-003: content must stay reachable at large font scale, which
       // means real rows, not a fixed-height virtualization estimate.
