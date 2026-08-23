@@ -17,7 +17,7 @@
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useState} from 'react';
-import {Image, Pressable, StyleSheet} from 'react-native';
+import {Image, StyleSheet} from 'react-native';
 
 import {DeleteFlushOverlay} from './DeleteFlushOverlay';
 import {MediaPreviewPlayer} from './MediaPreviewPlayer';
@@ -28,6 +28,7 @@ import type {RootStackParamList} from '../../app/navigation/types';
 import {useToast} from '../../app/toast/ToastProvider';
 import {rootRoutes} from '../../constants/routes';
 import {
+  AnimatedPressable,
   AppBar,
   Button,
   Card,
@@ -180,8 +181,9 @@ export function MediaDetailContent({mediaId, onBack, onDeleted}: MediaDetailCont
 
       <Stack gap="lg" paddingVertical="md">
         <Card padding="none" elevation="level1">
-          <Pressable
+          <AnimatedPressable
             onPress={canPlay ? () => setPreviewOpen(true) : undefined}
+            disabled={!canPlay}
             accessibilityRole={canPlay ? 'button' : undefined}
             accessibilityLabel={canPlay ? t('library.player.play', {title: item.title}) : undefined}
             style={item.kind === 'video' ? styles.previewWide : styles.previewSquare}>
@@ -204,7 +206,7 @@ export function MediaDetailContent({mediaId, onBack, onDeleted}: MediaDetailCont
                 }
               />
             </Stack>
-          </Pressable>
+          </AnimatedPressable>
         </Card>
 
         <Stack gap="xs">

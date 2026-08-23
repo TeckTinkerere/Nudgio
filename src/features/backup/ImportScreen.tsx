@@ -33,6 +33,7 @@ import {
   Stack,
   Text,
   TextField,
+  useFloatingAppBar,
   useTheme,
 } from '../../design-system';
 import {useHaptics} from '../../hooks';
@@ -78,6 +79,7 @@ export function ImportScreen({navigation}: Props) {
   const [error, setError] = useState(false);
   const [replaceConfirmOpen, setReplaceConfirmOpen] = useState(false);
   const [replaceConfirmText, setReplaceConfirmText] = useState('');
+  const appBar = useFloatingAppBar();
 
   const chooseFile = async () => {
     setError(false);
@@ -128,12 +130,21 @@ export function ImportScreen({navigation}: Props) {
   };
 
   return (
-    <Screen hasAppBar scrollable>
-      <AppBar
-        title={t('backup.import.title')}
-        back={{label: t('action.back'), onPress: () => navigation.goBack()}}
-      />
-
+    <Screen
+      hasAppBar
+      scrollable
+      onScroll={appBar.onScroll}
+      scrollEventThrottle={16}
+      contentContainerStyle={{paddingTop: appBar.barHeight}}
+      appBarSlot={
+        <AppBar
+          title={t('backup.import.title')}
+          back={{label: t('action.back'), onPress: () => navigation.goBack()}}
+          floating
+          scrolled={appBar.scrolled}
+          onHeightChange={appBar.onHeightChange}
+        />
+      }>
       <Stack gap="lg" paddingVertical="md">
         {phase === 'idle' ? (
           <Stack gap="lg" align="center" paddingVertical="xl">

@@ -47,6 +47,7 @@ import {
   Text,
   TextField,
   Toggle,
+  useFloatingAppBar,
   WeekdaySelector,
 } from '../../design-system';
 import type {IconName} from '../../design-system';
@@ -250,6 +251,7 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
   );
   const [historyEnabled, setHistoryEnabled] = useState(existing?.historyEnabled ?? true);
   const [labelTouched, setLabelTouched] = useState(false);
+  const appBar = useFloatingAppBar();
 
   // Every Save while notifications are blocked shows this nag (not just
   // once) — the user explicitly asked to be reminded each time, since the
@@ -259,6 +261,15 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
   const [notificationsWarningOpen, setNotificationsWarningOpen] = useState(false);
   const notificationsBlocked = capability.data?.items.some(
     item => item.kind === 'notifications' && item.status !== 'ready',
+  ) ?? false;
+  // Same nag, for the capability that actually determines whether the alarm
+  // fires *on time*: exact-alarm access has no runtime dialog of its own
+  // (Android only offers a Settings deep link) and no other prompt anywhere
+  // in the app ever surfaces it proactively — previously the only way to
+  // notice and fix this was to already know to visit the Health screen.
+  const [exactAlarmWarningOpen, setExactAlarmWarningOpen] = useState(false);
+  const exactAlarmBlocked = capability.data?.items.some(
+    item => item.kind === 'exact_alarm' && item.status !== 'ready',
   ) ?? false;
 
   const selectedMedia = mediaId
@@ -381,16 +392,38 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
       setNotificationsWarningOpen(true);
       return;
     }
+    if (exactAlarmBlocked) {
+      setExactAlarmWarningOpen(true);
+      return;
+    }
+    performSave();
+  };
+
+  const continuePastNotificationsWarning = () => {
+    setNotificationsWarningOpen(false);
+    if (exactAlarmBlocked) {
+      setExactAlarmWarningOpen(true);
+      return;
+    }
     performSave();
   };
 
   return (
-    <Screen hasAppBar scrollable>
-      <AppBar
-        title={isNew ? t('reminders.editor.newTitle') : t('reminders.editor.editTitle')}
-        back={{label: t('action.back'), onPress: () => navigation.goBack()}}
-      />
-
+    <Screen
+      hasAppBar
+      scrollable
+      onScroll={appBar.onScroll}
+      scrollEventThrottle={16}
+      contentContainerStyle={{paddingTop: appBar.barHeight}}
+      appBarSlot={
+        <AppBar
+          title={isNew ? t('reminders.editor.newTitle') : t('reminders.editor.editTitle')}
+          back={{label: t('action.back'), onPress: () => navigation.goBack()}}
+          floating
+          scrolled={appBar.scrolled}
+          onHeightChange={appBar.onHeightChange}
+        />
+      }>
       <Stack gap="xl" paddingVertical="md">
         {/* What */}
         <Stack gap="xs">
@@ -498,10 +531,9 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
             <TimePicker
               value={time}
               onChange={setTime}
-              hourLabel={t('reminders.editor.time')}
-              minuteLabel={t('reminders.editor.time')}
-              increaseLabel={t('reminders.editor.increase')}
-              decreaseLabel={t('reminders.editor.decrease')}
+              hourLabel={t('reminders.editor.hour')}
+              minuteLabel={t('reminders.editor.minute')}
+              amPmLabel={t('reminders.editor.amPm')}
             />
           </Stack>
         </Stack>
@@ -617,16 +649,33 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
         body={t('reminders.editor.notificationsBlockedBody')}
         cancel={{
           label: t('reminders.editor.notificationsBlockedContinue'),
-          onPress: () => {
-            setNotificationsWarningOpen(false);
-            performSave();
-          },
+          onPress: continuePastNotificationsWarning,
         }}
         confirm={{
           label: t('reminders.editor.notificationsBlockedOpenSettings'),
           onPress: () => {
             setNotificationsWarningOpen(false);
             openCapabilitySettings.mutate('notifications');
+          },
+        }}
+      />
+
+      <Dialog
+        visible={exactAlarmWarningOpen}
+        title={t('reminders.editor.exactAlarmBlockedTitle')}
+        body={t('reminders.editor.exactAlarmBlockedBody')}
+        cancel={{
+          label: t('reminders.editor.exactAlarmBlockedContinue'),
+          onPress: () => {
+            setExactAlarmWarningOpen(false);
+            performSave();
+          },
+        }}
+        confirm={{
+          label: t('reminders.editor.exactAlarmBlockedOpenSettings'),
+          onPress: () => {
+            setExactAlarmWarningOpen(false);
+            openCapabilitySettings.mutate('exact_alarm');
           },
         }}
       />

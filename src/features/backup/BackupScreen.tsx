@@ -35,6 +35,7 @@ import {
   Screen,
   Stack,
   Text,
+  useFloatingAppBar,
   useTheme,
 } from '../../design-system';
 import type {IconName} from '../../design-system';
@@ -108,6 +109,7 @@ export function BackupScreen({navigation}: Props) {
   const [sharing, setSharing] = useState(false);
   const progress = useOperationProgress('export', phase === 'exporting');
   const startup = useStartupSnapshot();
+  const appBar = useFloatingAppBar();
   // Sized to the real total so this sums every item's real `sizeBytes`
   // exactly once, not a paginated slice — `beginExport` has no dedicated
   // "estimate size" query of its own, so this is the same real per-item
@@ -144,12 +146,21 @@ export function BackupScreen({navigation}: Props) {
       : undefined;
 
   return (
-    <Screen hasAppBar scrollable>
-      <AppBar
-        title={t('backup.export.title')}
-        back={{label: t('action.back'), onPress: () => navigation.goBack()}}
-      />
-
+    <Screen
+      hasAppBar
+      scrollable
+      onScroll={appBar.onScroll}
+      scrollEventThrottle={16}
+      contentContainerStyle={{paddingTop: appBar.barHeight}}
+      appBarSlot={
+        <AppBar
+          title={t('backup.export.title')}
+          back={{label: t('action.back'), onPress: () => navigation.goBack()}}
+          floating
+          scrolled={appBar.scrolled}
+          onHeightChange={appBar.onHeightChange}
+        />
+      }>
       <Stack gap="lg" paddingVertical="md">
         {phase === 'idle' || phase === 'failed' ? (
           <>

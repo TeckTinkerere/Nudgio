@@ -18,11 +18,11 @@ import {ActivityIndicator, Modal, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import ReactVideo from 'react-native-video';
 
-import {IconButton} from '../../design-system/components/IconButton';
 import {Text} from '../../design-system/components/Text';
 import {Icon} from '../../design-system/icons';
 import {useTheme} from '../../design-system/theme/useTheme';
 import {neutral} from '../../design-system/tokens';
+import {MediaViewerHeader, mediaViewerStyles} from './MediaViewerChrome';
 import {mediaPlaybackSource} from '../../native-client/mediaTokens';
 import type {MediaSourceToken} from '../../native-client/types';
 
@@ -72,27 +72,13 @@ export function MediaPreviewPlayer({
   // genuinely per-render dynamic, unlike the rest of `features/**`, which
   // leans on design-system components' own spacing-token props instead of
   // ever needing a raw inline style.
+  const chromeStyles = mediaViewerStyles(theme, insets);
   const styles = StyleSheet.create({
-    root: {flex: 1, backgroundColor: neutral.black},
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingTop: insets.top + theme.spacing.xxs,
-      paddingStart: theme.layout.dialogPadding,
-      paddingEnd: theme.spacing.xs,
-      paddingBottom: theme.spacing.xs,
-    },
-    title: {flex: 1, color: neutral.white},
     body: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
       paddingBottom: footer ? 0 : insets.bottom,
-    },
-    footer: {
-      paddingHorizontal: theme.layout.dialogPadding,
-      paddingTop: theme.spacing.sm,
-      paddingBottom: insets.bottom + theme.spacing.sm,
     },
     errorContent: {alignItems: 'center', gap: theme.spacing.xs, padding: theme.layout.dialogPadding},
     errorLabel: {color: neutral.white},
@@ -107,13 +93,8 @@ export function MediaPreviewPlayer({
       onRequestClose={onDismiss}
       animationType={theme.a11y.reduceMotion ? 'none' : 'fade'}
       statusBarTranslucent>
-      <View style={styles.root} testID={testID}>
-        <View style={styles.header}>
-          <Text variant="titleMedium" numberOfLines={1} style={styles.title}>
-            {title}
-          </Text>
-          <IconButton name="close" label={closeLabel} onPress={onDismiss} />
-        </View>
+      <View style={chromeStyles.root} testID={testID}>
+        <MediaViewerHeader title={title} closeLabel={closeLabel} onDismiss={onDismiss} styles={chromeStyles} />
 
         <View style={styles.body}>
           {status === 'error' ? (
@@ -144,7 +125,7 @@ export function MediaPreviewPlayer({
           ) : null}
         </View>
 
-        {footer ? <View style={styles.footer}>{footer}</View> : null}
+        {footer ? <View style={chromeStyles.footer}>{footer}</View> : null}
       </View>
     </Modal>
   );

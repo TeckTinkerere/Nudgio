@@ -14,8 +14,22 @@
  * `AppTabBar` already consumed it. So a screen never has to ask "am I inside
  * a tab?" — it always applies `insets.bottom`, and the value is already
  * correct for its context.
+ *
+ * `appBarSlot` (typically a `<AppBar floating .../>`, wired via
+ * `useFloatingAppBar`) renders as a sibling of the scroll region, not inside
+ * it — an absolutely-positioned `floating` `AppBar` placed in `children`
+ * would sit inside the `ScrollView`'s own content and scroll away with it
+ * instead of staying fixed above it. Plain, non-floating `AppBar` usage is
+ * unaffected: it can stay in `children` as before.
  */
-import {ScrollView, View, type StyleProp, type ViewStyle} from 'react-native';
+import {
+  ScrollView,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {useTheme} from '../theme/useTheme';
@@ -34,6 +48,11 @@ export interface ScreenProps {
   readonly hasAppBar?: boolean;
   readonly backgroundColor?: string;
   readonly contentContainerStyle?: StyleProp<ViewStyle>;
+  /** Forwarded to the internal `ScrollView` — used by a `floating` `AppBar` to track scroll position. Only applies when `scrollable`. */
+  readonly onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  readonly scrollEventThrottle?: number;
+  /** A `floating` `AppBar` — rendered outside the scroll region, see the doc comment above. */
+  readonly appBarSlot?: React.ReactNode;
   readonly testID?: string;
 }
 
@@ -44,6 +63,9 @@ export function Screen({
   hasAppBar = false,
   backgroundColor,
   contentContainerStyle,
+  onScroll,
+  scrollEventThrottle,
+  appBarSlot,
   testID,
 }: ScreenProps) {
   const theme = useTheme();
@@ -74,6 +96,7 @@ export function Screen({
   if (!scrollable) {
     return (
       <View style={outerStyle} testID={testID}>
+        {appBarSlot}
         <View
           style={[
             {
@@ -103,6 +126,7 @@ export function Screen({
 
   return (
     <View style={outerStyle} testID={testID}>
+      {appBarSlot}
       <ScrollView
         style={{flex: 1}}
         contentContainerStyle={[
@@ -115,6 +139,8 @@ export function Screen({
           contentContainerStyle,
         ]}
         keyboardShouldPersistTaps="handled"
+        onScroll={onScroll}
+        scrollEventThrottle={scrollEventThrottle}
         // MR-13: content must stay reachable at large font scale.
         showsVerticalScrollIndicator>
         {body}

@@ -24,7 +24,17 @@ import {MediaSelectionPreviewModal} from './MediaSelectionPreviewModal';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
-import {AppBar, Chip, ChipRow, MediaCard, Screen, Stack, TextField, useResponsive} from '../../design-system';
+import {
+  AppBar,
+  Chip,
+  ChipRow,
+  MediaCard,
+  Screen,
+  Stack,
+  TextField,
+  useFloatingAppBar,
+  useResponsive,
+} from '../../design-system';
 import {useImportMedia, useMediaList} from '../../hooks';
 import {formatEnglishUnit, useTranslation, type TranslationKey} from '../../localization';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
@@ -57,6 +67,7 @@ export function SelectMediaScreen({navigation, route}: Props) {
   const [search, setSearch] = useState('');
   const [activeKind, setActiveKind] = useState<MediaKind | null>(null);
   const [previewItem, setPreviewItem] = useState<MediaSummary | null>(null);
+  const appBar = useFloatingAppBar();
 
   // Same two empty-result causes as Library's own grid (DL-059): browsing
   // here can filter down to nothing just as easily, and the recovery is to
@@ -115,13 +126,19 @@ export function SelectMediaScreen({navigation, route}: Props) {
   );
 
   return (
-    <Screen hasAppBar edgeToEdge testID={testIds.reminders.selectMediaScreen}>
-      <AppBar
-        title={t('reminders.selectMedia.title')}
-        back={{label: t('action.back'), onPress: () => navigation.goBack()}}
-      />
-
-      <Stack gap="xs" paddingHorizontal="md" paddingVertical="sm">
+    <Screen
+      hasAppBar
+      edgeToEdge
+      testID={testIds.reminders.selectMediaScreen}
+      appBarSlot={
+        <AppBar
+          title={t('reminders.selectMedia.title')}
+          back={{label: t('action.back'), onPress: () => navigation.goBack()}}
+          floating
+          onHeightChange={appBar.onHeightChange}
+        />
+      }>
+      <Stack gap="xs" paddingHorizontal="md" paddingVertical="sm" style={{paddingTop: appBar.barHeight}}>
         <TextField
           label={t('library.search.placeholder')}
           value={search}
