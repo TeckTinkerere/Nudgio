@@ -34,6 +34,7 @@ import {
   StatusPill,
   Text,
   Toggle,
+  useFloatingAppBar,
   useTheme,
 } from '../../design-system';
 import type {IconName, ThemePreference} from '../../design-system';
@@ -125,6 +126,7 @@ export function SettingsScreen() {
   const {showToast} = useToast();
   const testReminder = useScheduleTestReminder();
   const [previewingProfileId, setPreviewingProfileId] = useState<UUID | null>(null);
+  const appBar = useFloatingAppBar();
 
   const defaultSnoozeMinutes =
     preferences.data?.defaultSnoozeMinutes ?? appConfig.snooze.presetMinutes[1];
@@ -156,8 +158,21 @@ export function SettingsScreen() {
   };
 
   return (
-    <Screen hasAppBar scrollable testID={testIds.settings.screen}>
-      <AppBar title={t('settings.title')} />
+    <Screen
+      hasAppBar
+      scrollable
+      testID={testIds.settings.screen}
+      onScroll={appBar.onScroll}
+      scrollEventThrottle={16}
+      contentContainerStyle={{paddingTop: appBar.barHeight}}
+      appBarSlot={
+        <AppBar
+          title={t('settings.title')}
+          floating
+          scrolled={appBar.scrolled}
+          onHeightChange={appBar.onHeightChange}
+        />
+      }>
 
       <Stack gap="xl" paddingVertical="md">
         {/* Appearance */}

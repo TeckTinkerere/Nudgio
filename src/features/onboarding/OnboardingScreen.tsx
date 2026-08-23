@@ -15,6 +15,7 @@ import {useState} from 'react';
 import {Linking, StyleSheet, View} from 'react-native';
 import Animated, {FadeIn} from 'react-native-reanimated';
 
+import {useToast} from '../../app/toast/ToastProvider';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {links, testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
@@ -65,12 +66,25 @@ export function OnboardingScreen() {
   const updatePreferences = useUpdatePreferences();
   const theme = useTheme();
   const haptics = useHaptics();
+  const {showToast} = useToast();
   const [page, setPage] = useState<PageIndex>(0);
 
+  // Onboarding completion must never be a hard gate a user can get stuck
+  // behind: `hasCompletedOnboarding` is a soft "don't show this again" flag,
+  // not something worth trapping someone in a 3-page flow over if the write
+  // fails (a transient bridge error, a cold-start race, anything). Both
+  // outcomes navigate; a failed write only costs re-seeing Onboarding once
+  // on the next launch, which is a far smaller problem than "no way out."
   const handleStart = () => {
     updatePreferences.mutate(
       {hasCompletedOnboarding: true},
-      {onSuccess: () => navigation.replace(rootRoutes.tabs)},
+      {
+        onSuccess: () => navigation.replace(rootRoutes.tabs),
+        onError: () => {
+          showToast({message: t('error.unexpected.effect'), tone: 'error'});
+          navigation.replace(rootRoutes.tabs);
+        },
+      },
     );
   };
 

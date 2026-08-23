@@ -11,7 +11,17 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {StyleSheet, View} from 'react-native';
 
 import type {RootStackParamList} from '../../app/navigation/types';
-import {AppBar, Card, EmptyState, Screen, Stack, StatTile, Text, useTheme} from '../../design-system';
+import {
+  AppBar,
+  Card,
+  EmptyState,
+  Screen,
+  Stack,
+  StatTile,
+  Text,
+  useFloatingAppBar,
+  useTheme,
+} from '../../design-system';
 import {useTranslation} from '../../localization';
 import {mockStatistics, type DailyOutcomeCount} from '../../mocks/fixtures';
 
@@ -57,14 +67,24 @@ function DayProportionBar({day}: {readonly day: DailyOutcomeCount}) {
 export function StatisticsScreen({navigation}: Props) {
   const t = useTranslation();
   const stats = mockStatistics;
+  const appBar = useFloatingAppBar();
 
   return (
-    <Screen hasAppBar scrollable>
-      <AppBar
-        title={t('statistics.title')}
-        back={{label: t('action.back'), onPress: () => navigation.goBack()}}
-      />
-
+    <Screen
+      hasAppBar
+      scrollable
+      onScroll={appBar.onScroll}
+      scrollEventThrottle={16}
+      contentContainerStyle={{paddingTop: appBar.barHeight}}
+      appBarSlot={
+        <AppBar
+          title={t('statistics.title')}
+          back={{label: t('action.back'), onPress: () => navigation.goBack()}}
+          floating
+          scrolled={appBar.scrolled}
+          onHeightChange={appBar.onHeightChange}
+        />
+      }>
       {stats.totalOccurrences === 0 ? (
         <EmptyState
           icon="today"

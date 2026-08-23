@@ -33,6 +33,7 @@ import {
   Stack,
   Text,
   Toggle,
+  useFloatingAppBar,
 } from '../../design-system';
 import type {IconName} from '../../design-system';
 import {useTheme} from '../../design-system/theme/useTheme';
@@ -60,6 +61,7 @@ export function ReminderDetailScreen({navigation, route}: Props) {
   const setEnabled = useSetReminderEnabled();
   const deleteReminder = useDeleteReminder();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const appBar = useFloatingAppBar();
 
   if (reminderQuery.isPending) {
     return (
@@ -115,20 +117,29 @@ export function ReminderDetailScreen({navigation, route}: Props) {
   });
 
   return (
-    <Screen hasAppBar scrollable>
-      <AppBar
-        title={reminder.label}
-        back={{label: t('action.back'), onPress: () => navigation.goBack()}}
-        actions={[
-          {
-            icon: 'edit',
-            label: t('reminders.detail.edit'),
-            onPress: () =>
-              navigation.navigate(rootRoutes.reminderEditor, {reminderId: reminder.id}),
-          },
-        ]}
-      />
-
+    <Screen
+      hasAppBar
+      scrollable
+      onScroll={appBar.onScroll}
+      scrollEventThrottle={16}
+      contentContainerStyle={{paddingTop: appBar.barHeight}}
+      appBarSlot={
+        <AppBar
+          title={reminder.label}
+          back={{label: t('action.back'), onPress: () => navigation.goBack()}}
+          actions={[
+            {
+              icon: 'edit',
+              label: t('reminders.detail.edit'),
+              onPress: () =>
+                navigation.navigate(rootRoutes.reminderEditor, {reminderId: reminder.id}),
+            },
+          ]}
+          floating
+          scrolled={appBar.scrolled}
+          onHeightChange={appBar.onHeightChange}
+        />
+      }>
       <Animated.View
         entering={
           theme.a11y.reduceMotion ? undefined : FadeInUp.springify().damping(18)

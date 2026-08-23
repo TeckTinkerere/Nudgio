@@ -24,6 +24,7 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useCallback, useState} from 'react';
 import {Image, StyleSheet, View} from 'react-native';
 
+import {useDeleteReminder} from './useDeleteReminder';
 import {useSetReminderEnabled} from './useSetReminderEnabled';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {testIds} from '../../constants';
@@ -32,6 +33,7 @@ import {
   AnimatedPressable,
   AppBar,
   Card,
+  Dialog,
   EmptyState,
   ErrorState,
   Icon,
@@ -39,13 +41,15 @@ import {
   LoadingState,
   Screen,
   Stack,
+  SwipeableRow,
   Text,
   Toggle,
+  useFloatingAppBar,
   VirtualizedList,
 } from '../../design-system';
 import type {IconName} from '../../design-system';
 import {useTheme} from '../../design-system/theme/useTheme';
-import {useReminderList} from '../../hooks';
+import {useHaptics, useReminderList} from '../../hooks';
 import {useTranslation} from '../../localization';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import type {MediaKind, ReminderSummary} from '../../native-client/types';
@@ -87,7 +91,11 @@ export function RemindersScreen() {
   const navigation = useNavigation<Navigation>();
   const reminders = useReminderList();
   const setEnabled = useSetReminderEnabled();
+  const deleteReminder = useDeleteReminder();
+  const haptics = useHaptics();
   const [previewItem, setPreviewItem] = useState<ReminderSummary | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<ReminderSummary | null>(null);
+  const appBar = useFloatingAppBar();
 
   const styles = StyleSheet.create({
     card: {marginBottom: theme.spacing.xs},
@@ -115,71 +123,76 @@ export function RemindersScreen() {
       const canPreview = isPlayableKind(item.mediaKind) && item.sourceToken !== undefined;
 
       return (
-        <Card style={styles.card} padding="xs">
-          <Stack direction="row" align="center" gap="sm">
-            <Stack style={styles.timeBox} align="center" justify="center">
-              {timeParts ? (
-                <>
-                  <Text
-                    variant="titleLarge"
-                    tabularNumbers
-                    style={{color: theme.color.onPrimaryContainer}}>
-                    {timeParts.time}
-                  </Text>
-                  <Text variant="labelMedium" style={{color: theme.color.onPrimaryContainer}}>
-                    {timeParts.period}
-                  </Text>
-                </>
-              ) : (
-                <Icon name="reminders" size="md" color={theme.color.onPrimaryContainer} />
-              )}
-            </Stack>
-
-            <AnimatedPressable
-              style={styles.flexFill}
-              accessibilityRole="button"
-              accessibilityLabel={accessibleLabel}
-              onPress={() => navigation.navigate(rootRoutes.reminderDetail, {reminderId: item.id})}>
-              <Stack gap={2}>
-                <Text variant="titleMedium" numberOfLines={1}>
-                  {item.label}
-                </Text>
-                <Stack direction="row" align="center" gap="xxs">
-                  <View style={styles.mediaIcon}>
-                    {thumbnail ? (
-                      <Image
-                        source={thumbnail}
-                        style={StyleSheet.absoluteFill}
-                        resizeMode="cover"
-                        accessibilityElementsHidden
-                        importantForAccessibility="no-hide-descendants"
-                      />
-                    ) : (
-                      <Icon name={MEDIA_ICON[item.mediaKind]} size="xs" color={theme.color.onSurfaceVariant} />
-                    )}
-                  </View>
-                  <Text variant="bodyMedium" tone="variant" numberOfLines={1} style={styles.flexFill}>
-                    {item.repeatSummary}
-                  </Text>
-                </Stack>
+        <SwipeableRow
+          actionLabel={t('reminders.list.deleteAction', {label: item.label})}
+          actionIcon="delete"
+          onAction={() => setPendingDelete(item)}>
+          <Card style={styles.card} padding="xs">
+            <Stack direction="row" align="center" gap="sm">
+              <Stack style={styles.timeBox} align="center" justify="center">
+                {timeParts ? (
+                  <>
+                    <Text
+                      variant="titleLarge"
+                      tabularNumbers
+                      style={{color: theme.color.onPrimaryContainer}}>
+                      {timeParts.time}
+                    </Text>
+                    <Text variant="labelMedium" style={{color: theme.color.onPrimaryContainer}}>
+                      {timeParts.period}
+                    </Text>
+                  </>
+                ) : (
+                  <Icon name="reminders" size="md" color={theme.color.onPrimaryContainer} />
+                )}
               </Stack>
-            </AnimatedPressable>
 
-            {canPreview ? (
-              <IconButton
-                name="play"
-                label={t('library.player.play', {title: item.label})}
-                onPress={() => setPreviewItem(item)}
+              <AnimatedPressable
+                style={styles.flexFill}
+                accessibilityRole="button"
+                accessibilityLabel={accessibleLabel}
+                onPress={() => navigation.navigate(rootRoutes.reminderDetail, {reminderId: item.id})}>
+                <Stack gap={2}>
+                  <Text variant="titleMedium" numberOfLines={1}>
+                    {item.label}
+                  </Text>
+                  <Stack direction="row" align="center" gap="xxs">
+                    <View style={styles.mediaIcon}>
+                      {thumbnail ? (
+                        <Image
+                          source={thumbnail}
+                          style={StyleSheet.absoluteFill}
+                          resizeMode="cover"
+                          accessibilityElementsHidden
+                          importantForAccessibility="no-hide-descendants"
+                        />
+                      ) : (
+                        <Icon name={MEDIA_ICON[item.mediaKind]} size="xs" color={theme.color.onSurfaceVariant} />
+                      )}
+                    </View>
+                    <Text variant="bodyMedium" tone="variant" numberOfLines={1} style={styles.flexFill}>
+                      {item.repeatSummary}
+                    </Text>
+                  </Stack>
+                </Stack>
+              </AnimatedPressable>
+
+              {canPreview ? (
+                <IconButton
+                  name="play"
+                  label={t('library.player.play', {title: item.label})}
+                  onPress={() => setPreviewItem(item)}
+                />
+              ) : null}
+
+              <Toggle
+                value={item.enabledIntent}
+                onValueChange={enabled => setEnabled.mutate({id: item.id, enabled})}
+                label={t('reminders.list.enableToggle', {label: item.label})}
               />
-            ) : null}
-
-            <Toggle
-              value={item.enabledIntent}
-              onValueChange={enabled => setEnabled.mutate({id: item.id, enabled})}
-              label={t('reminders.list.enableToggle', {label: item.label})}
-            />
-          </Stack>
-        </Card>
+            </Stack>
+          </Card>
+        </SwipeableRow>
       );
     },
     [navigation, setEnabled, styles, t, theme.color.onPrimaryContainer, theme.color.onSurfaceVariant],
@@ -189,31 +202,46 @@ export function RemindersScreen() {
     <Screen
       hasAppBar
       edgeToEdge={reminders.isSuccess && reminders.data.items.length > 0}
-      testID={testIds.reminders.screen}>
-      <AppBar title={t('reminders.title')} />
-
+      testID={testIds.reminders.screen}
+      appBarSlot={
+        <AppBar
+          title={t('reminders.title')}
+          floating
+          scrolled={appBar.scrolled}
+          onHeightChange={appBar.onHeightChange}
+        />
+      }>
       {/* `isPending`, not `isLoading` — see TodayScreen for why. */}
       {reminders.isPending ? (
-        <LoadingState label={t('loading.startingUp')} />
+        <View style={{flex: 1, paddingTop: appBar.barHeight}}>
+          <LoadingState label={t('loading.startingUp')} />
+        </View>
       ) : reminders.isError ? (
-        <ErrorState
-          title={t('error.unexpected.title')}
-          effect={t('error.unexpected.effect')}
-          recoveryAction={{label: t('action.retry'), onPress: () => reminders.refetch()}}
-          diagnosticCode={reminders.error.correlationId}
-        />
+        <View style={{flex: 1, paddingTop: appBar.barHeight}}>
+          <ErrorState
+            title={t('error.unexpected.title')}
+            effect={t('error.unexpected.effect')}
+            recoveryAction={{label: t('action.retry'), onPress: () => reminders.refetch()}}
+            diagnosticCode={reminders.error.correlationId}
+          />
+        </View>
       ) : reminders.data.items.length === 0 ? (
-        <EmptyState
-          icon="reminders"
-          title={t('today.empty.title')}
-          body={t('today.empty.body')}
-        />
+        <View style={{flex: 1, paddingTop: appBar.barHeight}}>
+          <EmptyState
+            icon="reminders"
+            title={t('today.empty.title')}
+            body={t('today.empty.body')}
+          />
+        </View>
       ) : (
         <VirtualizedList
           testID={testIds.reminders.list}
           data={reminders.data.items}
           keyExtractor={item => item.id}
           renderItem={renderReminder}
+          ListHeaderComponent={<View style={{height: appBar.barHeight}} />}
+          onScroll={appBar.onScroll}
+          scrollEventThrottle={16}
         />
       )}
 
@@ -228,6 +256,26 @@ export function RemindersScreen() {
           loadErrorLabel={t('library.player.loadError')}
         />
       ) : null}
+
+      <Dialog
+        visible={pendingDelete !== null}
+        title={t('reminders.detail.deleteConfirmTitle')}
+        body={t('reminders.detail.deleteConfirmBody')}
+        destructive
+        cancel={{label: t('action.cancel'), onPress: () => setPendingDelete(null)}}
+        confirm={{
+          label: t('action.delete'),
+          onPress: () => {
+            if (!pendingDelete) {
+              return;
+            }
+            haptics.trigger('warning');
+            const id = pendingDelete.id;
+            setPendingDelete(null);
+            deleteReminder.mutate(id);
+          },
+        }}
+      />
     </Screen>
   );
 }

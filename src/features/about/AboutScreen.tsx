@@ -24,6 +24,7 @@ import {
   Screen,
   Stack,
   Text,
+  useFloatingAppBar,
   useTheme,
 } from '../../design-system';
 import type {IconName} from '../../design-system';
@@ -36,6 +37,7 @@ export function AboutScreen({navigation}: Props) {
   const t = useTranslation();
   const theme = useTheme();
   const startup = useStartupSnapshot();
+  const appBar = useFloatingAppBar();
 
   const heroStyles = StyleSheet.create({
     circle: {
@@ -47,12 +49,21 @@ export function AboutScreen({navigation}: Props) {
   });
 
   return (
-    <Screen hasAppBar scrollable>
-      <AppBar
-        title={t('about.title')}
-        back={{label: t('action.back'), onPress: () => navigation.goBack()}}
-      />
-
+    <Screen
+      hasAppBar
+      scrollable
+      onScroll={appBar.onScroll}
+      scrollEventThrottle={16}
+      contentContainerStyle={{paddingTop: appBar.barHeight}}
+      appBarSlot={
+        <AppBar
+          title={t('about.title')}
+          back={{label: t('action.back'), onPress: () => navigation.goBack()}}
+          floating
+          scrolled={appBar.scrolled}
+          onHeightChange={appBar.onHeightChange}
+        />
+      }>
       <Stack gap="lg" paddingVertical="md" align="center">
         <Stack style={heroStyles.circle} align="center" justify="center">
           <Text variant="headlineMedium" isHeading style={{color: theme.color.onPrimaryContainer}}>

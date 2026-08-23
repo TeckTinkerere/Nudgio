@@ -158,6 +158,7 @@ export const en = {
   // --- Reminders / editor (MR-03) ------------------------------------------
   'reminders.title': 'Reminders',
   'reminders.list.enableToggle': 'Enable {label}',
+  'reminders.list.deleteAction': 'Delete {label}',
   'reminders.editor.what': 'What',
   'reminders.editor.when': 'When',
   'reminders.editor.alertStyle': 'Alert style',
@@ -181,6 +182,9 @@ export const en = {
   'reminders.editor.intervalDaysValue': 'Every {days} days',
   'reminders.editor.increase': 'Increase',
   'reminders.editor.decrease': 'Decrease',
+  'reminders.editor.amPm': 'AM or PM',
+  'reminders.editor.hour': 'Hour',
+  'reminders.editor.minute': 'Minute',
   // Translator note: {time} is the resolved local time after a DST gap.
   'reminders.dst.gap': '{original} does not occur on this date. The reminder will use {resolved}.',
   'reminders.dst.useSecond': 'Use second {time}',
@@ -214,6 +218,11 @@ export const en = {
     "This reminder won't be able to alert you until notifications are enabled for Nudgio.",
   'reminders.editor.notificationsBlockedContinue': 'Save anyway',
   'reminders.editor.notificationsBlockedOpenSettings': 'Open Settings',
+  'reminders.editor.exactAlarmBlockedTitle': 'Exact alarm access is off',
+  'reminders.editor.exactAlarmBlockedBody':
+    'Without it, Android may delay this reminder by several minutes — or drop it entirely on some phones. Turn on "Alarms & reminders" for Nudgio to fire on time.',
+  'reminders.editor.exactAlarmBlockedContinue': 'Save anyway',
+  'reminders.editor.exactAlarmBlockedOpenSettings': 'Open Settings',
   'reminders.detail.title': 'Reminder',
   'reminders.detail.edit': 'Edit',
   'reminders.detail.delete': 'Delete reminder',
