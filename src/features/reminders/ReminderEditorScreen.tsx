@@ -262,6 +262,15 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
   const notificationsBlocked = capability.data?.items.some(
     item => item.kind === 'notifications' && item.status !== 'ready',
   ) ?? false;
+  // Same nag, for the capability that actually determines whether the alarm
+  // fires *on time*: exact-alarm access has no runtime dialog of its own
+  // (Android only offers a Settings deep link) and no other prompt anywhere
+  // in the app ever surfaces it proactively — previously the only way to
+  // notice and fix this was to already know to visit the Health screen.
+  const [exactAlarmWarningOpen, setExactAlarmWarningOpen] = useState(false);
+  const exactAlarmBlocked = capability.data?.items.some(
+    item => item.kind === 'exact_alarm' && item.status !== 'ready',
+  ) ?? false;
 
   const selectedMedia = mediaId
     ? mediaList.data?.items.find(item => item.id === mediaId)
@@ -381,6 +390,19 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
     }
     if (notificationsBlocked) {
       setNotificationsWarningOpen(true);
+      return;
+    }
+    if (exactAlarmBlocked) {
+      setExactAlarmWarningOpen(true);
+      return;
+    }
+    performSave();
+  };
+
+  const continuePastNotificationsWarning = () => {
+    setNotificationsWarningOpen(false);
+    if (exactAlarmBlocked) {
+      setExactAlarmWarningOpen(true);
       return;
     }
     performSave();
@@ -627,16 +649,33 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
         body={t('reminders.editor.notificationsBlockedBody')}
         cancel={{
           label: t('reminders.editor.notificationsBlockedContinue'),
-          onPress: () => {
-            setNotificationsWarningOpen(false);
-            performSave();
-          },
+          onPress: continuePastNotificationsWarning,
         }}
         confirm={{
           label: t('reminders.editor.notificationsBlockedOpenSettings'),
           onPress: () => {
             setNotificationsWarningOpen(false);
             openCapabilitySettings.mutate('notifications');
+          },
+        }}
+      />
+
+      <Dialog
+        visible={exactAlarmWarningOpen}
+        title={t('reminders.editor.exactAlarmBlockedTitle')}
+        body={t('reminders.editor.exactAlarmBlockedBody')}
+        cancel={{
+          label: t('reminders.editor.exactAlarmBlockedContinue'),
+          onPress: () => {
+            setExactAlarmWarningOpen(false);
+            performSave();
+          },
+        }}
+        confirm={{
+          label: t('reminders.editor.exactAlarmBlockedOpenSettings'),
+          onPress: () => {
+            setExactAlarmWarningOpen(false);
+            openCapabilitySettings.mutate('exact_alarm');
           },
         }}
       />
