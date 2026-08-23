@@ -2263,3 +2263,43 @@ orphaned daemons across *every* `GRADLE_USER_HOME` this session has ever
 used, not just the default one — `jps`/process listing plus each daemon's
 own `-cp` argument (which encodes its `GRADLE_USER_HOME`) is enough to spot
 one without needing elevated tooling.
+
+## DL-075 — v1.1.0 release: design-system standardization pass, and a Windows path-length lesson
+
+**Date:** 2026-08-24
+**Context:** A separate git worktree at a deeply nested path
+(`...\.claude\worktrees\<name>\...`) accumulated a design-system
+standardization pass (floating `AppBar`, `WheelPicker`, `SwipeableRow`,
+per-screen consistency) plus onboarding/alarm-permission fixes (exact-alarm
+capability nag on save, alongside the existing notifications one; onboarding
+no longer strands the user on a failed `hasCompletedOnboarding` write).
+Building `assembleRelease` from that worktree failed twice, for two
+*different* reasons that both trace back to path length: (1) the native
+CMake/ninja codegen build for `react-native-screens`/`-svg`/
+`-safe-area-context` exceeded Windows' 260-character path limit —
+`subst X: <worktree>` fixed this, since CMake/ninja use the raw path string
+handed to them; (2) Metro's own bundler then failed with "Failed to get the
+SHA-1" for a file it had just resolved, because Metro's file-watcher
+internally calls `fs.realpath`, which silently resolves a `subst` drive back
+to the real (long) path — so its "watched roots" and its "resolved files"
+disagreed. `subst` only helps native/CMake tooling that treats paths as
+opaque strings; it does not help anything that calls `realpath`.
+**Decision:** Rather than relocate the worktree or chase a Metro-specific
+workaround, merged the worktree's branch into `main` in the primary
+checkout (a short, known-good path) and built there instead. Before doing
+that, found the primary checkout's working tree held a separate, real,
+uncommitted feature (DL-074's optional-media-on-save + a new shared
+`ScreenHeader` component, dated 2026-08-15, never committed) — preserved it
+on its own branch (`wip/optional-media-and-screen-header-2026-08-15`, pushed
+to origin) before touching anything, rather than stashing-and-forgetting or
+merging over it.
+**Consequence:** `app-release.apk` built and signed with the same real
+keystore (`CN=Nudgio`), `versionCode=3`/`versionName=1.1.0`, verified via
+`aapt2 dump badging` (same permission set as DL-073, still zero `INTERNET`).
+Staged at `releases/v1.1.0/Nudgio-1.1.0.apk` + `SHA256SUMS.txt`. DL-074's
+work (optional media, `ScreenHeader`) is **not** in this build — it lives
+only on its preserved branch and still needs review/merge as its own pass.
+Lesson: a git worktree nested under a long harness-managed path is a poor
+place to run a Windows native Android build from; either keep worktrees
+used for Android builds shallow, or plan to build from the primary checkout
+from the start.
