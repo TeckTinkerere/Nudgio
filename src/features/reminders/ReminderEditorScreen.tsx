@@ -47,6 +47,7 @@ import {
   Text,
   TextField,
   Toggle,
+  useFloatingAppBar,
   WeekdaySelector,
 } from '../../design-system';
 import type {IconName} from '../../design-system';
@@ -250,6 +251,7 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
   );
   const [historyEnabled, setHistoryEnabled] = useState(existing?.historyEnabled ?? true);
   const [labelTouched, setLabelTouched] = useState(false);
+  const appBar = useFloatingAppBar();
 
   // Every Save while notifications are blocked shows this nag (not just
   // once) — the user explicitly asked to be reminded each time, since the
@@ -385,12 +387,21 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
   };
 
   return (
-    <Screen hasAppBar scrollable>
-      <AppBar
-        title={isNew ? t('reminders.editor.newTitle') : t('reminders.editor.editTitle')}
-        back={{label: t('action.back'), onPress: () => navigation.goBack()}}
-      />
-
+    <Screen
+      hasAppBar
+      scrollable
+      onScroll={appBar.onScroll}
+      scrollEventThrottle={16}
+      contentContainerStyle={{paddingTop: appBar.barHeight}}
+      appBarSlot={
+        <AppBar
+          title={isNew ? t('reminders.editor.newTitle') : t('reminders.editor.editTitle')}
+          back={{label: t('action.back'), onPress: () => navigation.goBack()}}
+          floating
+          scrolled={appBar.scrolled}
+          onHeightChange={appBar.onHeightChange}
+        />
+      }>
       <Stack gap="xl" paddingVertical="md">
         {/* What */}
         <Stack gap="xs">
@@ -498,10 +509,9 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
             <TimePicker
               value={time}
               onChange={setTime}
-              hourLabel={t('reminders.editor.time')}
-              minuteLabel={t('reminders.editor.time')}
-              increaseLabel={t('reminders.editor.increase')}
-              decreaseLabel={t('reminders.editor.decrease')}
+              hourLabel={t('reminders.editor.hour')}
+              minuteLabel={t('reminders.editor.minute')}
+              amPmLabel={t('reminders.editor.amPm')}
             />
           </Stack>
         </Stack>

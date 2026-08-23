@@ -158,6 +158,7 @@ export const en = {
   // --- Reminders / editor (MR-03) ------------------------------------------
   'reminders.title': 'Reminders',
   'reminders.list.enableToggle': 'Enable {label}',
+  'reminders.list.deleteAction': 'Delete {label}',
   'reminders.editor.what': 'What',
   'reminders.editor.when': 'When',
   'reminders.editor.alertStyle': 'Alert style',
@@ -181,6 +182,9 @@ export const en = {
   'reminders.editor.intervalDaysValue': 'Every {days} days',
   'reminders.editor.increase': 'Increase',
   'reminders.editor.decrease': 'Decrease',
+  'reminders.editor.amPm': 'AM or PM',
+  'reminders.editor.hour': 'Hour',
+  'reminders.editor.minute': 'Minute',
   // Translator note: {time} is the resolved local time after a DST gap.
   'reminders.dst.gap': '{original} does not occur on this date. The reminder will use {resolved}.',
   'reminders.dst.useSecond': 'Use second {time}',
