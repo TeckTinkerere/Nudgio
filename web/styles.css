@@ -189,6 +189,31 @@ main {
   justify-self: center;
 }
 
+.live-clock {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  color: var(--on-surface-variant);
+  transition: color 0.4s ease;
+}
+
+.live-clock.is-alerting {
+  color: var(--primary);
+  animation: clock-pulse 1s ease-in-out infinite;
+}
+
+@keyframes clock-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
 .dial {
   display: inline-flex;
   flex-direction: column;
@@ -199,14 +224,34 @@ main {
   outline-offset: 6px;
 }
 
+.dial__ring {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(238px, 27.5vw, 288px);
+  height: clamp(238px, 27.5vw, 288px);
+}
+
+.dial__pulse {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 .dial__ticks {
+  position: relative;
+  z-index: 1;
   width: clamp(190px, 22vw, 230px);
   height: clamp(190px, 22vw, 230px);
   transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.4s ease;
 }
 
 .dial:hover .dial__ticks,
-.dial:focus-visible .dial__ticks {
+.dial:focus-visible .dial__ticks,
+.dial.is-alerting .dial__ticks {
   transform: scale(1.045) rotate(4deg);
   filter: drop-shadow(0 0 26px var(--primary-glow));
 }
@@ -235,7 +280,8 @@ main {
 }
 
 .dial:hover .dial__play,
-.dial:focus-visible .dial__play {
+.dial:focus-visible .dial__play,
+.dial.is-alerting .dial__play {
   fill: var(--primary);
 }
 
@@ -252,7 +298,8 @@ main {
 }
 
 .dial:hover .dial__label,
-.dial:focus-visible .dial__label {
+.dial:focus-visible .dial__label,
+.dial.is-alerting .dial__label {
   border-color: var(--primary);
   color: var(--primary);
   background: rgba(94, 219, 200, 0.08);
