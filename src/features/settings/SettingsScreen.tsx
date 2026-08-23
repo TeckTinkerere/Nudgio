@@ -21,7 +21,6 @@ import {testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
 import {appConfig} from '../../core/config/appConfig';
 import {
-  AppBar,
   Button,
   Chip,
   ChipRow,
@@ -29,6 +28,7 @@ import {
   Icon,
   ListRow,
   Screen,
+  ScreenHeader,
   SegmentedControl,
   Stack,
   StatusPill,
@@ -156,8 +156,8 @@ export function SettingsScreen() {
   };
 
   return (
-    <Screen hasAppBar scrollable testID={testIds.settings.screen}>
-      <AppBar title={t('settings.title')} />
+    <Screen scrollable testID={testIds.settings.screen}>
+      <ScreenHeader title={t('settings.title')} />
 
       <Stack gap="xl" paddingVertical="md">
         {/* Appearance */}

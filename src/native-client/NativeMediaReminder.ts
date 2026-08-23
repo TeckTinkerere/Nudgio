@@ -233,7 +233,7 @@ export interface ReminderPageWire {
 export interface SaveReminderRequestWire {
   readonly id?: string;
   readonly entityVersion?: number;
-  readonly mediaId: string;
+  readonly mediaId?: string;
   readonly label: string;
   readonly notes?: string;
   readonly schedule: ScheduleRuleWire;

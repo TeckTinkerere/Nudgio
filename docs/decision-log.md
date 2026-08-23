@@ -2263,3 +2263,19 @@ orphaned daemons across *every* `GRADLE_USER_HOME` this session has ever
 used, not just the default one — `jps`/process listing plus each daemon's
 own `-cp` argument (which encodes its `GRADLE_USER_HOME`) is enough to spot
 one without needing elevated tooling.
+
+## DL-074 — Optional media on save becomes an app-owned text asset
+
+**Date:** 2026-08-15
+**Context:** The first-reminder path must not require importing media. Room
+still has a NOT NULL `reminders.media_id` column with no schema/ADR change
+in this pass.
+**Decision:** The editor treats media as optional. When `mediaId` is omitted,
+`ReminderMutationService.save` writes a UTF-8 `.txt` file under app-private
+storage and inserts a `KIND_TEXT` `media_assets` row in the same transaction
+as the reminder. Demo `saveReminder` mirrors that with an in-memory text
+asset. Statistics stay empty rather than showing `mockStatistics`.
+**Consequence:** Users can create a reminder from Upcoming/Reminders without
+Library import. The Library may show a text note titled from the reminder
+label. A later schema that allows nullable `media_id` would retire this
+placeholder insert; until then the FK remains honest.

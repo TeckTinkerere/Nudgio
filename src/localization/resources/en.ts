@@ -22,7 +22,7 @@ export const en = {
   'add.sheetTitle': 'Add',
   'add.importMediaSubtitle': 'Bring a video, audio or image into your library',
   'add.createReminder': 'Create reminder',
-  'add.createReminderSubtitle': 'Schedule something from your library',
+  'add.createReminderSubtitle': 'Choose a time. Media is optional.',
 
   // --- Onboarding --------------------------------------------------------------
   'onboarding.purpose.title': 'Make local media useful at the right moment',
@@ -36,7 +36,7 @@ export const en = {
   'onboarding.permissions.title': 'Permissions, only when needed',
   'onboarding.permissions.body':
     "You'll be asked for notification and exact-alarm permissions the first time they're actually needed to schedule a reminder — never upfront, and never for anything else.",
-  'onboarding.start': 'Start with my library',
+  'onboarding.start': 'Get started',
   'onboarding.back': 'Back',
   'onboarding.skip': 'Skip',
   // Translator note: {current}/{total} are 1-based page numbers, e.g. "1 of 3".
@@ -48,7 +48,9 @@ export const en = {
   'today.status.actionNeeded': 'Action needed',
   'today.status.limitedTiming': 'Limited timing',
   'today.empty.title': 'No reminders scheduled',
-  'today.empty.body': 'Import something meaningful, then choose when it should return.',
+  'today.empty.body':
+    'Create a reminder for a time that matters. You can attach a video, audio or image if you want.',
+  'today.empty.createReminder': 'Create reminder',
   'today.empty.importMedia': 'Import media',
   'today.empty.createTextCard': 'Create reminder from a text card',
   'today.capability.exactTimingOff.title': 'Exact timing is off',
@@ -62,7 +64,9 @@ export const en = {
   'today.nextReminder.weekdayAt': '{weekday} at {time}',
   'today.playPreview': 'Play',
   'today.edit': 'Edit',
-  'today.more': 'More',
+  'today.actions': 'Reminder actions',
+  'today.viewDetails': 'View details',
+  'today.restOfWeekEmpty': 'Nothing else in the next five days',
   // The date-section heading text itself, not the page title — spec:
   // "Do not rename date-section headings. The first schedule section should
   // still be called TODAY." Rendered visually upper-cased; the base string
@@ -157,6 +161,9 @@ export const en = {
 
   // --- Reminders / editor (MR-03) ------------------------------------------
   'reminders.title': 'Reminders',
+  'reminders.empty.title': 'There are no reminders yet',
+  'reminders.empty.body': 'Create a reminder. Attach media from your library if you want it to play at that time.',
+  'reminders.empty.createReminder': 'Create reminder',
   'reminders.list.enableToggle': 'Enable {label}',
   'reminders.editor.what': 'What',
   'reminders.editor.when': 'When',
@@ -190,7 +197,8 @@ export const en = {
   'reminders.editor.updateSuccess': 'Reminder updated successfully.',
   'reminders.editor.mediaSection': 'Media',
   'reminders.editor.changeMedia': 'Change media',
-  'reminders.editor.chooseMedia': 'Choose media',
+  'reminders.editor.chooseMedia': 'Add media (optional)',
+  'reminders.editor.removeMedia': 'Remove media',
   'reminders.selectMedia.title': 'Select media',
   'reminders.selectMedia.useThis': 'Use this',
   'reminders.editor.label': 'Label',
@@ -198,6 +206,9 @@ export const en = {
   'reminders.editor.notesPlaceholder': 'Optional notes',
   'reminders.editor.date': 'Date',
   'reminders.editor.time': 'Time',
+  'reminders.editor.period': 'AM or PM',
+  'reminders.editor.periodAm': 'AM',
+  'reminders.editor.periodPm': 'PM',
   'reminders.editor.weekdays': 'Repeat on',
   'reminders.editor.snoozeDefault': 'Default snooze',
   // Translator note: {minutes} is a plain integer.
@@ -254,6 +265,8 @@ export const en = {
   'due.play': 'Play',
   'due.snooze': 'Snooze',
   'due.dismiss': 'Dismiss',
+  'due.accept': 'Play',
+  'due.collapse': 'Hide reminder card',
   // Translator note: {time} is the resolved absolute time, e.g. "6:25 AM".
   'due.snoozedUntil': 'Snoozed until {time}',
   'due.silenceSound': 'Silence sound',

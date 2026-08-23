@@ -6,16 +6,9 @@
  * only renders the tab *set*, and `AppTabBar`/`AppNavigationRail` (rendered by
  * the navigator's `tabBar` override) decide the chrome.
  *
- * Also owns the global "Add" FAB (MR-03: "A floating action button labeled
- * Add opens a modal action sheet with Import media, Create reminder...").
- * Mounted once here rather than duplicated on Today/Library/Reminders: it is
- * chrome, visible across every tab, not a per-screen affordance, and a single
- * `useImportMedia()` instance means its progress/error state has exactly one
- * source of truth regardless of which tab is focused when an import
- * finishes. `TabNavigator` is registered as a plain `Stack.Screen` in
- * `RootNavigator`, so it already receives root-stack `navigation` as a prop —
- * used for "Create reminder" — without needing `useNavigation()` to resolve
- * through the nested `Tab.Navigator`'s own context.
+ * Owns a contextual FAB: create reminder on Upcoming/Reminders, import on
+ * Library, hidden on Settings. A single `useImportMedia()` instance keeps
+ * import progress/error in one place.
  */
 import type {BottomTabBarProps} from '@react-navigation/bottom-tabs';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
@@ -24,7 +17,6 @@ import {useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 import {SafeAreaInsetsContext, useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {AddActionSheet} from './AddActionSheet';
 import {AppTabBar} from './AppTabBar';
 import type {RootStackParamList, TabParamList} from './types';
 import {rootRoutes, tabRoutes} from '../../constants/routes';
@@ -101,14 +93,29 @@ export function TabNavigator({navigation}: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const importMedia = useImportMedia();
-  const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const [focusedTab, setFocusedTab] = useState<string>(tabRoutes.today);
+
+  const showFab = focusedTab !== tabRoutes.settings;
+  const libraryFocused = focusedTab === tabRoutes.library;
 
   return (
     <View style={styles.fill}>
       <Tab.Navigator
         screenOptions={{headerShown: false}}
         tabBar={renderTabBar}
-        screenLayout={renderScreenLayout}>
+        screenLayout={renderScreenLayout}
+        screenListeners={{
+          state: event => {
+            const state = event.data.state;
+            if (!state) {
+              return;
+            }
+            const route = state.routes[state.index];
+            if (route) {
+              setFocusedTab(route.name);
+            }
+          },
+        }}>
         <Tab.Screen name={tabRoutes.today} component={UpcomingScreen} />
         <Tab.Screen name={tabRoutes.library} component={LibraryScreen} />
         <Tab.Screen name={tabRoutes.reminders} component={RemindersScreen} />
@@ -132,28 +139,21 @@ export function TabNavigator({navigation}: Props) {
             label={t(importPhaseLabelKey(importMedia.progress?.phase) ?? 'library.import.copying')}
           />
         </View>
-      ) : (
+      ) : showFab ? (
         <FAB
           testID="add-fab"
-          icon="add"
-          label={t('nav.add')}
-          onPress={() => setAddSheetOpen(true)}
+          icon={libraryFocused ? 'library' : 'add'}
+          label={libraryFocused ? t('today.empty.importMedia') : t('add.createReminder')}
+          onPress={() => {
+            if (libraryFocused) {
+              importMedia.importMedia();
+              return;
+            }
+            navigation.navigate(rootRoutes.reminderEditor, {reminderId: undefined});
+          }}
           bottomOffset={FAB_BOTTOM_OFFSET + insets.bottom}
         />
-      )}
-
-      <AddActionSheet
-        visible={addSheetOpen}
-        onDismiss={() => setAddSheetOpen(false)}
-        onImportMedia={() => {
-          setAddSheetOpen(false);
-          importMedia.importMedia();
-        }}
-        onCreateReminder={() => {
-          setAddSheetOpen(false);
-          navigation.navigate(rootRoutes.reminderEditor, {reminderId: undefined});
-        }}
-      />
+      ) : null}
 
       {importMedia.error ? (
         <Dialog

@@ -19,7 +19,7 @@
  */
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useEffect, useMemo, useState} from 'react';
-import {Image, StyleSheet} from 'react-native';
+import {Image, ScrollView, StyleSheet, View} from 'react-native';
 
 import {NumberStepper} from './NumberStepper';
 import {PROFILE_DESCRIPTION_KEY, PROFILE_ICON} from './profileDisplay';
@@ -42,17 +42,14 @@ import {
   LoadingState,
   RadioCard,
   Screen,
-  Stack,
-  StatusPill,
-  Text,
   TextField,
   Toggle,
   WeekdaySelector,
 } from '../../design-system';
 import type {IconName} from '../../design-system';
 import {useTheme} from '../../design-system/theme/useTheme';
-import {useCapabilitySnapshot, useMediaList, useOpenCapabilitySettings, useProfiles} from '../../hooks';
-import {useTranslation, type TranslationKey} from '../../localization';
+import {useCapabilitySnapshot, useMediaList, useOpenCapabilitySettings, usePreferences, useProfiles} from '../../hooks';
+import {formatLocalTime, useTranslation, type TranslationKey} from '../../localization';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import {isBuiltInProfileNameKey} from '../../native-client/reminderProfileNameKeys';
 import type {
@@ -99,21 +96,38 @@ const MEDIA_KIND_ICON: Record<MediaKind, IconName> = {
 };
 
 
-const to24Hour = (time: TimeOfDayValue): {hour: number; minute: number} => {
-  const hour24 =
-    time.period === 'AM'
-      ? time.hour === 12
-        ? 0
-        : time.hour
-      : time.hour === 12
-        ? 12
-        : time.hour + 12;
-  return {hour: hour24, minute: time.minute};
+const toLocalTime = (time: TimeOfDayValue): LocalTime =>
+  `${time.hour.toString().padStart(2, '0')}:${time.minute.toString().padStart(2, '0')}:00` as LocalTime;
+
+const clockFromLocalTime = (localTime: string | undefined): TimeOfDayValue => {
+  if (!localTime) {
+    return {hour: 6, minute: 15};
+  }
+  const [hourPart, minutePart] = localTime.split(':');
+  const hour = Number(hourPart);
+  const minute = Number(minutePart);
+  return {
+    hour: Number.isFinite(hour) ? hour : 6,
+    minute: Number.isFinite(minute) ? minute - (minute % 5) : 15,
+  };
 };
 
-const toLocalTime = (time: TimeOfDayValue): LocalTime => {
-  const {hour, minute} = to24Hour(time);
-  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:00` as LocalTime;
+const clockFromInstant = (instant: string | undefined): TimeOfDayValue => {
+  if (!instant) {
+    return {hour: 6, minute: 15};
+  }
+  const date = new Date(instant);
+  return {hour: date.getHours(), minute: date.getMinutes() - (date.getMinutes() % 5)};
+};
+
+const initialClock = (existing: ReminderDetail | undefined): TimeOfDayValue => {
+  if (!existing) {
+    return {hour: 6, minute: 15};
+  }
+  if (existing.schedule.type === 'once') {
+    return clockFromInstant(existing.schedule.instant);
+  }
+  return clockFromLocalTime(existing.schedule.localTime);
 };
 
 const monthName = (month: number): string =>
@@ -215,9 +229,8 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
   const isNew = existing === undefined;
   const saveReminder = useSaveReminder();
 
-  // No mock fallback: an unset `mediaId` correctly leaves `isValid` false
-  // (below) until the user picks a real item, rather than silently pointing
-  // a saved reminder at a fixture id that does not exist in Room.
+  // Media is optional. Native save inserts a text asset when `mediaId` is
+  // omitted so the Room FK stays satisfied without forcing an import.
   const [mediaId, setMediaId] = useState(existing?.mediaId ?? prefillMediaId);
   // `prefillMediaId` doubles as this screen's own "return value" from
   // `SelectMediaScreen`: confirming a pick there merges a new `mediaId` into
@@ -239,7 +252,7 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
   const [label, setLabel] = useState(existing?.label ?? '');
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [repeatType, setRepeatType] = useState<RepeatType>(existing?.schedule.type ?? 'daily');
-  const [time, setTime] = useState<TimeOfDayValue>({hour: 6, minute: 15, period: 'AM'});
+  const [time, setTime] = useState<TimeOfDayValue>(() => initialClock(existing));
   const [weekdays, setWeekdays] = useState<readonly number[]>([1, 2, 3, 4, 5]);
   const [dayOfMonth, setDayOfMonth] = useState(1);
   const [month, setMonth] = useState(new Date().getMonth() + 1);
@@ -249,6 +262,8 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
     existing?.snooze.defaultMinutes ?? appConfig.snooze.presetMinutes[1],
   );
   const [historyEnabled, setHistoryEnabled] = useState(existing?.historyEnabled ?? true);
+  const preferences = usePreferences();
+  const use24Hour = preferences.data?.use24HourTime ?? null;
   const [labelTouched, setLabelTouched] = useState(false);
 
   // Every Save while notifications are blocked shows this nag (not just
@@ -276,9 +291,8 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
     const localTime = toLocalTime(time);
     switch (repeatType) {
       case 'once': {
-        const {hour, minute} = to24Hour(time);
         const next = new Date();
-        next.setHours(hour, minute, 0, 0);
+        next.setHours(time.hour, time.minute, 0, 0);
         if (next.getTime() <= Date.now()) {
           next.setDate(next.getDate() + 1);
         }
@@ -308,9 +322,8 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
   }, [repeatType, time, weekdays, dayOfMonth, month, intervalDays]);
 
   const previewText = useMemo(() => {
-    const {hour, minute} = to24Hour(time);
     const next = new Date();
-    next.setHours(hour, minute, 0, 0);
+    next.setHours(time.hour, time.minute, 0, 0);
     if (next.getTime() <= Date.now()) {
       next.setDate(next.getDate() + 1);
     }
@@ -343,20 +356,27 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
       next.setDate(next.getDate());
     }
     const date = new Intl.DateTimeFormat(undefined, {weekday: 'long', day: 'numeric', month: 'long'}).format(next);
-    const timeLabel = new Intl.DateTimeFormat(undefined, {hour: 'numeric', minute: '2-digit'}).format(next);
+    const timeLabel = formatLocalTime(next, use24Hour);
     return t('reminders.editor.previewNext', {date, time: timeLabel});
-  }, [t, time, repeatType, weekdays, dayOfMonth, month]);
+  }, [t, time, repeatType, weekdays, dayOfMonth, month, use24Hour]);
 
-  const isValid = label.trim().length > 0 && selectedMedia !== undefined;
+  const isValid = label.trim().length > 0 && profileId !== undefined;
+
+  useEffect(() => {
+    if (!isNew || labelTouched || label.trim().length > 0 || selectedMedia === undefined) {
+      return;
+    }
+    setLabel(selectedMedia.title);
+  }, [isNew, label, labelTouched, selectedMedia]);
 
   const performSave = () => {
-    if (!selectedMedia || !profileId) {
+    if (!profileId) {
       return;
     }
     saveReminder.mutate(
       {
         id: existing?.id,
-        mediaId: selectedMedia.id,
+        ...(selectedMedia ? {mediaId: selectedMedia.id} : {}),
         label: label.trim(),
         notes: notes.trim().length > 0 ? notes.trim() : undefined,
         schedule: scheduleRule,
@@ -374,7 +394,7 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
   };
 
   const handleSave = () => {
-    if (!isValid || !selectedMedia || !profileId) {
+    if (!isValid || !profileId) {
       return;
     }
     if (notificationsBlocked) {
@@ -385,167 +405,18 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
   };
 
   return (
-    <Screen hasAppBar scrollable>
+    <Screen hasAppBar>
       <AppBar
         title={isNew ? t('reminders.editor.newTitle') : t('reminders.editor.editTitle')}
         back={{label: t('action.back'), onPress: () => navigation.goBack()}}
       />
 
-      <Stack gap="xl" paddingVertical="md">
-        {/* What */}
-        <Stack gap="xs">
-          <Text variant="titleLarge">{t('reminders.editor.what')}</Text>
-          {selectedMedia ? (
-            <MediaWhatCard
-              media={selectedMedia}
-              changeLabel={t('reminders.editor.changeMedia')}
-              onPress={() => navigation.navigate(rootRoutes.selectMedia, {selectedMediaId: mediaId})}
-            />
-          ) : (
-            <Button
-              label={t('reminders.editor.chooseMedia')}
-              variant="outlined"
-              onPress={() => navigation.navigate(rootRoutes.selectMedia, {selectedMediaId: mediaId})}
-            />
-          )}
-        </Stack>
-
-        {/* When */}
-        <Stack gap="xs">
-          <Text variant="titleLarge">{t('reminders.editor.when')}</Text>
-          <Stack direction="row" gap="xxs" wrap accessibilityLabel={t('reminders.editor.when')}>
-            {REPEAT_TYPES.map(type => (
-              <Chip
-                key={type}
-                label={t(REPEAT_LABEL_KEY[type])}
-                selected={repeatType === type}
-                onPress={() => setRepeatType(type)}
-              />
-            ))}
-          </Stack>
-
-          {repeatType === 'weekdays' ? (
-            <Stack gap="xxs">
-              <Text variant="labelLarge" tone="variant">
-                {t('reminders.editor.weekdays')}
-              </Text>
-              <WeekdaySelector
-                options={weekdayOptions(t)}
-                selected={weekdays}
-                onChange={setWeekdays}
-              />
-            </Stack>
-          ) : null}
-
-          {repeatType === 'monthly' || repeatType === 'yearly' ? (
-            <Stack direction="row" gap="lg">
-              {repeatType === 'yearly' ? (
-                <Stack gap="xxs" align="center">
-                  <Text variant="labelLarge" tone="variant">
-                    {t('reminders.editor.month')}
-                  </Text>
-                  <NumberStepper
-                    value={month}
-                    onChange={setMonth}
-                    min={1}
-                    max={12}
-                    formatValue={monthName}
-                    accessibleLabel={`${t('reminders.editor.month')}: ${monthName(month)}`}
-                    increaseLabel={t('reminders.editor.increase')}
-                    decreaseLabel={t('reminders.editor.decrease')}
-                  />
-                </Stack>
-              ) : null}
-              <Stack gap="xxs" align="center">
-                <Text variant="labelLarge" tone="variant">
-                  {t('reminders.editor.dayOfMonth')}
-                </Text>
-                <NumberStepper
-                  value={dayOfMonth}
-                  onChange={setDayOfMonth}
-                  min={1}
-                  max={31}
-                  accessibleLabel={`${t('reminders.editor.dayOfMonth')}: ${dayOfMonth}`}
-                  increaseLabel={t('reminders.editor.increase')}
-                  decreaseLabel={t('reminders.editor.decrease')}
-                />
-              </Stack>
-            </Stack>
-          ) : null}
-
-          {repeatType === 'custom' ? (
-            <Stack gap="xxs" align="center">
-              <Text variant="labelLarge" tone="variant">
-                {t('reminders.editor.intervalDays')}
-              </Text>
-              <NumberStepper
-                value={intervalDays}
-                onChange={setIntervalDays}
-                min={1}
-                max={365}
-                formatValue={days => t('reminders.editor.intervalDaysValue', {days})}
-                accessibleLabel={t('reminders.editor.intervalDaysValue', {days: intervalDays})}
-                increaseLabel={t('reminders.editor.increase')}
-                decreaseLabel={t('reminders.editor.decrease')}
-              />
-            </Stack>
-          ) : null}
-
-          <Stack gap="xxs">
-            <Text variant="labelLarge" tone="variant">
-              {t('reminders.editor.time')}
-            </Text>
-            <TimePicker
-              value={time}
-              onChange={setTime}
-              hourLabel={t('reminders.editor.time')}
-              minuteLabel={t('reminders.editor.time')}
-              increaseLabel={t('reminders.editor.increase')}
-              decreaseLabel={t('reminders.editor.decrease')}
-            />
-          </Stack>
-        </Stack>
-
-        {/* Alert style */}
-        <Stack gap="xs">
-          <Text variant="titleLarge">{t('reminders.editor.alertStyle')}</Text>
-          <Stack gap="xs" accessibilityLabel={t('reminders.editor.alertStyle')}>
-            {profiles.map(profile => (
-              <RadioCard
-                key={profile.id}
-                title={isBuiltInProfileNameKey(profile.nameKey) ? t(profile.nameKey) : profile.nameKey}
-                description={t(PROFILE_DESCRIPTION_KEY[profile.nameKey] ?? 'profile.gentle.description')}
-                icon={PROFILE_ICON[profile.nameKey] ?? 'notification'}
-                selected={profile.id === profileId}
-                onPress={() => setProfileId(profile.id)}
-                notice={
-                  profile.nameKey === 'profile.persistent.name'
-                    ? t('profile.persistent.notice')
-                    : undefined
-                }
-              />
-            ))}
-          </Stack>
-        </Stack>
-
-        {/* Snooze */}
-        <Stack gap="xs">
-          <Text variant="titleLarge">{t('reminders.editor.snooze')}</Text>
-          <Stack direction="row" gap="xxs" wrap accessibilityLabel={t('reminders.editor.snoozeDefault')}>
-            {appConfig.snooze.presetMinutes.map(minutes => (
-              <Chip
-                key={minutes}
-                label={t('reminders.editor.snoozeMinutes', {minutes})}
-                selected={snoozeMinutes === minutes}
-                onPress={() => setSnoozeMinutes(minutes)}
-              />
-            ))}
-          </Stack>
-        </Stack>
-
-        {/* Options */}
-        <Stack gap="sm">
-          <Text variant="titleLarge">{t('reminders.editor.options')}</Text>
+      <ScrollView
+        style={styles.flexFill}
+        contentContainerStyle={styles.formScroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator>
+        <Stack gap="xl" paddingVertical="md">
           <TextField
             label={t('reminders.editor.label')}
             placeholder={t('reminders.editor.labelPlaceholder')}
@@ -557,59 +428,219 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
             required
             error={labelTouched && label.trim().length === 0 ? t('reminders.editor.validationLabelRequired') : undefined}
           />
-          <TextField
-            label={t('library.detail.notes')}
-            placeholder={t('reminders.editor.notesPlaceholder')}
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-          />
-          <Stack direction="row" align="center" justify="space-between">
-            <Stack style={styles.flexFill} gap={2}>
-              <Text variant="titleMedium">{t('reminders.editor.historyToggle')}</Text>
-              <Text variant="bodyMedium" tone="variant">
-                {t('reminders.editor.historyHelper')}
-              </Text>
-            </Stack>
-            <Toggle
-              value={historyEnabled}
-              onValueChange={setHistoryEnabled}
-              label={t('reminders.editor.historyToggle')}
-            />
+
+          <Stack gap="xs">
+            <Text variant="titleLarge">{t('reminders.editor.mediaSection')}</Text>
+            {selectedMedia ? (
+              <Stack gap="xxs">
+                <MediaWhatCard
+                  media={selectedMedia}
+                  changeLabel={t('reminders.editor.changeMedia')}
+                  onPress={() => navigation.navigate(rootRoutes.selectMedia, {selectedMediaId: mediaId})}
+                />
+                {isNew ? (
+                  <Button
+                    label={t('reminders.editor.removeMedia')}
+                    variant="text"
+                    onPress={() => setMediaId(undefined)}
+                  />
+                ) : null}
+              </Stack>
+            ) : (
+              <Button
+                label={t('reminders.editor.chooseMedia')}
+                variant="outlined"
+                onPress={() => navigation.navigate(rootRoutes.selectMedia, {selectedMediaId: mediaId})}
+              />
+            )}
           </Stack>
+
+          <Stack gap="xs">
+            <Text variant="titleLarge">{t('reminders.editor.when')}</Text>
+            <Stack direction="row" gap="xxs" wrap accessibilityLabel={t('reminders.editor.when')}>
+              {REPEAT_TYPES.map(type => (
+                <Chip
+                  key={type}
+                  label={t(REPEAT_LABEL_KEY[type])}
+                  selected={repeatType === type}
+                  onPress={() => setRepeatType(type)}
+                />
+              ))}
+            </Stack>
+
+            {repeatType === 'weekdays' ? (
+              <Stack gap="xxs">
+                <Text variant="labelLarge" tone="variant">
+                  {t('reminders.editor.weekdays')}
+                </Text>
+                <WeekdaySelector
+                  options={weekdayOptions(t)}
+                  selected={weekdays}
+                  onChange={setWeekdays}
+                />
+              </Stack>
+            ) : null}
+
+            {repeatType === 'monthly' || repeatType === 'yearly' ? (
+              <Stack direction="row" gap="lg">
+                {repeatType === 'yearly' ? (
+                  <Stack gap="xxs" align="center">
+                    <Text variant="labelLarge" tone="variant">
+                      {t('reminders.editor.month')}
+                    </Text>
+                    <NumberStepper
+                      value={month}
+                      onChange={setMonth}
+                      min={1}
+                      max={12}
+                      formatValue={monthName}
+                      accessibleLabel={`${t('reminders.editor.month')}: ${monthName(month)}`}
+                      increaseLabel={t('reminders.editor.increase')}
+                      decreaseLabel={t('reminders.editor.decrease')}
+                    />
+                  </Stack>
+                ) : null}
+                <Stack gap="xxs" align="center">
+                  <Text variant="labelLarge" tone="variant">
+                    {t('reminders.editor.dayOfMonth')}
+                  </Text>
+                  <NumberStepper
+                    value={dayOfMonth}
+                    onChange={setDayOfMonth}
+                    min={1}
+                    max={31}
+                    accessibleLabel={`${t('reminders.editor.dayOfMonth')}: ${dayOfMonth}`}
+                    increaseLabel={t('reminders.editor.increase')}
+                    decreaseLabel={t('reminders.editor.decrease')}
+                  />
+                </Stack>
+              </Stack>
+            ) : null}
+
+            {repeatType === 'custom' ? (
+              <Stack gap="xxs" align="center">
+                <Text variant="labelLarge" tone="variant">
+                  {t('reminders.editor.intervalDays')}
+                </Text>
+                <NumberStepper
+                  value={intervalDays}
+                  onChange={setIntervalDays}
+                  min={1}
+                  max={365}
+                  formatValue={days => t('reminders.editor.intervalDaysValue', {days})}
+                  accessibleLabel={t('reminders.editor.intervalDaysValue', {days: intervalDays})}
+                  increaseLabel={t('reminders.editor.increase')}
+                  decreaseLabel={t('reminders.editor.decrease')}
+                />
+              </Stack>
+            ) : null}
+
+            <Stack gap="xxs">
+              <Text variant="labelLarge" tone="variant">
+                {t('reminders.editor.time')}
+              </Text>
+              <TimePicker
+                value={time}
+                onChange={setTime}
+                use24Hour={use24Hour}
+                hourLabel={t('reminders.editor.time')}
+                minuteLabel={t('reminders.editor.time')}
+                periodLabel={t('reminders.editor.period')}
+                amLabel={t('reminders.editor.periodAm')}
+                pmLabel={t('reminders.editor.periodPm')}
+                increaseLabel={t('reminders.editor.increase')}
+                decreaseLabel={t('reminders.editor.decrease')}
+              />
+            </Stack>
+          </Stack>
+
+          <Stack gap="xs">
+            <Text variant="titleLarge">{t('reminders.editor.alertStyle')}</Text>
+            <Stack gap="xs" accessibilityLabel={t('reminders.editor.alertStyle')}>
+              {profiles.map(profile => (
+                <RadioCard
+                  key={profile.id}
+                  title={isBuiltInProfileNameKey(profile.nameKey) ? t(profile.nameKey) : profile.nameKey}
+                  description={t(PROFILE_DESCRIPTION_KEY[profile.nameKey] ?? 'profile.gentle.description')}
+                  icon={PROFILE_ICON[profile.nameKey] ?? 'notification'}
+                  selected={profile.id === profileId}
+                  onPress={() => setProfileId(profile.id)}
+                  notice={
+                    profile.nameKey === 'profile.persistent.name'
+                      ? t('profile.persistent.notice')
+                      : undefined
+                  }
+                />
+              ))}
+            </Stack>
+          </Stack>
+
+          <Stack gap="xs">
+            <Text variant="titleLarge">{t('reminders.editor.snooze')}</Text>
+            <Stack direction="row" gap="xxs" wrap accessibilityLabel={t('reminders.editor.snoozeDefault')}>
+              {appConfig.snooze.presetMinutes.map(minutes => (
+                <Chip
+                  key={minutes}
+                  label={t('reminders.editor.snoozeMinutes', {minutes})}
+                  selected={snoozeMinutes === minutes}
+                  onPress={() => setSnoozeMinutes(minutes)}
+                />
+              ))}
+            </Stack>
+          </Stack>
+
+          <Stack gap="sm">
+            <Text variant="titleLarge">{t('reminders.editor.options')}</Text>
+            <TextField
+              label={t('library.detail.notes')}
+              placeholder={t('reminders.editor.notesPlaceholder')}
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+            />
+            <Stack direction="row" align="center" justify="space-between">
+              <Stack style={styles.flexFill} gap={2}>
+                <Text variant="titleMedium">{t('reminders.editor.historyToggle')}</Text>
+                <Text variant="bodyMedium" tone="variant">
+                  {t('reminders.editor.historyHelper')}
+                </Text>
+              </Stack>
+              <Toggle
+                value={historyEnabled}
+                onValueChange={setHistoryEnabled}
+                label={t('reminders.editor.historyToggle')}
+              />
+            </Stack>
+          </Stack>
+
+          <Stack gap="xs">
+            <Text variant="titleLarge">{t('reminders.editor.preview')}</Text>
+            <Card>
+              <Text variant="titleMedium">{previewText}</Text>
+            </Card>
+          </Stack>
+
+          {saveReminder.isError ? (
+            <Banner
+              kind="actionNeeded"
+              title={t('error.unexpected.title')}
+              effect={t('error.unexpected.effect')}
+              diagnosticCode={saveReminder.error.correlationId}
+            />
+          ) : null}
         </Stack>
+      </ScrollView>
 
-        {/* Preview */}
-        <Stack gap="xs">
-          <Text variant="titleLarge">{t('reminders.editor.preview')}</Text>
-          <Card>
-            <Text variant="titleMedium">{previewText}</Text>
-            <StatusPill kind="ready" label={t('today.status.ready')} />
-          </Card>
-        </Stack>
-
-        {saveReminder.isError ? (
-          <Banner
-            kind="actionNeeded"
-            title={t('error.unexpected.title')}
-            effect={t('error.unexpected.effect')}
-            diagnosticCode={saveReminder.error.correlationId}
-          />
-        ) : null}
-
+      <View style={styles.saveBar}>
         <Button
           label={t('reminders.editor.save')}
           onPress={handleSave}
           loading={saveReminder.isPending}
           disabled={!isValid}
-          disabledReason={
-            !selectedMedia
-              ? t('reminders.editor.validationMediaRequired')
-              : t('reminders.editor.validationLabelRequired')
-          }
+          disabledReason={t('reminders.editor.validationLabelRequired')}
           fullWidth
         />
-      </Stack>
+      </View>
 
       <Dialog
         visible={notificationsWarningOpen}
@@ -693,4 +724,6 @@ function MediaWhatCard({media, changeLabel, onPress}: MediaWhatCardProps) {
 
 const styles = StyleSheet.create({
   flexFill: {flex: 1},
+  formScroll: {paddingBottom: 24},
+  saveBar: {paddingHorizontal: 16, paddingVertical: 12},
 });

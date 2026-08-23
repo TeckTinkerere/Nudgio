@@ -50,7 +50,7 @@ export function FAB({icon, label, onPress, bottomOffset = DEFAULT_MARGIN, testID
           bottom: bottomOffset,
           backgroundColor: theme.color.primaryContainer,
           elevation: theme.elevation.level3,
-          borderRadius: theme.radius.card,
+          borderRadius: theme.radius.full,
           opacity: pressed ? 0.92 : 1,
         },
       ]}>

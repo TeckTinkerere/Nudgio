@@ -54,6 +54,16 @@ export const layout = {
   focusRingWidth: 2,
   /** Default hairline/divider and outlined-control border. */
   borderWidth: 1,
+
+  /** M3 standard FAB size. */
+  fabSize: 56,
+  /** Margin between FAB and the trailing content edge. */
+  fabMargin: spacing.md,
+  /**
+   * Extra list/scroll padding so the last row clears a 56 dp FAB plus its
+   * margin. Tab chrome is already consumed by AppTabBar; this is only the FAB.
+   */
+  fabClearance: 56 + spacing.md,
 } as const;
 
 /**

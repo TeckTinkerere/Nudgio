@@ -24,11 +24,13 @@ import {
 
 import {useSessionStore, type InAppDueBanner} from '../core/state/sessionStore';
 import {Button} from '../design-system/components/Button';
+import {IconButton} from '../design-system/components/IconButton';
 import {Text} from '../design-system/components/Text';
 import {Icon} from '../design-system/icons';
 import {useSurfaceStyle, useTheme} from '../design-system/theme/useTheme';
 import {inAppStripMaxHeight} from '../design-system/tokens';
 import {useHaptics, useMotionDuration} from '../hooks';
+import {useTranslation} from '../localization';
 import {useAppContainer} from './di/useAppContainer';
 
 // MR-04 motion tokens are cubic-bezier control points, not RN `Easing`
@@ -45,6 +47,7 @@ const flexOneStyle: ViewStyle = {flex: 1};
 
 export function InAppDueCard() {
   const theme = useTheme();
+  const t = useTranslation();
   const surface = useSurfaceStyle('level3');
   const {height: windowHeight} = useWindowDimensions();
   const container = useAppContainer();
@@ -216,17 +219,23 @@ export function InAppDueCard() {
                   </Text>
                 ) : null}
               </View>
+              <IconButton
+                name="chevronUp"
+                label={t('due.collapse')}
+                onPress={() => collapseDueBanner()}
+                tone="variant"
+              />
             </View>
 
             <View style={buttonRowStyle}>
               <View style={flexOneStyle}>
-                <Button label="Dismiss" variant="text" onPress={handleDismiss} fullWidth />
+                <Button label={t('due.dismiss')} variant="text" onPress={handleDismiss} fullWidth />
               </View>
               <View style={flexOneStyle}>
-                <Button label="Snooze" variant="outlined" onPress={handleSnooze} fullWidth />
+                <Button label={t('due.snooze')} variant="outlined" onPress={handleSnooze} fullWidth />
               </View>
               <View style={flexOneStyle}>
-                <Button label="Accept" variant="filled" onPress={handleAccept} fullWidth />
+                <Button label={t('due.accept')} variant="filled" onPress={handleAccept} fullWidth />
               </View>
             </View>
           </View>
@@ -247,9 +256,16 @@ const chipTextStyle: TextStyle = {maxWidth: 220};
 
 function CollapsedChip({banner, onExpand, onDismiss}: CollapsedChipProps) {
   const theme = useTheme();
+  const t = useTranslation();
   const surface = useSurfaceStyle('level2');
 
   const wrapStyle: ViewStyle = {...chipWrapStyle, paddingTop: theme.spacing.sm};
+  const expandRowStyle: ViewStyle = {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  };
   const pillStyle: ViewStyle = {
     flexDirection: 'row',
     alignItems: 'center',
@@ -264,23 +280,25 @@ function CollapsedChip({banner, onExpand, onDismiss}: CollapsedChipProps) {
 
   return (
     <View style={wrapStyle}>
-      <Pressable
-        onPress={onExpand}
-        accessibilityRole="button"
-        accessibilityLabel={`${banner.reminderLabel}, reminder due. Double tap to expand.`}
-        style={pillStyle}>
-        <Icon name="chevronDown" size="sm" />
-        <Text variant="labelLarge" numberOfLines={1} style={chipTextStyle}>
-          {banner.reminderLabel}
-        </Text>
+      <View style={pillStyle}>
         <Pressable
-          onPress={onDismiss}
-          hitSlop={8}
+          onPress={onExpand}
           accessibilityRole="button"
-          accessibilityLabel="Dismiss reminder">
-          <Icon name="close" size="sm" color={theme.color.onSurfaceVariant} />
+          accessibilityLabel={`${banner.reminderLabel}, reminder due. Double tap to expand.`}
+          style={expandRowStyle}>
+          <Icon name="chevronDown" size="sm" />
+          <Text variant="labelLarge" numberOfLines={1} style={chipTextStyle}>
+            {banner.reminderLabel}
+          </Text>
         </Pressable>
-      </Pressable>
+        <IconButton
+          name="close"
+          size="sm"
+          tone="variant"
+          label={t('due.dismiss')}
+          onPress={onDismiss}
+        />
+      </View>
     </View>
   );
 }

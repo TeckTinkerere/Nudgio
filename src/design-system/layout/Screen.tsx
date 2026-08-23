@@ -32,6 +32,11 @@ export interface ScreenProps {
    * The screen sits below a top app bar that already consumed the top inset.
    */
   readonly hasAppBar?: boolean;
+  /**
+   * Extra bottom padding so scroll/list content clears a 56 dp FAB hosted by
+   * tab chrome. Applied once here so screens do not invent their own inset.
+   */
+  readonly clearsFab?: boolean;
   readonly backgroundColor?: string;
   readonly contentContainerStyle?: StyleProp<ViewStyle>;
   readonly testID?: string;
@@ -42,6 +47,7 @@ export function Screen({
   scrollable = false,
   edgeToEdge = false,
   hasAppBar = false,
+  clearsFab = false,
   backgroundColor,
   contentContainerStyle,
   testID,
@@ -51,6 +57,7 @@ export function Screen({
   const {widthClass} = useResponsive();
 
   const horizontalPadding = edgeToEdge ? 0 : layout.screenPaddingHorizontal;
+  const fabInset = clearsFab ? layout.fabClearance : 0;
 
   const constrained: ViewStyle =
     widthClass === 'expanded'
@@ -92,7 +99,7 @@ export function Screen({
               // consumes the real bottom inset, so `TabNavigator` hands its
               // screens an inset with `bottom: 0` via `screenLayout`. That
               // keeps the rule here unconditional and correct in both places.
-              paddingBottom: insets.bottom,
+              paddingBottom: insets.bottom + fabInset,
             },
           ]}>
           {body}
@@ -110,7 +117,7 @@ export function Screen({
             paddingHorizontal: horizontalPadding,
             // Bottom inset lives on the content so the scroll track still
             // reaches the physical edge (MR-04 "Insets and system UI").
-            paddingBottom: insets.bottom + layout.sectionGap,
+            paddingBottom: insets.bottom + layout.sectionGap + fabInset,
           },
           contentContainerStyle,
         ]}

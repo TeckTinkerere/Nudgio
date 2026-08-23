@@ -271,7 +271,7 @@ export interface ReminderDetail extends ReminderSummary {
 export interface SaveReminderRequest {
   readonly id?: UUID;
   readonly entityVersion?: number;
-  readonly mediaId: UUID;
+  readonly mediaId?: UUID;
   readonly label: string;
   readonly notes?: string;
   readonly schedule: ScheduleRuleDto;

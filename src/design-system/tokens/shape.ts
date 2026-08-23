@@ -9,7 +9,7 @@
 
 export const radius = {
   none: 0,
-  chip: 8,
+  chip: 9999,
   field: 12,
   card: 16,
   alarmAction: 20,
