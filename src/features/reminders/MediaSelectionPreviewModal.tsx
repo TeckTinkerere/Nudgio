@@ -13,10 +13,11 @@ import {useState} from 'react';
 import {Image, Modal, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {Button, Icon, IconButton, Text, neutral, useTheme} from '../../design-system';
+import {Button, Icon, Text, neutral, useTheme} from '../../design-system';
 import {mediaPlaybackSource} from '../../native-client/mediaTokens';
 import type {MediaSummary, UUID} from '../../native-client/types';
 import {MediaPreviewPlayer} from '../library/MediaPreviewPlayer';
+import {MediaViewerHeader, mediaViewerStyles} from '../library/MediaViewerChrome';
 
 export interface MediaSelectionPreviewModalProps {
   readonly item: MediaSummary | null;
@@ -60,24 +61,10 @@ export function MediaSelectionPreviewModal({
     );
   }
 
+  const chromeStyles = mediaViewerStyles(theme, insets);
   const styles = StyleSheet.create({
-    root: {flex: 1, backgroundColor: neutral.black},
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingTop: insets.top + theme.spacing.xxs,
-      paddingStart: theme.layout.dialogPadding,
-      paddingEnd: theme.spacing.xs,
-      paddingBottom: theme.spacing.xs,
-    },
-    title: {flex: 1, color: neutral.white},
     body: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.lg, gap: theme.spacing.sm},
     fallbackLabel: {color: neutral.white},
-    footer: {
-      paddingHorizontal: theme.layout.dialogPadding,
-      paddingTop: theme.spacing.sm,
-      paddingBottom: insets.bottom + theme.spacing.sm,
-    },
     image: {width: '100%', height: '100%'},
   });
 
@@ -90,13 +77,8 @@ export function MediaSelectionPreviewModal({
       onRequestClose={onDismiss}
       animationType={theme.a11y.reduceMotion ? 'none' : 'fade'}
       statusBarTranslucent>
-      <View style={styles.root}>
-        <View style={styles.header}>
-          <Text variant="titleMedium" numberOfLines={1} style={styles.title}>
-            {item.title}
-          </Text>
-          <IconButton name="close" label={closeLabel} onPress={onDismiss} />
-        </View>
+      <View style={chromeStyles.root}>
+        <MediaViewerHeader title={item.title} closeLabel={closeLabel} onDismiss={onDismiss} styles={chromeStyles} />
 
         <View style={styles.body}>
           {showImage ? (
@@ -118,7 +100,7 @@ export function MediaSelectionPreviewModal({
           )}
         </View>
 
-        <View style={styles.footer}>{confirmButton}</View>
+        <View style={chromeStyles.footer}>{confirmButton}</View>
       </View>
     </Modal>
   );

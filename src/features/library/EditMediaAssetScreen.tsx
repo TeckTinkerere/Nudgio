@@ -31,6 +31,7 @@ import {
   Screen,
   Stack,
   TextField,
+  useFloatingAppBar,
 } from '../../design-system';
 import {useTranslation} from '../../localization';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
@@ -82,6 +83,7 @@ function EditMediaAssetForm({media, onDone}: EditMediaAssetFormProps) {
   const thumbnail = thumbnailImageSource(media.thumbnailToken);
   const titleError =
     title.trim().length === 0 ? t('library.detail.renameValidationTitleRequired') : undefined;
+  const appBar = useFloatingAppBar();
 
   const save = () => {
     if (titleError) {
@@ -99,13 +101,23 @@ function EditMediaAssetForm({media, onDone}: EditMediaAssetFormProps) {
   };
 
   return (
-    <Screen hasAppBar scrollable testID={testIds.library.editAssetScreen}>
-      <AppBar
-        title={t('library.editAsset.title')}
-        back={{label: t('action.back'), onPress: onDone}}
-        actions={[{icon: 'check', label: t('action.save'), onPress: save}]}
-      />
-
+    <Screen
+      hasAppBar
+      scrollable
+      testID={testIds.library.editAssetScreen}
+      onScroll={appBar.onScroll}
+      scrollEventThrottle={16}
+      contentContainerStyle={{paddingTop: appBar.barHeight}}
+      appBarSlot={
+        <AppBar
+          title={t('library.editAsset.title')}
+          back={{label: t('action.back'), onPress: onDone}}
+          actions={[{icon: 'check', label: t('action.save'), onPress: save}]}
+          floating
+          scrolled={appBar.scrolled}
+          onHeightChange={appBar.onHeightChange}
+        />
+      }>
       <Stack gap="lg" paddingVertical="md">
         {thumbnail ? (
           <Card padding="none" elevation="level1">
