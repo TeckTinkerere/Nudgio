@@ -528,6 +528,8 @@ export interface Spec extends TurboModule {
   resetBuiltInProfile(id: string): Promise<ReminderProfileWire>;
 
   openCapabilitySettings(kind: string): Promise<Object>;
+  /** `{mediaId: string | null}` — see `PendingMediaOpen` on the native side. */
+  takePendingMediaOpen(): Promise<Object>;
 }
 
 /**

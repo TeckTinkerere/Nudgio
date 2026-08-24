@@ -7,14 +7,49 @@
   Plain Views, not Compose (no Compose dependency exists in this project) —
   Material components only, matching styles.xml's Theme.Material3 parent.
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#121212"
-    android:orientation="vertical"
-    android:fitsSystemWindows="true">
+    android:background="#121212">
+
+    <!--
+      The selected media's own thumbnail, behind everything, at low opacity:
+      the alarm should look like the thing it is reminding you of. Set from
+      AlarmActivity only when the reminder actually resolves to a thumbnail
+      on disk; it stays GONE otherwise, so the flat #121212 above remains
+      the fallback rather than a broken/empty image well. Not focusable and
+      marked decorative — the label/media-title text already carries the
+      same meaning for TalkBack.
+    -->
+    <ImageView
+        android:id="@+id/alarm_background_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.28"
+        android:contentDescription="@null"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <!--
+      Scrim over the artwork so the white body text keeps its contrast
+      regardless of how bright the underlying frame is (MR-13 ACC contrast
+      floor) — without it a light thumbnail makes the buttons unreadable.
+    -->
+    <View
+        android:id="@+id/alarm_background_scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#99000000"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:fitsSystemWindows="true">
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -109,4 +144,6 @@
         </LinearLayout>
     </LinearLayout>
 
-</LinearLayout>
+    </LinearLayout>
+
+</FrameLayout>

@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
@@ -16,6 +17,7 @@ import com.aslam.mediareminder.data.db.entity.ActiveAlarmSessionEntity
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -56,6 +58,11 @@ class AlarmActivity : AppCompatActivity() {
     /** True when this Activity is showing Settings' "Preview alarm styles" (see `AlarmIds.EXTRA_PREVIEW_*`), not a real session. */
     private var isPreview = false
 
+    /** The media this session's reminder points at, resolved in [loadSession] — Accept opens it. */
+    private var acceptMediaId: String? = null
+
+    private lateinit var backgroundImage: ImageView
+    private lateinit var backgroundScrim: View
     private lateinit var labelView: TextView
     private lateinit var mediaTitleView: TextView
     private lateinit var repeatSummaryView: TextView
@@ -126,6 +133,8 @@ class AlarmActivity : AppCompatActivity() {
     }
 
     private fun bindViews() {
+        backgroundImage = findViewById(R.id.alarm_background_image)
+        backgroundScrim = findViewById(R.id.alarm_background_scrim)
         labelView = findViewById(R.id.alarm_label)
         mediaTitleView = findViewById(R.id.alarm_media_title)
         repeatSummaryView = findViewById(R.id.alarm_repeat_summary)
@@ -207,7 +216,33 @@ class AlarmActivity : AppCompatActivity() {
             repeatSummaryView.text = ruleEntity?.let {
                 RepeatSummaryFormatter.summarize(ScheduleRuleMapper.toDomain(it))
             } ?: ""
+
+            // Remember what this session points at, so Accept can open it.
+            val media = reminder?.let { database.mediaDao().getById(it.mediaId) }
+            acceptMediaId = media?.id
+            showBackdrop(media?.thumbnailPath)
         }
+    }
+
+    /**
+     * Paints the reminder's own thumbnail behind the alarm, under a scrim.
+     * Decoding happens off the main thread — this runs while an alarm is
+     * ringing, and a jank-y first frame here is exactly the moment it would
+     * be most obvious. A missing/unreadable file is not an error worth
+     * surfacing: the flat background the layout already has is a perfectly
+     * good alarm screen, so both views simply stay hidden.
+     */
+    private suspend fun showBackdrop(thumbnailPath: String?) {
+        if (thumbnailPath.isNullOrBlank()) return
+        val bitmap = withContext(Dispatchers.IO) {
+            runCatching {
+                val file = java.io.File(thumbnailPath)
+                if (file.exists()) android.graphics.BitmapFactory.decodeFile(file.absolutePath) else null
+            }.getOrNull()
+        } ?: return
+        backgroundImage.setImageBitmap(bitmap)
+        backgroundImage.visibility = View.VISIBLE
+        backgroundScrim.visibility = View.VISIBLE
     }
 
     /**
@@ -233,6 +268,23 @@ class AlarmActivity : AppCompatActivity() {
                 putExtra(AlarmIds.EXTRA_NONCE, currentNonce)
             },
         )
+
+        // Accept means "yes, show me the thing you were reminding me about"
+        // — resolving the session and then dropping the user on a blank lock
+        // screen is the whole point of the reminder going unmet. Snooze and
+        // Dismiss deliberately do not do this. The media id is handed over
+        // out-of-band (see `PendingMediaOpen`) rather than as an Intent extra
+        // JS would have to race the RN bridge's own startup to read.
+        if (action == AlarmIds.ACTION_PLAY) {
+            PendingMediaOpen.set(acceptMediaId)
+            runCatching {
+                startActivity(
+                    Intent(this, com.aslam.mediareminder.MainActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    },
+                )
+            }
+        }
         finish()
     }
 
