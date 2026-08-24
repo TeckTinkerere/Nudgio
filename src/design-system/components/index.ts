@@ -1,3 +1,5 @@
+export {AnalogClockPicker} from './AnalogClockPicker';
+export type {AnalogClockPickerProps, ClockMode} from './AnalogClockPicker';
 export {AnimatedPressable} from './AnimatedPressable';
 export type {AnimatedPressableProps} from './AnimatedPressable';
 export {AppBar} from './AppBar';
@@ -56,5 +58,3 @@ export {VirtualizedList} from './VirtualizedList';
 export type {VirtualizedListProps} from './VirtualizedList';
 export {WeekdaySelector} from './WeekdaySelector';
 export type {WeekdayOption, WeekdaySelectorProps} from './WeekdaySelector';
-export {WheelPicker} from './WheelPicker';
-export type {WheelPickerOption, WheelPickerProps} from './WheelPicker';

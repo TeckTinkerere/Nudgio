@@ -431,6 +431,7 @@ export const en = {
   'action.retry': 'Retry',
   'action.details': 'Details',
   'action.close': 'Close',
+  'action.done': 'Done',
   'action.moreOptions': 'More options',
   'action.back': 'Back',
   'error.unexpected.title': 'Something went wrong',
