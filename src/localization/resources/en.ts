@@ -33,9 +33,9 @@ export const en = {
   'onboarding.adaptive.title': 'It shows up the way you need it to',
   'onboarding.adaptive.body':
     'When your phone is locked, a reminder can open like an alarm. While you are using your phone, Android shows a compact notification instead.',
-  'onboarding.permissions.title': 'Permissions, only when needed',
+  'onboarding.permissions.title': 'Two permissions, so alarms actually arrive',
   'onboarding.permissions.body':
-    "You'll be asked for notification and exact-alarm permissions the first time they're actually needed to schedule a reminder — never upfront, and never for anything else.",
+    'Nudgio needs these to alert you at the right moment. You can continue without them and grant them later in Settings — reminders just may be late or silent until you do.',
   'onboarding.start': 'Start with my library',
   'onboarding.back': 'Back',
   'onboarding.skip': 'Skip',

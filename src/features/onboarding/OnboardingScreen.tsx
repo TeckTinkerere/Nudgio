@@ -1,7 +1,20 @@
 /**
  * Onboarding (MR-03 "Onboarding") — the full 3-page flow: purpose, adaptive
- * presentation, permissions-by-intent. Previously only page 1 existed; pages
- * 2-3 were left as "UX content work" (see decision log). `hasCompletedOnboarding`
+ * presentation, permissions. Previously only page 1 existed; pages
+ * 2-3 were left as "UX content work" (see decision log).
+ *
+ * Page 3 is a real permissions step, not a description of one: it renders the
+ * live `CapabilityRow`s for `notifications` and `exact_alarm` (the same rows
+ * the Health screen uses), so the user grants them here, in context, having
+ * just been told why. This is deliberately the *first* ask —
+ * `useRequestNotificationPermissionOnLaunch` now stays silent until
+ * onboarding is complete, because Android only ever shows the notification
+ * dialog twice and spending one of those on an unexplained cold-launch
+ * prompt is not recoverable. Neither row blocks Continue: MR-03's "the user
+ * can skip setup" applies to permissions too, and the reminder editor
+ * re-checks both before saving anyway.
+ *
+ * `hasCompletedOnboarding`
  * writes exactly once, from either the final page's primary action or Skip —
  * both land on the same empty Library/Upcoming tabs, since there is no
  * separate "demo" content to show (MR-05's text-card kind has no create path
@@ -19,10 +32,11 @@ import {useToast} from '../../app/toast/ToastProvider';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {links, testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
-import {Button, EmptyState, Screen, Stack, useTheme} from '../../design-system';
+import {Button, EmptyState, Icon, Screen, Stack, Text, useTheme} from '../../design-system';
 import type {IconName} from '../../design-system';
-import {useHaptics, useUpdatePreferences} from '../../hooks';
+import {useCapabilitySnapshot, useHaptics, useUpdatePreferences} from '../../hooks';
 import {useTranslation} from '../../localization';
+import {CapabilityRow} from '../capability/CapabilityRow';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList, 'Onboarding'>;
 
@@ -56,6 +70,44 @@ function PageIndicator({page, label}: {readonly page: PageIndex; readonly label:
         const dotStyle = dotStyleFor(index === page, theme.color.primary, theme.color.outlineVariant);
         return <View key={index} style={[styles.dot, dotStyle]} />;
       })}
+    </Stack>
+  );
+}
+
+/**
+ * The permissions step's live content. `notifications` and `exact_alarm` are
+ * the only two capabilities a user can meaningfully act on before they have
+ * created anything — the rest of the `CapabilitySnapshot` (channels, battery,
+ * scheduler) is either derived from these or has no first-run action, so
+ * showing it here would be noise on a page whose whole job is "grant these
+ * two." Rows are filtered by kind, not sliced by index, so a future snapshot
+ * that reorders or adds items cannot silently change what this page asks for.
+ */
+function PermissionsPage() {
+  const t = useTranslation();
+  const theme = useTheme();
+  const capability = useCapabilitySnapshot();
+
+  const items = capability.data?.items ?? [];
+  const notifications = items.find(item => item.kind === 'notifications');
+  const exactAlarm = items.find(item => item.kind === 'exact_alarm');
+
+  return (
+    <Stack style={styles.flexFill} justify="center" gap="lg" paddingHorizontal="lg">
+      <Stack gap="xs" align="center">
+        <Icon name="lock" size="xl" color={theme.color.onSurfaceVariant} />
+        <Text variant="titleLarge" align="center" isHeading>
+          {t('onboarding.permissions.title')}
+        </Text>
+        <Text variant="bodyLarge" tone="variant" align="center">
+          {t('onboarding.permissions.body')}
+        </Text>
+      </Stack>
+
+      <Stack gap="sm">
+        {notifications ? <CapabilityRow item={notifications} /> : null}
+        {exactAlarm ? <CapabilityRow item={exactAlarm} /> : null}
+      </Stack>
     </Stack>
   );
 }
@@ -100,7 +152,9 @@ export function OnboardingScreen() {
   const current = PAGES[page]!;
   const isLastPage = page === PAGE_COUNT - 1;
 
-  const body = (
+  const body = isLastPage ? (
+    <PermissionsPage />
+  ) : (
     <EmptyState
       icon={current.icon}
       title={t(current.titleKey)}
