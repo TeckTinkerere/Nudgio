@@ -49,7 +49,7 @@ import {
 } from '../../design-system';
 import type {IconName} from '../../design-system';
 import {useTheme} from '../../design-system/theme/useTheme';
-import {useHaptics, useReminderList} from '../../hooks';
+import {useHaptics, usePreferences, useReminderList} from '../../hooks';
 import {useTranslation} from '../../localization';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import type {MediaKind, ReminderSummary} from '../../native-client/types';
@@ -73,11 +73,19 @@ interface TimeParts {
   readonly period: string;
 }
 
-const formatTimeParts = (iso: string): TimeParts => {
+/**
+ * `use24Hour` mirrors `PreferencesSnapshot.use24HourTime`: `null` means
+ * "follow the device". This row used to hardcode `hour12: true`, so a user
+ * who chose 24-hour time (or whose device is on it) still saw AM/PM here
+ * while every other surface in the app respected the setting. In 24-hour
+ * mode there is no `dayPeriod` part to find, so `period` comes back empty
+ * and the tonal time chip simply renders without its second line.
+ */
+const formatTimeParts = (iso: string, use24Hour: boolean | null): TimeParts => {
   const parts = new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
     minute: '2-digit',
-    hour12: true,
+    ...(use24Hour === null ? {} : {hour12: !use24Hour}),
   }).formatToParts(new Date(iso));
   const hour = parts.find(part => part.type === 'hour')?.value ?? '';
   const minute = parts.find(part => part.type === 'minute')?.value ?? '';
@@ -96,6 +104,8 @@ export function RemindersScreen() {
   const [previewItem, setPreviewItem] = useState<ReminderSummary | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ReminderSummary | null>(null);
   const appBar = useFloatingAppBar();
+  const preferences = usePreferences();
+  const use24Hour = preferences.data?.use24HourTime ?? null;
 
   const styles = StyleSheet.create({
     card: {marginBottom: theme.spacing.xs},
@@ -118,7 +128,9 @@ export function RemindersScreen() {
   const renderReminder = useCallback(
     ({item}: {item: ReminderSummary}) => {
       const thumbnail = thumbnailImageSource(item.thumbnailToken);
-      const timeParts = item.nextOccurrence ? formatTimeParts(item.nextOccurrence.scheduledAt) : null;
+      const timeParts = item.nextOccurrence
+        ? formatTimeParts(item.nextOccurrence.scheduledAt, use24Hour)
+        : null;
       const accessibleLabel = [item.label, item.repeatSummary].filter(Boolean).join('. ');
       const canPreview = isPlayableKind(item.mediaKind) && item.sourceToken !== undefined;
 
@@ -195,7 +207,7 @@ export function RemindersScreen() {
         </SwipeableRow>
       );
     },
-    [navigation, setEnabled, styles, t, theme.color.onPrimaryContainer, theme.color.onSurfaceVariant],
+    [navigation, setEnabled, styles, t, theme.color.onPrimaryContainer, theme.color.onSurfaceVariant, use24Hour],
   );
 
   return (

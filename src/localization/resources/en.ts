@@ -382,6 +382,9 @@ export const en = {
   'settings.row.about': 'About',
   'settings.row.about.subtitle': 'Version, licenses, source',
   'settings.defaults.snoozeLabel': 'Default snooze duration',
+  'settings.defaults.use24HourTime': '24-hour time',
+  'settings.defaults.use24HourTime.helper':
+    'Show times as 18:30 instead of 6:30 PM. Off follows your phone’s own setting.',
   'settings.accessibility.reduceMotion': 'Reduce motion',
   'settings.accessibility.reduceMotion.helper': 'Follows your system setting; shown here for reference.',
   'settings.accessibility.fontScale': 'Text size follows your system font setting.',
