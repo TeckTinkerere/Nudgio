@@ -695,6 +695,21 @@ class MediaReminderModule(
     }
 
     /**
+     * Drains the one-slot [com.aslam.mediareminder.alarm.PendingMediaOpen]
+     * handoff: returns `{mediaId}` when Accept on a full-screen alarm asked
+     * for that reminder's media to be opened, `{mediaId: null}` otherwise.
+     * JS calls this on mount and on every foreground resume, since a cold
+     * launch from the lock screen can mount long after Accept was tapped.
+     */
+    @ReactMethod
+    fun takePendingMediaOpen(promise: Promise) {
+        val result = Arguments.createMap()
+        val pending = com.aslam.mediareminder.alarm.PendingMediaOpen.take()
+        if (pending == null) result.putNull("mediaId") else result.putString("mediaId", pending)
+        promise.resolve(result)
+    }
+
+    /**
      * Settings "Preview alarm styles": `request` carries `title`/`body`
      * (already localized by JS from the tapped profile's own copy) and
      * `fullScreenWhenLocked` (that profile's real field) — this used to take

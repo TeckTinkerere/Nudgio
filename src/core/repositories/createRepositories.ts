@@ -72,6 +72,7 @@ export const createRepositories = (deps: CreateRepositoriesDeps): Repositories =
       getSnapshot: () => client.getCapabilitySnapshot(),
       requestNotificationPermission: () => client.requestNotificationPermission(),
       openSettings: kind => client.openCapabilitySettings(kind),
+      takePendingMediaOpen: () => client.takePendingMediaOpen(),
     },
 
     settings: {

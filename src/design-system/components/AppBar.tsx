@@ -83,9 +83,14 @@ export function AppBar({
       onLayout={floating ? onLayout : undefined}
       style={[
         {
-          paddingTop: insets.top,
+          // `insets.top` only clears the status bar — it is not breathing
+          // room. Without the extra `md` the title sits flush against the
+          // clock/cutout on a real device (confirmed on a 720x1600 V2446),
+          // which reads as a layout bug rather than a deliberate edge-to-edge
+          // treatment.
+          paddingTop: insets.top + theme.spacing.md,
           paddingHorizontal: theme.spacing.xs,
-          paddingBottom: theme.spacing.xs,
+          paddingBottom: theme.spacing.sm,
           backgroundColor: floating ? withAlpha(theme.color.surface, 0.85) : theme.color.surface,
           flexDirection: 'row',
           alignItems: 'center',

@@ -69,6 +69,8 @@ export interface MediaReminderClient {
   getStartupSnapshot(): Promise<Result<StartupSnapshot, AppError>>;
   getCapabilitySnapshot(): Promise<Result<CapabilitySnapshot, AppError>>;
   openCapabilitySettings(kind: CapabilityKind): Promise<Result<unknown, AppError>>;
+  /** Drains the native "Accept asked to open this media" slot. `null` when nothing is pending. */
+  takePendingMediaOpen(): Promise<Result<UUID | null, AppError>>;
   getPreferences(): Promise<Result<PreferencesSnapshot, AppError>>;
   setPreferences(patch: PreferencePatch): Promise<Result<PreferencesSnapshot, AppError>>;
   getDynamicColorScheme(): Promise<Result<unknown | null, AppError>>;
@@ -204,6 +206,11 @@ export const createMediaReminderClient = (
 
     openCapabilitySettings: kind =>
       call('openCapabilitySettings', native => native.openCapabilitySettings(kind)),
+    takePendingMediaOpen: () =>
+      call('takePendingMediaOpen', async native => {
+        const raw = (await native.takePendingMediaOpen()) as {mediaId?: string | null};
+        return (raw?.mediaId ?? null) as UUID | null;
+      }),
 
     getPreferences: () => call('getPreferences', native => native.getPreferences()),
 
