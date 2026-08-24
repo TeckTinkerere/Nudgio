@@ -52,7 +52,13 @@ import {
 } from '../../design-system';
 import type {IconName} from '../../design-system';
 import {useTheme} from '../../design-system/theme/useTheme';
-import {useCapabilitySnapshot, useMediaList, useOpenCapabilitySettings, useProfiles} from '../../hooks';
+import {
+  useCapabilitySnapshot,
+  useMediaList,
+  useOpenCapabilitySettings,
+  usePreferences,
+  useProfiles,
+} from '../../hooks';
 import {useTranslation, type TranslationKey} from '../../localization';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import {isBuiltInProfileNameKey} from '../../native-client/reminderProfileNameKeys';
@@ -154,10 +160,19 @@ export function ReminderEditorScreen({navigation, route}: Props) {
   // seed once from whatever `profiles.data` was at mount time, so it must
   // already be loaded before the form ever mounts.
   const profiles = useProfiles();
+  // Gated alongside `profiles` for the same reason: the form seeds
+  // `snoozeMinutes` from this once, in a `useState` initializer, so the
+  // preference must already be resolved before the form mounts or a new
+  // reminder silently keeps the build-time default instead of the user's.
+  const preferences = usePreferences();
   const backAction = {label: t('action.back'), onPress: () => navigation.goBack()};
   const title = t('reminders.editor.editTitle');
 
-  if ((reminderId !== undefined && reminderDetail.isPending) || profiles.isPending) {
+  if (
+    (reminderId !== undefined && reminderDetail.isPending) ||
+    profiles.isPending ||
+    preferences.isPending
+  ) {
     return (
       <Screen hasAppBar>
         <AppBar title={title} back={backAction} />
@@ -200,6 +215,7 @@ export function ReminderEditorScreen({navigation, route}: Props) {
       existing={reminderId !== undefined ? reminderDetail.data : undefined}
       prefillMediaId={route.params.mediaId}
       profiles={profiles.data}
+      defaultSnoozeMinutes={preferences.data?.defaultSnoozeMinutes ?? appConfig.snooze.presetMinutes[1]!}
     />
   );
 }
@@ -209,9 +225,17 @@ interface ReminderEditorFormProps {
   readonly existing: ReminderDetail | undefined;
   readonly prefillMediaId: UUID | undefined;
   readonly profiles: readonly ReminderProfile[];
+  /** Settings' "Default snooze duration" — the seed for a *new* reminder. */
+  readonly defaultSnoozeMinutes: number;
 }
 
-function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: ReminderEditorFormProps) {
+function ReminderEditorForm({
+  navigation,
+  existing,
+  prefillMediaId,
+  profiles,
+  defaultSnoozeMinutes,
+}: ReminderEditorFormProps) {
   const t = useTranslation();
   const isNew = existing === undefined;
   const saveReminder = useSaveReminder();
@@ -246,8 +270,12 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [intervalDays, setIntervalDays] = useState(3);
   const [profileId, setProfileId] = useState(existing?.profileId ?? profiles[1]?.id);
+  // Settings' preference, not `appConfig`: the build constant is only the
+  // fallback for a preferences read that failed. Using it unconditionally
+  // made "Default snooze duration" in Settings a control that changed
+  // nothing for every reminder created afterwards.
   const [snoozeMinutes, setSnoozeMinutes] = useState(
-    existing?.snooze.defaultMinutes ?? appConfig.snooze.presetMinutes[1],
+    existing?.snooze.defaultMinutes ?? defaultSnoozeMinutes,
   );
   const [historyEnabled, setHistoryEnabled] = useState(existing?.historyEnabled ?? true);
   const [labelTouched, setLabelTouched] = useState(false);
@@ -534,6 +562,7 @@ function ReminderEditorForm({navigation, existing, prefillMediaId, profiles}: Re
               hourLabel={t('reminders.editor.hour')}
               minuteLabel={t('reminders.editor.minute')}
               amPmLabel={t('reminders.editor.amPm')}
+              doneLabel={t('action.done')}
             />
           </Stack>
         </Stack>

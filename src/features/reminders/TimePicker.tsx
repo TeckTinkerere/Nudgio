@@ -1,24 +1,34 @@
 /**
- * Local time-of-day picker: three scrollable wheels (hour / minute / AM-PM),
- * the same layout every native alarm clock (iOS `UIDatePicker`, Android's
- * time picker) uses — MR-03 "Date and time are separate controls" is
- * satisfied by this being a self-contained time-only control, not by the
- * previous tap-stepper shape. `WheelPicker` (design system) owns the
- * scroll/momentum/snap physics; this component only supplies the three
- * value domains and keeps them mutually consistent.
+ * Time-of-day picker: a large digital clock where the hour and the minute
+ * are each their own tap target, and tapping either opens an analog clock
+ * overlay to set it — the same two-stage interaction the platform's own
+ * alarm clock uses.
  *
- * Local to `features/reminders` rather than the design system: the specific
- * hour/minute/period value shape is domain-specific to scheduling, not a
- * general-purpose primitive other features need yet.
+ * Replaces the scroll-wheel columns this used to be. The wheels supported
+ * only 5-minute steps and, because they were built on a `ScrollView` nested
+ * inside the editor's own scroll view, the vertical drag was routinely
+ * claimed by the parent — so in practice they could only be tapped, not
+ * dragged. The analog dial owns its gesture outright (it lives in a modal,
+ * with nothing above it competing) and gives every one of the 60 minutes.
+ *
+ * AM/PM stays inline as a segmented control rather than a third overlay:
+ * it is a binary choice, and making it a two-tap flow to change one bit
+ * would be worse than the wheel it replaced.
+ *
+ * Local to `features/reminders` rather than the design system: the
+ * hour/minute/period value shape is domain-specific to scheduling.
+ * `AnalogClockPicker` — the reusable half — is in the design system.
  */
-import {useMemo} from 'react';
+import {useState} from 'react';
+import {StyleSheet} from 'react-native';
 
-import {Stack, WheelPicker} from '../../design-system';
+import {AnalogClockPicker, SegmentedControl, Stack, Text, useTheme, type ClockMode} from '../../design-system';
+import {AnimatedPressable} from '../../design-system';
 
 export interface TimeOfDayValue {
   /** 1-12. */
   readonly hour: number;
-  /** 0-59, always a multiple of 5 from this control. */
+  /** 0-59. Every minute is selectable, not just 5-minute steps. */
   readonly minute: number;
   readonly period: 'AM' | 'PM';
 }
@@ -29,47 +39,85 @@ export interface TimePickerProps {
   readonly hourLabel: string;
   readonly minuteLabel: string;
   readonly amPmLabel: string;
+  readonly doneLabel: string;
   readonly testID?: string;
 }
 
 const pad2 = (n: number): string => n.toString().padStart(2, '0');
 
-const HOURS = Array.from({length: 12}, (_, i) => i + 1).map(hour => ({value: hour, label: hour.toString()}));
-const MINUTES = Array.from({length: 12}, (_, i) => i * 5).map(minute => ({
-  value: minute,
-  label: pad2(minute),
-}));
-const PERIODS: readonly {value: 'AM' | 'PM'; label: string}[] = [
-  {value: 'AM', label: 'AM'},
-  {value: 'PM', label: 'PM'},
-];
+export function TimePicker({
+  value,
+  onChange,
+  hourLabel,
+  minuteLabel,
+  amPmLabel,
+  doneLabel,
+  testID,
+}: TimePickerProps) {
+  const theme = useTheme();
+  const [editing, setEditing] = useState<ClockMode | null>(null);
 
-export function TimePicker({value, onChange, hourLabel, minuteLabel, amPmLabel, testID}: TimePickerProps) {
-  // Nearest 5-minute multiple: the wheel's domain is 5-minute steps, but an
-  // initial value coming from elsewhere (e.g. "now") may not land exactly on
-  // one — round rather than let `findIndex` fail to match anything.
-  const roundedMinute = useMemo(() => Math.round(value.minute / 5) * 5, [value.minute]);
+  const fieldStyle = (active: boolean) => [
+    styles.field,
+    {
+      backgroundColor: active ? theme.color.primaryContainer : theme.color.surfaceContainerHigh,
+      borderRadius: theme.radius.card,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.xs,
+    },
+  ];
 
   return (
-    <Stack testID={testID} direction="row" align="center" justify="center" gap="sm">
-      <WheelPicker
-        options={HOURS}
-        value={value.hour}
-        onChange={hour => onChange({...value, hour})}
-        accessibilityLabel={hourLabel}
-      />
-      <WheelPicker
-        options={MINUTES}
-        value={roundedMinute}
-        onChange={minute => onChange({...value, minute})}
-        accessibilityLabel={minuteLabel}
-      />
-      <WheelPicker
-        options={PERIODS}
+    <Stack testID={testID} gap="sm" align="center">
+      <Stack direction="row" align="center" justify="center" gap="xs">
+        <AnimatedPressable
+          onPress={() => setEditing('hour')}
+          accessibilityRole="button"
+          accessibilityLabel={`${hourLabel}: ${value.hour}`}
+          style={fieldStyle(editing === 'hour')}>
+          <Text variant="displaySmall" tabularNumbers>
+            {value.hour}
+          </Text>
+        </AnimatedPressable>
+
+        <Text variant="displaySmall">:</Text>
+
+        <AnimatedPressable
+          onPress={() => setEditing('minute')}
+          accessibilityRole="button"
+          accessibilityLabel={`${minuteLabel}: ${pad2(value.minute)}`}
+          style={fieldStyle(editing === 'minute')}>
+          <Text variant="displaySmall" tabularNumbers>
+            {pad2(value.minute)}
+          </Text>
+        </AnimatedPressable>
+      </Stack>
+
+      <SegmentedControl
+        accessibilityLabel={amPmLabel}
+        options={[
+          {value: 'AM', label: 'AM'},
+          {value: 'PM', label: 'PM'},
+        ]}
         value={value.period}
         onChange={period => onChange({...value, period})}
-        accessibilityLabel={amPmLabel}
+      />
+
+      <AnalogClockPicker
+        visible={editing !== null}
+        mode={editing ?? 'hour'}
+        value={editing === 'minute' ? value.minute : value.hour}
+        onChange={next =>
+          onChange(editing === 'minute' ? {...value, minute: next} : {...value, hour: next})
+        }
+        onDismiss={() => setEditing(null)}
+        title={editing === 'minute' ? minuteLabel : hourLabel}
+        doneLabel={doneLabel}
       />
     </Stack>
   );
 }
+
+const styles = StyleSheet.create({
+  field: {alignItems: 'center', justifyContent: 'center'},
+});
