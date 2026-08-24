@@ -33,7 +33,7 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {useTheme} from '../theme/useTheme';
-import {layout} from '../tokens';
+import {layout, spacing} from '../tokens';
 import {useResponsive} from './useResponsive';
 
 export interface ScreenProps {
@@ -86,8 +86,12 @@ export function Screen({
   const outerStyle: ViewStyle = {
     flex: 1,
     backgroundColor: backgroundColor ?? theme.color.surface,
-    // The app bar owns the top inset when present; otherwise the screen does.
-    paddingTop: hasAppBar ? 0 : insets.top,
+    // The app bar owns the top inset when present; otherwise the screen does
+    // — and in that case it adds the same `md` of breathing room `AppBar`
+    // applies above its own title, so a screen without a bar (Onboarding)
+    // does not start flush against the status bar while every barred screen
+    // has a comfortable gap.
+    paddingTop: hasAppBar ? 0 : insets.top + spacing.md,
     // Left/right insets cover display cutouts in landscape.
     paddingLeft: insets.left,
     paddingRight: insets.right,

@@ -22,9 +22,17 @@ import {MediaViewerHeader, mediaViewerStyles} from '../library/MediaViewerChrome
 export interface MediaSelectionPreviewModalProps {
   readonly item: MediaSummary | null;
   readonly onDismiss: () => void;
-  readonly onSelect: (id: UUID) => void;
+  /**
+   * Omit both `onSelect` and `selectLabel` to get a plain viewer with no
+   * confirm footer — that is the shape the alarm's Accept path needs, which
+   * opens media to *watch* rather than to pick. Kept as one component rather
+   * than forked into a second viewer so all four media kinds keep exactly
+   * one rendering (video/audio delegate to `MediaPreviewPlayer`; image and
+   * text render here).
+   */
+  readonly onSelect?: (id: UUID) => void;
   readonly closeLabel: string;
-  readonly selectLabel: string;
+  readonly selectLabel?: string;
   readonly loadErrorLabel: string;
 }
 
@@ -44,7 +52,10 @@ export function MediaSelectionPreviewModal({
     return null;
   }
 
-  const confirmButton = <Button label={selectLabel} onPress={() => onSelect(item.id)} fullWidth />;
+  const confirmButton =
+    onSelect && selectLabel ? (
+      <Button label={selectLabel} onPress={() => onSelect(item.id)} fullWidth />
+    ) : undefined;
 
   if (item.kind === 'video' || item.kind === 'audio') {
     return (
@@ -100,7 +111,7 @@ export function MediaSelectionPreviewModal({
           )}
         </View>
 
-        <View style={chromeStyles.footer}>{confirmButton}</View>
+        {confirmButton ? <View style={chromeStyles.footer}>{confirmButton}</View> : null}
       </View>
     </Modal>
   );

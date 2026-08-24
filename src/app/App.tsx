@@ -17,12 +17,8 @@ import {InAppDueCard} from './InAppDueCard';
 import {RootNavigator} from './navigation';
 import {usePendingMediaOpen} from './usePendingMediaOpen';
 import {useReminderDueEvents} from './useReminderDueEvents';
-import {MediaPreviewPlayer} from '../features/library/MediaPreviewPlayer';
+import {MediaSelectionPreviewModal} from '../features/reminders/MediaSelectionPreviewModal';
 import {useTranslation} from '../localization';
-
-/** Only these two kinds have anything `MediaPreviewPlayer` can play — same gate every other caller uses. */
-const isPlayableKind = (kind: string): kind is 'video' | 'audio' =>
-  kind === 'video' || kind === 'audio';
 
 function AppShellOverlays() {
   // MR-06 rule 4 / MR-08 `reminderDueWhileForeground`: one subscription for
@@ -34,17 +30,20 @@ function AppShellOverlays() {
   return (
     <>
       <InAppDueCard />
-      {pendingMedia.item && isPlayableKind(pendingMedia.item.kind) && pendingMedia.item.sourceToken ? (
-        <MediaPreviewPlayer
-          visible
-          onDismiss={pendingMedia.clear}
-          title={pendingMedia.item.title}
-          sourceToken={pendingMedia.item.sourceToken}
-          kind={pendingMedia.item.kind}
-          closeLabel={t('library.player.close')}
-          loadErrorLabel={t('library.player.loadError')}
-        />
-      ) : null}
+      {/*
+        Accept on a full-screen alarm lands here. Rendered at the shell, not
+        inside a screen, because the app may have cold-started straight from
+        the lock screen with no particular screen mounted yet. Passing no
+        `onSelect`/`selectLabel` gives the plain viewer (no confirm footer),
+        and covers all four media kinds rather than only the two
+        `MediaPreviewPlayer` can play on its own.
+      */}
+      <MediaSelectionPreviewModal
+        item={pendingMedia.item}
+        onDismiss={pendingMedia.clear}
+        closeLabel={t('library.player.close')}
+        loadErrorLabel={t('library.player.loadError')}
+      />
     </>
   );
 }

@@ -307,6 +307,27 @@ export function SettingsScreen() {
 
             <Divider spacing="xs" />
 
+            {/*
+              `use24HourTime` was a real, honored preference with no control
+              anywhere in the app — every time formatter already read it, but
+              nothing could ever set it. `null` means "follow the device",
+              which is the value a fresh install starts on, so the toggle
+              treats null as off rather than inventing a third state.
+            */}
+            <ListRow
+              title={t('settings.defaults.use24HourTime')}
+              subtitle={t('settings.defaults.use24HourTime.helper')}
+              trailing={
+                <Toggle
+                  value={preferences.data?.use24HourTime ?? false}
+                  onValueChange={next => updatePreferences.mutate({use24HourTime: next})}
+                  label={t('settings.defaults.use24HourTime')}
+                />
+              }
+            />
+
+            <Divider spacing="xs" />
+
             <ListRow
               title={t('settings.row.statistics')}
               subtitle={t('settings.row.statistics.subtitle')}
