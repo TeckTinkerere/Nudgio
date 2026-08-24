@@ -40,6 +40,15 @@ export interface AppBarProps {
   readonly subtitle?: string;
   readonly back?: {readonly label: string; readonly onPress: () => void};
   readonly actions?: readonly AppBarAction[];
+  /**
+   * Arbitrary trailing content (a `StatusPill`, a text `Button`), rendered
+   * after `actions`. `actions` stays icon-only by design — it is the
+   * Material top-app-bar action slot, and widening it to accept any node
+   * would lose the accessible-label guarantee `AppBarAction` enforces. This
+   * is the escape hatch for the tab roots, whose headers carry a status pill
+   * or a "Select" affordance rather than icon buttons.
+   */
+  readonly trailing?: React.ReactNode;
   /** Absolutely positioned, semi-transparent, floats over scrolling content. */
   readonly floating?: boolean;
   /** True once the content beneath has scrolled — shows the edge hairline. */
@@ -54,6 +63,7 @@ export function AppBar({
   subtitle,
   back,
   actions = [],
+  trailing,
   floating = false,
   scrolled = false,
   onHeightChange,
@@ -115,6 +125,8 @@ export function AppBar({
           tone="variant"
         />
       ))}
+
+      {trailing}
     </View>
   );
 }

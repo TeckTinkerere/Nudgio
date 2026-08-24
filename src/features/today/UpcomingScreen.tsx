@@ -32,7 +32,7 @@
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useCallback, useMemo, useState} from 'react';
-import {Image, StyleSheet} from 'react-native';
+import {Image, StyleSheet, View} from 'react-native';
 import type {ListRenderItem} from 'react-native';
 
 import {statusKindFor, statusLabelKeyFor} from './capabilityStatus';
@@ -46,6 +46,7 @@ import type {RootStackParamList} from '../../app/navigation/types';
 import {testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
 import {
+  AppBar,
   Banner,
   Card,
   Dialog,
@@ -59,6 +60,7 @@ import {
   Stack,
   StatusPill,
   Text,
+  useFloatingAppBar,
   VirtualizedList,
 } from '../../design-system';
 import type {IconName} from '../../design-system';
@@ -108,6 +110,7 @@ export function UpcomingScreen() {
   const reminders = useReminderList();
   const preferences = usePreferences();
   const [previewReminder, setPreviewReminder] = useState<ReminderSummary | null>(null);
+  const appBar = useFloatingAppBar();
 
   // Refreshed on focus (not a continuous timer — MR-13/the feature's own
   // "avoid unnecessary continuous timers" ask): re-entering this screen
@@ -278,15 +281,10 @@ export function UpcomingScreen() {
 
   const header = (
     <Stack gap="lg" paddingVertical="md">
-      <Stack direction="row" align="center" justify="space-between">
-        <Text variant="headlineMedium" isHeading>
-          {t('today.title')}
-        </Text>
-        <StatusPill
-          kind={statusKindFor(overallStatus)}
-          label={t(statusLabelKeyFor(overallStatus))}
-        />
-      </Stack>
+      {/* Title and status pill live in the floating `AppBar` below, not here —
+          all four tab roots share the same compact bar so chrome does not
+          drift between destinations. This spacer reserves its height. */}
+      <View style={{height: appBar.barHeight}} />
 
       {/*
         MR-03: "A single high-salience card appears only for a condition
@@ -383,13 +381,32 @@ export function UpcomingScreen() {
   );
 
   return (
-    <Screen edgeToEdge testID={testIds.today.screen}>
+    <Screen
+      edgeToEdge
+      hasAppBar
+      testID={testIds.today.screen}
+      appBarSlot={
+        <AppBar
+          title={t('today.title')}
+          floating
+          scrolled={appBar.scrolled}
+          onHeightChange={appBar.onHeightChange}
+          trailing={
+            <StatusPill
+              kind={statusKindFor(overallStatus)}
+              label={t(statusLabelKeyFor(overallStatus))}
+            />
+          }
+        />
+      }>
       <VirtualizedList
         data={rows}
         keyExtractor={row => row.key}
         renderItem={renderRow}
         showSeparators={false}
         ListHeaderComponent={header}
+        onScroll={appBar.onScroll}
+        scrollEventThrottle={16}
       />
       {importMedia.error ? (
         <Dialog

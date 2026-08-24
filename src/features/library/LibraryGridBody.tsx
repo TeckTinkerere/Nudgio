@@ -13,7 +13,7 @@
  * a missing sibling would have taken, with no special-casing needed for
  * "the last odd item spans the full width."
  */
-import {StyleSheet, View} from 'react-native';
+import {StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent} from 'react-native';
 
 import {testIds} from '../../constants';
 import {EmptyState, ErrorState, LoadingState, ProgressBar, VirtualizedList} from '../../design-system';
@@ -30,6 +30,8 @@ export interface LibraryGridBodyProps {
   /** Whether search/kind/category narrowed the query — decides which empty copy applies. */
   readonly isFiltered: boolean;
   readonly onClearFilters: () => void;
+  /** Forwarded to the grid list, so a floating `AppBar` above it can track scroll position. */
+  readonly onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }
 
 const chunk = <T,>(items: readonly T[], size: number): T[][] => {
@@ -47,6 +49,7 @@ export function LibraryGridBody({
   renderCard,
   isFiltered,
   onClearFilters,
+  onScroll,
 }: LibraryGridBodyProps) {
   const t = useTranslation();
 
@@ -115,8 +118,18 @@ export function LibraryGridBody({
           ))}
         </View>
       )}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
       showSeparators={false}
-      horizontalPadding="xs"
+      // `md`, matching `layout.screenPaddingHorizontal` and the title row
+      // above this grid (`LibraryScreen`/`SelectMediaScreen` both wrap their
+      // header in `paddingHorizontal="md"`). This was `xs`, which left the
+      // cards sitting 8 dp closer to the screen edge than the "Library"
+      // heading directly above them — the grid read as having no margin at
+      // all next to every other screen in the app. The 8 dp inter-card gap
+      // below is deliberately *not* the same value: gutter and outer margin
+      // are different things.
+      horizontalPadding="md"
     />
   );
 }

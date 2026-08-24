@@ -29,6 +29,8 @@ import type {RootStackParamList} from '../../app/navigation/types';
 import {testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
 import {
+  AppBar,
+  Button,
   Chip,
   ChipRow,
   Dialog,
@@ -37,6 +39,7 @@ import {
   Screen,
   Stack,
   TextField,
+  useFloatingAppBar,
   useResponsive,
 } from '../../design-system';
 import {
@@ -88,6 +91,7 @@ export function LibraryScreen() {
   const t = useTranslation();
   const navigation = useNavigation<Navigation>();
   const {mediaGridColumns, navigation: navTreatment} = useResponsive();
+  const appBar = useFloatingAppBar();
   const importMedia = useImportMedia();
   const isTwoPane = navTreatment === 'rail';
 
@@ -189,30 +193,31 @@ export function LibraryScreen() {
 
   const gridPane = (
     <>
-      {/* No `hasAppBar` below: that prop means "an AppBar already consumed
-      the top inset", and this screen deliberately has no AppBar — its title
-      is an inline large heading that scrolls with the content, the same
-      pattern TodayScreen uses. Passing it set `paddingTop: 0`, so nothing
-      consumed `insets.top` and the heading drew underneath the status bar
-      and camera cutout (confirmed on a 720x1600 device: the title
-      overlapped the clock). */}
+      {/* The title and the normal-mode "Select" affordance now live in this
+      screen's floating `AppBar` (see `appBarSlot` below), so all four tab
+      roots share the same compact bar. `LibrarySelectionHeader` stays for
+      selection mode only, where it is a contextual action bar (black Back +
+      Export/Delete) rather than a title row — its `title` is unused on that
+      branch. */}
       <Stack gap="xs" paddingHorizontal="md" paddingVertical="sm">
-        <LibrarySelectionHeader
-          title={t('library.title')}
-          selectionMode={selectionMode}
-          backLabel={t('library.selection.back')}
-          selectLabel={t('library.selection.select')}
-          exportLabel={t('library.selection.export')}
-          deleteLabel={t('library.selection.delete')}
-          onSelect={enterSelection}
-          onBack={exitSelection}
-          onExport={() => handleBulkAction('export')}
-          onDelete={() => handleBulkAction('delete')}
-          selectTestID={testIds.library.selectButton}
-          backTestID={testIds.library.backButton}
-          exportTestID={testIds.library.exportButton}
-          deleteTestID={testIds.library.deleteButton}
-        />
+        {selectionMode ? (
+          <LibrarySelectionHeader
+            title={t('library.title')}
+            selectionMode
+            backLabel={t('library.selection.back')}
+            selectLabel={t('library.selection.select')}
+            exportLabel={t('library.selection.export')}
+            deleteLabel={t('library.selection.delete')}
+            onSelect={enterSelection}
+            onBack={exitSelection}
+            onExport={() => handleBulkAction('export')}
+            onDelete={() => handleBulkAction('delete')}
+            selectTestID={testIds.library.selectButton}
+            backTestID={testIds.library.backButton}
+            exportTestID={testIds.library.exportButton}
+            deleteTestID={testIds.library.deleteButton}
+          />
+        ) : null}
 
         <TextField
           label={t('library.search.placeholder')}
@@ -263,12 +268,35 @@ export function LibraryScreen() {
         renderCard={renderCard}
         isFiltered={isFiltered}
         onClearFilters={clearFilters}
+        onScroll={appBar.onScroll}
       />
     </>
   );
 
   return (
-    <Screen edgeToEdge testID={testIds.library.screen}>
+    <Screen
+      edgeToEdge
+      hasAppBar
+      testID={testIds.library.screen}
+      appBarSlot={
+        <AppBar
+          title={t('library.title')}
+          floating
+          scrolled={appBar.scrolled}
+          onHeightChange={appBar.onHeightChange}
+          trailing={
+            selectionMode ? undefined : (
+              <Button
+                variant="text"
+                label={t('library.selection.select')}
+                onPress={enterSelection}
+                testID={testIds.library.selectButton}
+              />
+            )
+          }
+        />
+      }>
+      <View style={{paddingTop: appBar.barHeight}} />
       {isTwoPane ? (
         <Stack direction="row" gap="sm" flex={1}>
           <View style={styles.gridPane}>{gridPane}</View>
