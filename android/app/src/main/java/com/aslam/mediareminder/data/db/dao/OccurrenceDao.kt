@@ -136,4 +136,33 @@ interface OccurrenceDao {
     /** MR-09 "Data retention": occurrence history defaults to 90 days. */
     @Query("DELETE FROM occurrences WHERE resolved_at IS NOT NULL AND resolved_at < :cutoffEpochMs")
     suspend fun deleteResolvedBefore(cutoffEpochMs: Long): Int
+
+    /**
+     * Statistics source (see `StatisticsProvider`). Returns only the columns
+     * the aggregation reads rather than whole entities — a 90-day window can
+     * be thousands of rows, and none of the payload columns are wanted.
+     *
+     * Filtered to *resolved* states in SQL: `pending`/`claimed` are alarms
+     * that have not happened yet, and counting them would make every total
+     * drift as the day progresses. The window is half-open (`< :toEpochMs`)
+     * so the caller can pass the start of the next day without double-counting
+     * a midnight boundary.
+     */
+    @Query(
+        """
+        SELECT reminder_id AS reminderId, scheduled_at AS scheduledAt, state
+        FROM occurrences
+        WHERE scheduled_at >= :fromEpochMs
+          AND scheduled_at < :toEpochMs
+          AND state NOT IN ('pending', 'claimed')
+        """,
+    )
+    suspend fun resolvedBetween(fromEpochMs: Long, toEpochMs: Long): List<ResolvedOccurrenceRow>
 }
+
+/** Projection for [OccurrenceDao.resolvedBetween] — not an entity. */
+data class ResolvedOccurrenceRow(
+    val reminderId: String,
+    val scheduledAt: Long,
+    val state: String,
+)

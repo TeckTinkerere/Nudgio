@@ -10,6 +10,7 @@ import type {UUID} from '../../native-client/types';
 export const queryKeys = {
   startup: () => ['startup'] as const,
   capability: () => ['capability'] as const,
+  statistics: (rangeDays: number) => ['statistics', rangeDays] as const,
   preferences: () => ['preferences'] as const,
   appearance: () => ['appearance'] as const,
 

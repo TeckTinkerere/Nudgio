@@ -23,6 +23,7 @@ import com.facebook.react.turbomodule.core.interfaces.TurboModule
 import com.aslam.mediareminder.BuildConfig
 import com.aslam.mediareminder.alarm.AlarmActionProcessor
 import com.aslam.mediareminder.alarm.AlarmIds
+import com.aslam.mediareminder.statistics.StatisticsProvider
 import com.aslam.mediareminder.alarm.AlarmRingingService
 import com.aslam.mediareminder.alarm.SchedulerCoordinator
 import com.aslam.mediareminder.backup.BackupCancelledException
@@ -701,6 +702,51 @@ class MediaReminderModule(
      * JS calls this on mount and on every foreground resume, since a cold
      * launch from the lock screen can mount long after Accept was tapped.
      */
+    /**
+     * Real Statistics (MR-04 "Charts and history"). `rangeDays` is clamped to
+     * the retention window MR-09 defines — asking for more than is retained
+     * would silently return a partial range that looks like real data.
+     */
+    @ReactMethod
+    fun getStatistics(rangeDays: Double, promise: Promise) {
+        moduleScope.launch {
+            runCatching {
+                val days = rangeDays.toInt().coerceIn(1, 90)
+                StatisticsProvider(database).summarize(days)
+            }.onSuccess { summary ->
+                val result = Arguments.createMap().apply {
+                    putInt("rangeDays", summary.rangeDays)
+                    putInt("totalOccurrences", summary.totalOccurrences)
+                    putInt("completed", summary.completed)
+                    putInt("dismissed", summary.dismissed)
+                    putInt("missed", summary.missed)
+                    putInt("snoozed", summary.snoozed)
+                    if (summary.mostActiveReminderLabel == null) {
+                        putNull("mostActiveReminderLabel")
+                    } else {
+                        putString("mostActiveReminderLabel", summary.mostActiveReminderLabel)
+                    }
+                    putArray(
+                        "dailyBreakdown",
+                        Arguments.createArray().apply {
+                            summary.dailyBreakdown.forEach { day ->
+                                pushMap(
+                                    Arguments.createMap().apply {
+                                        putString("date", day.date)
+                                        putInt("completed", day.completed)
+                                        putInt("dismissed", day.dismissed)
+                                        putInt("missed", day.missed)
+                                    },
+                                )
+                            }
+                        },
+                    )
+                }
+                promise.resolve(result)
+            }.onFailure { failSafe(promise, it, "getStatistics") }
+        }
+    }
+
     @ReactMethod
     fun takePendingMediaOpen(promise: Promise) {
         val result = Arguments.createMap()

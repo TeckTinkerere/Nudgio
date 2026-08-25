@@ -168,6 +168,16 @@ export const createMockNativeModule = (
     // No real OS Settings app to deep-link to in Metro-only dev mode or Jest.
     openCapabilitySettings: async () => ({}),
     takePendingMediaOpen: async () => ({mediaId: null}),
+    getStatistics: async () => ({
+      rangeDays: 7,
+      totalOccurrences: 0,
+      completed: 0,
+      dismissed: 0,
+      missed: 0,
+      snoozed: 0,
+      mostActiveReminderLabel: null,
+      dailyBreakdown: [],
+    }),
 
     // Settings "Preview alarm styles" — echoes back a synthetic session/time
     // rather than actually scheduling an `AlarmManager` alarm, since none of

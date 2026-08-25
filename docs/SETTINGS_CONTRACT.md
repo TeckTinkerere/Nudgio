@@ -40,17 +40,22 @@ not finished.
 | Row | Destination | Status |
 | --- | --- | --- |
 | Health | `HealthScreen` | Works |
-| Statistics | `StatisticsScreen` | **Screen is fixture data** — see below |
+| Statistics | `StatisticsScreen` | Works — real Room aggregation via `StatisticsProvider` / `getStatistics` |
 | Backup / Export | `BackupScreen` | Works (real `beginExport` + share) |
 | Import / Restore | `ImportScreen` | Works (real `pickDocument` + `inspectBackup` + `commitImport`) |
 | About | `AboutScreen` | Works (real versions from `StartupSnapshot`) |
 | Alarm style previews | Schedules a real short-delay alarm per profile | Works |
 
+## Closed gaps
+
+**Statistics** rendered `mockStatistics` until 2026-08-25 — every number on
+it was invented. Now backed by `StatisticsProvider`, which aggregates
+resolved `occurrences` over a local-day window (`getStatistics` on the
+bridge). `pending`/`claimed` rows are excluded so totals do not drift as the
+day progresses, and every day in the window is seeded so a quiet day renders
+a row rather than vanishing.
+
 ## Known gap
 
-**Statistics is `mockStatistics`.** The screen renders fixture data, so
-every number on it is invented. It is the one remaining place where a
-surfaced value does not reflect the user's own data. Closing it needs a new
-Room aggregation over `occurrences` (state + day bucketing, timezone-safe
-day boundaries) plus a bridge method — sized as its own slice, not a patch.
-Until then it must not be presented as real.
+None outstanding for settings. The `languageTag` control stays deliberately
+unbuilt until a second locale exists — see the table above.

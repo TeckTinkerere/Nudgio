@@ -494,6 +494,10 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
     }),
 
     cancelOperation: async () => ({status: 'ok', affectedCount: 0}),
+    // Metro-only dev parity for the two methods added alongside the alarm
+    // Accept path and the real Statistics aggregation.
+    takePendingMediaOpen: async () => ({mediaId: null}),
+    getStatistics: async () => demoStatistics,
   } satisfies MediaReminderSpec;
 };
 

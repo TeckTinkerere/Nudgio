@@ -444,13 +444,38 @@ class AlarmRingingService : Service() {
         /** MR-06: "hard-capped at 10 minutes in v1." */
         private const val MAX_LIFETIME_SECONDS = 600
 
-        /** [AlarmDispatchReceiver]'s single entry point for "this session needs continuous ringing." */
+        /**
+         * [AlarmDispatchReceiver]'s single entry point for "this session needs
+         * continuous ringing."
+         *
+         * The platform can refuse a foreground-service start that originates
+         * from a background broadcast (`ForegroundServiceStartNotAllowedException`,
+         * API 31+). An alarm delivered via `setAlarmClock` is normally exempt,
+         * but the *inexact* fallback path — the one taken when exact-alarm
+         * access has not been granted — is not reliably covered by that
+         * exemption. Letting that throw would take the whole dispatch down
+         * through `dispatchWithWakeLock`'s failure branch and, worse, would do
+         * it silently from the user's point of view: no sound and no
+         * explanation.
+         *
+         * Caught and logged instead, because the notification is still posted
+         * and its channel now carries an alarm-stream sound of its own (see
+         * `NotificationCoordinator.ensureChannels`), so a refused service
+         * degrades to "rings once via the notification" rather than "silent".
+         */
         fun ring(context: Context, sessionId: String) {
             val intent = Intent(context, AlarmRingingService::class.java).apply {
                 action = AlarmIds.ACTION_RING
                 putExtra(AlarmIds.EXTRA_SESSION_ID, sessionId)
             }
-            ContextCompat.startForegroundService(context, intent)
+            runCatching { ContextCompat.startForegroundService(context, intent) }
+                .onFailure { error ->
+                    NativeLogger.error(
+                        "alarmRinging.startRefused",
+                        mapOf("sessionId" to sessionId),
+                        cause = error,
+                    )
+                }
         }
 
         /** [AlarmActionReceiver]/`MediaReminderModule`'s entry point once [AlarmActionProcessor] resolves a session — MR-06: "stop within one second." */

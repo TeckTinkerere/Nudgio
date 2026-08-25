@@ -404,6 +404,9 @@ export const en = {
   'statistics.dismissed': 'Dismissed',
   'statistics.missed': 'Missed',
   'statistics.snoozed': 'Snoozed',
+  // Translator note: {days} is a plain integer, e.g. "Last 7 days".
+  'statistics.rangeLabel': 'Last {days} days',
+  'statistics.mostActive.none': 'Not enough history yet',
   'statistics.mostActive': 'Most active reminder',
   'statistics.dailyBreakdown': 'Day by day',
   'statistics.empty.title': 'No history yet',

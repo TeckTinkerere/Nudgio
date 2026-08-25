@@ -6,6 +6,7 @@ export {useAppQuery} from './useAppQuery';
 export type {AppQueryOptions, AppQueryResult} from './useAppQuery';
 export {useAppQueryClient} from './useAppQueryClient';
 export {useCapabilitySnapshot} from './useCapabilitySnapshot';
+export {useStatistics, STATISTICS_RANGE_DAYS} from './useStatistics';
 export {useHaptics} from './useHaptics';
 export type {HapticsControl} from './useHaptics';
 export {

@@ -3,6 +3,8 @@ package com.aslam.mediareminder.notifications
 import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -44,11 +46,35 @@ class NotificationCoordinator(private val context: Context) {
         val systemManager = context.getSystemService(NotificationManager::class.java) ?: return
 
         // CATEGORY_ALARM channel (Standard/Persistent — MR-06).
+        //
+        // The sound is set explicitly, with USAGE_ALARM attributes. A channel
+        // created without `setSound` falls back to the default *notification*
+        // tone on the *notification* stream — which the OS silences whenever
+        // the phone is on vibrate/silent. That made a Standard reminder
+        // arrive completely inaudibly on a silenced phone, which is the one
+        // situation an alarm exists for. USAGE_ALARM routes it to the alarm
+        // stream instead, the same stream the system clock app uses, so it
+        // plays when notifications would not.
+        //
+        // This also matters as a *fallback*: `AlarmRingingService` is the
+        // primary sound source, but a foreground service started from a
+        // background broadcast can be refused by the platform (see
+        // `AlarmRingingService.ring`). When that happens the channel is all
+        // that is left, so it has to be able to ring on its own.
+        val alarmToneUri = RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_ALARM)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
         systemManager.createNotificationChannel(
             NotificationChannel(CHANNEL_ALARM, "Reminders (alarm)", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Standard and Persistent reminders"
                 enableVibration(true)
                 setBypassDnd(false)
+                setSound(
+                    alarmToneUri,
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                )
             },
         )
         // CATEGORY_REMINDER channel (Gentle — MR-06).
@@ -294,7 +320,13 @@ class NotificationCoordinator(private val context: Context) {
     fun notificationIdFor(sessionId: String): Int = sessionId.hashCode() and 0x7fffffff
 
     companion object {
-        const val CHANNEL_ALARM = "reminders_alarm_v1"
+        // `_v2`: a NotificationChannel's sound is immutable after creation, so an
+        // existing install would keep the old, silent-on-vibrate channel forever
+        // if the id stayed the same. Bumping it is the documented way to ship a
+        // corrected channel. The v1 id is deliberately not deleted — a user who
+        // customised it keeps that row in system settings rather than having it
+        // vanish.
+        const val CHANNEL_ALARM = "reminders_alarm_v2"
         const val CHANNEL_REMINDER = "reminders_gentle_v1"
 
         /** A single, well-known ID — at most one generic direct-boot notification exists at a time. */

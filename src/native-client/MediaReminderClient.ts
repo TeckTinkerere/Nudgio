@@ -19,6 +19,7 @@ import type {
   BackupInspection,
   CapabilityKind,
   CapabilitySnapshot,
+  StatisticsSummary,
   DeleteMediaRequest,
   EnableResult,
   ExportRequest,
@@ -71,6 +72,7 @@ export interface MediaReminderClient {
   openCapabilitySettings(kind: CapabilityKind): Promise<Result<unknown, AppError>>;
   /** Drains the native "Accept asked to open this media" slot. `null` when nothing is pending. */
   takePendingMediaOpen(): Promise<Result<UUID | null, AppError>>;
+  getStatistics(rangeDays: number): Promise<Result<StatisticsSummary, AppError>>;
   getPreferences(): Promise<Result<PreferencesSnapshot, AppError>>;
   setPreferences(patch: PreferencePatch): Promise<Result<PreferencesSnapshot, AppError>>;
   getDynamicColorScheme(): Promise<Result<unknown | null, AppError>>;
@@ -206,6 +208,10 @@ export const createMediaReminderClient = (
 
     openCapabilitySettings: kind =>
       call('openCapabilitySettings', native => native.openCapabilitySettings(kind)),
+    getStatistics: rangeDays =>
+      call('getStatistics', async native => {
+        return (await native.getStatistics(rangeDays)) as StatisticsSummary;
+      }),
     takePendingMediaOpen: () =>
       call('takePendingMediaOpen', async native => {
         const raw = (await native.takePendingMediaOpen()) as {mediaId?: string | null};

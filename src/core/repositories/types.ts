@@ -16,6 +16,7 @@ import type {
   BackupInspection,
   CapabilityKind,
   CapabilitySnapshot,
+  StatisticsSummary,
   NotificationPermissionResult,
   EnableResult,
   ExportRequest,
@@ -97,6 +98,7 @@ export interface CapabilityRepository {
   openSettings(kind: CapabilityKind): Promise<Result<unknown, AppError>>;
   /** Drains the native "Accept asked to open this media" slot; `null` when nothing is pending. */
   takePendingMediaOpen(): Promise<Result<UUID | null, AppError>>;
+  getStatistics(rangeDays: number): Promise<Result<StatisticsSummary, AppError>>;
 }
 
 export interface SettingsRepository {
