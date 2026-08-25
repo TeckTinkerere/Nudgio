@@ -358,6 +358,28 @@ export interface ReminderProfile {
   readonly entityVersion: number;
 }
 
+// --- Statistics (MR-04 "Charts and history") -----------------------------------
+
+export interface DailyOutcomeCount {
+  /** ISO `yyyy-MM-dd`, local to the device. Formatted for display by the screen. */
+  readonly date: string;
+  readonly completed: number;
+  readonly dismissed: number;
+  readonly missed: number;
+}
+
+export interface StatisticsSummary {
+  readonly rangeDays: number;
+  readonly totalOccurrences: number;
+  readonly completed: number;
+  readonly dismissed: number;
+  readonly missed: number;
+  /** Counted for the headline figure only — a snooze is not a day-level outcome. */
+  readonly snoozed: number;
+  readonly mostActiveReminderLabel: string | null;
+  readonly dailyBreakdown: readonly DailyOutcomeCount[];
+}
+
 // --- Capability (MR-08 "Capability contract") ----------------------------------
 
 export type CapabilityKind =

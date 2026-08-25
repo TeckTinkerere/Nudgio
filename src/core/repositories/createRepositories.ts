@@ -73,6 +73,7 @@ export const createRepositories = (deps: CreateRepositoriesDeps): Repositories =
       requestNotificationPermission: () => client.requestNotificationPermission(),
       openSettings: kind => client.openCapabilitySettings(kind),
       takePendingMediaOpen: () => client.takePendingMediaOpen(),
+      getStatistics: rangeDays => client.getStatistics(rangeDays),
     },
 
     settings: {

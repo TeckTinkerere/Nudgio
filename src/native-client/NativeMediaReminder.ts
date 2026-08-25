@@ -530,6 +530,8 @@ export interface Spec extends TurboModule {
   openCapabilitySettings(kind: string): Promise<Object>;
   /** `{mediaId: string | null}` — see `PendingMediaOpen` on the native side. */
   takePendingMediaOpen(): Promise<Object>;
+  /** `StatisticsSummary` — real aggregation over `occurrences`. */
+  getStatistics(rangeDays: number): Promise<Object>;
 }
 
 /**

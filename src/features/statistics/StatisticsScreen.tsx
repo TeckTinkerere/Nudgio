@@ -15,6 +15,8 @@ import {
   AppBar,
   Card,
   EmptyState,
+  ErrorState,
+  LoadingState,
   Screen,
   Stack,
   StatTile,
@@ -22,8 +24,9 @@ import {
   useFloatingAppBar,
   useTheme,
 } from '../../design-system';
+import {STATISTICS_RANGE_DAYS, usePreferences, useStatistics} from '../../hooks';
 import {useTranslation} from '../../localization';
-import {mockStatistics, type DailyOutcomeCount} from '../../mocks/fixtures';
+import type {DailyOutcomeCount} from '../../native-client/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Statistics'>;
 
@@ -64,10 +67,30 @@ function DayProportionBar({day}: {readonly day: DailyOutcomeCount}) {
   );
 }
 
+/**
+ * `yyyy-MM-dd` -> a short local weekday ("Mon"). The native side returns an
+ * unambiguous ISO date rather than a pre-formatted label so the locale is
+ * decided here, on the device, at render time. Parsed as local noon: parsing
+ * a bare date string is UTC per spec, which shifts the weekday by a day for
+ * anyone west of Greenwich.
+ */
+const weekdayLabel = (isoDate: string, languageTag: string | undefined): string => {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  if (!year || !month || !day) {
+    return isoDate;
+  }
+  return new Intl.DateTimeFormat(languageTag, {weekday: 'short'}).format(
+    new Date(year, month - 1, day, 12),
+  );
+};
+
 export function StatisticsScreen({navigation}: Props) {
   const t = useTranslation();
-  const stats = mockStatistics;
   const appBar = useFloatingAppBar();
+  const statistics = useStatistics();
+  const stats = statistics.data;
+  const preferences = usePreferences();
+  const languageTag = preferences.data?.languageTag ?? undefined;
 
   return (
     <Screen
@@ -85,7 +108,16 @@ export function StatisticsScreen({navigation}: Props) {
           onHeightChange={appBar.onHeightChange}
         />
       }>
-      {stats.totalOccurrences === 0 ? (
+      {statistics.isPending ? (
+        <LoadingState label={t('loading.startingUp')} />
+      ) : statistics.isError ? (
+        <ErrorState
+          title={t('error.unexpected.title')}
+          effect={t('error.unexpected.effect')}
+          recoveryAction={{label: t('action.retry'), onPress: () => statistics.refetch()}}
+          diagnosticCode={statistics.error.correlationId}
+        />
+      ) : !stats || stats.totalOccurrences === 0 ? (
         <EmptyState
           icon="today"
           title={t('statistics.empty.title')}
@@ -94,7 +126,7 @@ export function StatisticsScreen({navigation}: Props) {
       ) : (
         <Stack gap="lg" paddingVertical="md">
           <Text variant="labelLarge" tone="variant">
-            {stats.rangeLabel}
+            {t('statistics.rangeLabel', {days: STATISTICS_RANGE_DAYS})}
           </Text>
 
           <Stack direction="row" gap="xs" wrap>
@@ -114,7 +146,9 @@ export function StatisticsScreen({navigation}: Props) {
               <Text variant="bodyLarge" tone="variant">
                 {t('statistics.mostActive')}
               </Text>
-              <Text variant="titleMedium">{stats.mostActiveReminderLabel}</Text>
+              <Text variant="titleMedium">
+                {stats.mostActiveReminderLabel ?? t('statistics.mostActive.none')}
+              </Text>
             </Stack>
           </Card>
 
@@ -131,7 +165,7 @@ export function StatisticsScreen({navigation}: Props) {
                 })}>
                 <Stack gap="xs">
                   <Stack direction="row" align="center" justify="space-between">
-                    <Text variant="titleMedium">{day.date}</Text>
+                    <Text variant="titleMedium">{weekdayLabel(day.date, languageTag)}</Text>
                     <Stack direction="row" gap="sm">
                       <Text variant="bodyMedium" tone="variant" tabularNumbers>
                         {t('statistics.completed')}: {day.completed}
