@@ -27,6 +27,7 @@ import {TimePicker, type TimeOfDayValue} from './TimePicker';
 import {useReminderDetail} from './useReminderDetail';
 import {useSaveReminder} from './useSaveReminder';
 import {weekdayOptions} from './weekdayOptions';
+import {whenStateFromSchedule} from './whenDefaults';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {rootRoutes} from '../../constants/routes';
 import {appConfig} from '../../core/config/appConfig';
@@ -216,6 +217,7 @@ export function ReminderEditorScreen({navigation, route}: Props) {
       prefillMediaId={route.params.mediaId}
       profiles={profiles.data}
       defaultSnoozeMinutes={preferences.data?.defaultSnoozeMinutes ?? appConfig.snooze.presetMinutes[1]!}
+      use24Hour={preferences.data?.use24HourTime ?? false}
     />
   );
 }
@@ -227,6 +229,8 @@ interface ReminderEditorFormProps {
   readonly profiles: readonly ReminderProfile[];
   /** Settings' "Default snooze duration" — the seed for a *new* reminder. */
   readonly defaultSnoozeMinutes: number;
+  /** Settings' "24-hour time" — the time wheel drops its AM/PM column when on. */
+  readonly use24Hour: boolean;
 }
 
 function ReminderEditorForm({
@@ -235,6 +239,7 @@ function ReminderEditorForm({
   prefillMediaId,
   profiles,
   defaultSnoozeMinutes,
+  use24Hour,
 }: ReminderEditorFormProps) {
   const t = useTranslation();
   const isNew = existing === undefined;
@@ -264,11 +269,20 @@ function ReminderEditorForm({
   const [label, setLabel] = useState(existing?.label ?? '');
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [repeatType, setRepeatType] = useState<RepeatType>(existing?.schedule.type ?? 'daily');
-  const [time, setTime] = useState<TimeOfDayValue>({hour: 6, minute: 15, period: 'AM'});
-  const [weekdays, setWeekdays] = useState<readonly number[]>([1, 2, 3, 4, 5]);
-  const [dayOfMonth, setDayOfMonth] = useState(1);
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [intervalDays, setIntervalDays] = useState(3);
+  // Every "When" field starts from the reminder being edited, not from the
+  // create-time defaults — see `whenDefaults`. `existing` is already resolved
+  // by the time this form mounts (the outer component gates on the query), so
+  // reading it in a `useState` initializer is correct.
+  const initialWhen = useMemo(() => whenStateFromSchedule(existing?.schedule), [existing?.schedule]);
+  const [time, setTime] = useState<TimeOfDayValue>(initialWhen.time);
+  // True while a time wheel is being dragged. Two vertical scrollers on the
+  // same axis cannot both have the gesture, and the wheel must win: this
+  // screen's own scroll view holds still until the drag ends.
+  const [timeWheelActive, setTimeWheelActive] = useState(false);
+  const [weekdays, setWeekdays] = useState<readonly number[]>(initialWhen.weekdays);
+  const [dayOfMonth, setDayOfMonth] = useState(initialWhen.dayOfMonth);
+  const [month, setMonth] = useState(initialWhen.month);
+  const [intervalDays, setIntervalDays] = useState(initialWhen.intervalDays);
   const [profileId, setProfileId] = useState(existing?.profileId ?? profiles[1]?.id);
   // Settings' preference, not `appConfig`: the build constant is only the
   // fallback for a preferences read that failed. Using it unconditionally
@@ -440,6 +454,7 @@ function ReminderEditorForm({
     <Screen
       hasAppBar
       scrollable
+      scrollEnabled={!timeWheelActive}
       onScroll={appBar.onScroll}
       scrollEventThrottle={16}
       contentContainerStyle={{paddingTop: appBar.barHeight}}
@@ -562,7 +577,8 @@ function ReminderEditorForm({
               hourLabel={t('reminders.editor.hour')}
               minuteLabel={t('reminders.editor.minute')}
               amPmLabel={t('reminders.editor.amPm')}
-              doneLabel={t('action.done')}
+              use24Hour={use24Hour}
+              onInteractionChange={setTimeWheelActive}
             />
           </Stack>
         </Stack>

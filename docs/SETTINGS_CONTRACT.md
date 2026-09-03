@@ -16,7 +16,7 @@ not finished.
 | --- | --- | --- | --- |
 | `themePreference` | Settings → Appearance, segmented control | `ThemeProvider` via `useAppearanceSettings` | Works |
 | `useMaterialYou` | Settings → Appearance, toggle | `buildTheme` / `schemeFromDynamicColor` | Works |
-| `use24HourTime` | Settings → Reminder defaults, toggle | `formatLocalTime` (Upcoming), `formatTimeParts` (Reminders list) | Works — control added 2026-08-24; the Reminders list separately hardcoded `hour12: true` and ignored it until the same pass |
+| `use24HourTime` | Settings → Reminder defaults, toggle | `formatLocalTime` (Upcoming), `formatTimeParts` (Reminders list), `TimePicker` (editor's time wheel) | Works — control added 2026-08-24; the Reminders list separately hardcoded `hour12: true` and ignored it until the same pass, and the editor's own picker was 12-hour-only until 2026-09-03 (DL-076) |
 | `defaultSnoozeMinutes` | Settings → Reminder defaults, chips | `ReminderEditorScreen` seeds a new reminder's snooze from it | Works — until 2026-08-24 the editor seeded from `appConfig.snooze.presetMinutes[1]`, so this control changed nothing |
 | `hasCompletedOnboarding` | Not user-facing (written by Onboarding) | `RootNavigator` initial route | Works |
 | `languageTag` | **No control** | `Intl.DateTimeFormat` calls across Upcoming/editor | Intentionally unexposed: only `en` exists in `src/localization/resources/`. Add the control with the second locale, not before |

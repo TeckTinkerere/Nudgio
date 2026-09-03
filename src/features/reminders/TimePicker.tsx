@@ -1,29 +1,30 @@
 /**
- * Time-of-day picker: a large digital clock where the hour and the minute
- * are each their own tap target, and tapping either opens an analog clock
- * overlay to set it — the same two-stage interaction the platform's own
- * alarm clock uses.
+ * Time-of-day picker: the three-column scroll wheel every alarm clock on
+ * Android uses — hour, minute, and (in 12-hour mode) AM/PM — with the
+ * selected value centred and its neighbours fading away above and below.
  *
- * Replaces the scroll-wheel columns this used to be. The wheels supported
- * only 5-minute steps and, because they were built on a `ScrollView` nested
- * inside the editor's own scroll view, the vertical drag was routinely
- * claimed by the parent — so in practice they could only be tapped, not
- * dragged. The analog dial owns its gesture outright (it lives in a modal,
- * with nothing above it competing) and gives every one of the 60 minutes.
+ * Each column is a `WheelPicker`, which owns its vertical drag outright via
+ * a gesture handler rather than a nested `ScrollView`; the wheel that used
+ * to be here could only be tapped, because the editor's own scroll view
+ * claimed every drag before the column saw it. `onInteractionChange` is
+ * forwarded up so the screen can freeze that scroll view while a column is
+ * being dragged. All sixty minutes are selectable, not five-minute steps.
  *
- * AM/PM stays inline as a segmented control rather than a third overlay:
- * it is a binary choice, and making it a two-tap flow to change one bit
- * would be worse than the wheel it replaced.
+ * The 12/24-hour split follows the user's `use24HourTime` preference: in
+ * 24-hour mode the hour column runs 00-23 and the AM/PM column disappears
+ * entirely, rather than being shown-but-ignored. The value shape stays
+ * 12-hour internally (`hour` 1-12 plus `period`) so the editor's conversion
+ * to `LocalTime` is the same in both modes.
  *
  * Local to `features/reminders` rather than the design system: the
- * hour/minute/period value shape is domain-specific to scheduling.
- * `AnalogClockPicker` — the reusable half — is in the design system.
+ * hour/minute/period value shape is domain-specific to scheduling, and the
+ * selection tick is a haptics-policy call, which `design-system` components
+ * are not allowed to make.
  */
-import {useState} from 'react';
-import {StyleSheet} from 'react-native';
+import {useCallback, useMemo} from 'react';
 
-import {AnalogClockPicker, SegmentedControl, Stack, Text, useTheme, type ClockMode} from '../../design-system';
-import {AnimatedPressable} from '../../design-system';
+import {Stack, Text, WheelPicker, type WheelPickerOption} from '../../design-system';
+import {useHaptics} from '../../hooks';
 
 export interface TimeOfDayValue {
   /** 1-12. */
@@ -39,11 +40,46 @@ export interface TimePickerProps {
   readonly hourLabel: string;
   readonly minuteLabel: string;
   readonly amPmLabel: string;
-  readonly doneLabel: string;
+  /** Follows the `use24HourTime` preference. */
+  readonly use24Hour?: boolean;
+  /** True while a column is being dragged — the screen's scroll view must yield. */
+  readonly onInteractionChange?: (active: boolean) => void;
   readonly testID?: string;
 }
 
 const pad2 = (n: number): string => n.toString().padStart(2, '0');
+
+/** 12-hour value -> the 0-23 hour it denotes. */
+export const toHour24 = (hour12: number, period: 'AM' | 'PM'): number => {
+  const base = hour12 % 12;
+  return period === 'AM' ? base : base + 12;
+};
+
+/** The inverse: 0-23 -> the hour/period pair the value shape stores. */
+export const fromHour24 = (hour24: number): {hour: number; period: 'AM' | 'PM'} => ({
+  hour: hour24 % 12 === 0 ? 12 : hour24 % 12,
+  period: hour24 < 12 ? 'AM' : 'PM',
+});
+
+const MINUTE_OPTIONS: readonly WheelPickerOption<number>[] = Array.from(
+  {length: 60},
+  (_, minute) => ({value: minute, label: pad2(minute)}),
+);
+
+const HOUR_12_OPTIONS: readonly WheelPickerOption<number>[] = Array.from(
+  {length: 12},
+  (_, index) => ({value: index + 1, label: pad2(index + 1)}),
+);
+
+const HOUR_24_OPTIONS: readonly WheelPickerOption<number>[] = Array.from(
+  {length: 24},
+  (_, hour) => ({value: hour, label: pad2(hour)}),
+);
+
+const PERIOD_OPTIONS: readonly WheelPickerOption<'AM' | 'PM'>[] = [
+  {value: 'AM', label: 'AM'},
+  {value: 'PM', label: 'PM'},
+];
 
 export function TimePicker({
   value,
@@ -51,73 +87,65 @@ export function TimePicker({
   hourLabel,
   minuteLabel,
   amPmLabel,
-  doneLabel,
+  use24Hour = false,
+  onInteractionChange,
   testID,
 }: TimePickerProps) {
-  const theme = useTheme();
-  const [editing, setEditing] = useState<ClockMode | null>(null);
+  const haptics = useHaptics();
 
-  const fieldStyle = (active: boolean) => [
-    styles.field,
-    {
-      backgroundColor: active ? theme.color.primaryContainer : theme.color.surfaceContainerHigh,
-      borderRadius: theme.radius.card,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.xs,
+  // A short tick as each value passes the centre — the physical detent a
+  // real wheel has, and the only feedback available while the finger is
+  // covering the number it is choosing.
+  const tick = useCallback(() => haptics.trigger('light'), [haptics]);
+
+  const hourOptions = use24Hour ? HOUR_24_OPTIONS : HOUR_12_OPTIONS;
+  const hourValue = useMemo(
+    () => (use24Hour ? toHour24(value.hour, value.period) : value.hour),
+    [use24Hour, value.hour, value.period],
+  );
+
+  const onHourChange = useCallback(
+    (next: number) => {
+      onChange(use24Hour ? {...value, ...fromHour24(next)} : {...value, hour: next});
     },
-  ];
+    [onChange, use24Hour, value],
+  );
 
   return (
-    <Stack testID={testID} gap="sm" align="center">
-      <Stack direction="row" align="center" justify="center" gap="xs">
-        <AnimatedPressable
-          onPress={() => setEditing('hour')}
-          accessibilityRole="button"
-          accessibilityLabel={`${hourLabel}: ${value.hour}`}
-          style={fieldStyle(editing === 'hour')}>
-          <Text variant="displaySmall" tabularNumbers>
-            {value.hour}
-          </Text>
-        </AnimatedPressable>
-
-        <Text variant="displaySmall">:</Text>
-
-        <AnimatedPressable
-          onPress={() => setEditing('minute')}
-          accessibilityRole="button"
-          accessibilityLabel={`${minuteLabel}: ${pad2(value.minute)}`}
-          style={fieldStyle(editing === 'minute')}>
-          <Text variant="displaySmall" tabularNumbers>
-            {pad2(value.minute)}
-          </Text>
-        </AnimatedPressable>
-      </Stack>
-
-      <SegmentedControl
-        accessibilityLabel={amPmLabel}
-        options={[
-          {value: 'AM', label: 'AM'},
-          {value: 'PM', label: 'PM'},
-        ]}
-        value={value.period}
-        onChange={period => onChange({...value, period})}
+    <Stack testID={testID} direction="row" align="center" justify="center" gap="xs">
+      <WheelPicker
+        options={hourOptions}
+        value={hourValue}
+        onChange={onHourChange}
+        accessibilityLabel={hourLabel}
+        onInteractionChange={onInteractionChange}
+        onTick={tick}
       />
 
-      <AnalogClockPicker
-        visible={editing !== null}
-        mode={editing ?? 'hour'}
-        value={editing === 'minute' ? value.minute : value.hour}
-        onChange={next =>
-          onChange(editing === 'minute' ? {...value, minute: next} : {...value, hour: next})
-        }
-        onDismiss={() => setEditing(null)}
-        title={editing === 'minute' ? minuteLabel : hourLabel}
-        doneLabel={doneLabel}
+      <Text variant="headlineMedium" tabularNumbers>
+        :
+      </Text>
+
+      <WheelPicker
+        options={MINUTE_OPTIONS}
+        value={value.minute}
+        onChange={minute => onChange({...value, minute})}
+        accessibilityLabel={minuteLabel}
+        onInteractionChange={onInteractionChange}
+        onTick={tick}
       />
+
+      {use24Hour ? null : (
+        <WheelPicker
+          options={PERIOD_OPTIONS}
+          value={value.period}
+          onChange={period => onChange({...value, period})}
+          accessibilityLabel={amPmLabel}
+          labelVariant="titleLarge"
+          onInteractionChange={onInteractionChange}
+          onTick={tick}
+        />
+      )}
     </Stack>
   );
 }
-
-const styles = StyleSheet.create({
-  field: {alignItems: 'center', justifyContent: 'center'},
-});

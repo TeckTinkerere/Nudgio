@@ -40,6 +40,13 @@ export interface ScreenProps {
   readonly children: React.ReactNode;
   /** Wraps content in a ScrollView. Off for screens that own a list. */
   readonly scrollable?: boolean;
+  /**
+   * Freezes the scroll region. Set to `false` while a child owns a vertical
+   * drag of its own — the reminder editor does this for the duration of a
+   * `WheelPicker` drag, so the page cannot scroll out from under the wheel.
+   * Only applies when `scrollable`.
+   */
+  readonly scrollEnabled?: boolean;
   /** Disable the 16 dp side padding for edge-to-edge lists and grids. */
   readonly edgeToEdge?: boolean;
   /**
@@ -59,6 +66,7 @@ export interface ScreenProps {
 export function Screen({
   children,
   scrollable = false,
+  scrollEnabled = true,
   edgeToEdge = false,
   hasAppBar = false,
   backgroundColor,
@@ -133,6 +141,7 @@ export function Screen({
       {appBarSlot}
       <ScrollView
         style={{flex: 1}}
+        scrollEnabled={scrollEnabled}
         contentContainerStyle={[
           {
             paddingHorizontal: horizontalPadding,

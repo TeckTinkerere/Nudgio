@@ -2303,3 +2303,74 @@ Lesson: a git worktree nested under a long harness-managed path is a poor
 place to run a Windows native Android build from; either keep worktrees
 used for Android builds shallow, or plan to build from the primary checkout
 from the start.
+
+## DL-076 — The time wheel is back, and this time it can actually be dragged
+
+**Date:** 2026-09-03
+**Context:** DL-075's pass shipped a `WheelPicker` for the reminder editor's
+time field; the next pass deleted it again because it "could only be tapped,
+never dragged", replacing it with a digital clock whose hour and minute each
+opened an `AnalogClockPicker` modal. The diagnosis was right and
+the cure was wrong: the wheel was a `ScrollView` nested inside the editor's
+own `ScrollView`, and two native scroll views on the same axis have no
+arbitration beyond "the parent intercepts first", so the parent won every
+drag. Moving the interaction into a modal dodged that conflict rather than
+resolving it, and cost the wheel — which is the control every alarm clock on
+this platform uses, and the one the user asked for by screenshot.
+**Decision:** Rebuilt `WheelPicker` on a `react-native-gesture-handler`
+`Pan` instead of a `ScrollView`. A gesture handler *does* have cross-view
+arbitration: on activation it tells its ancestors to stop intercepting the
+touch, and `activeOffsetY` is tightened to ±4 dp so it claims the drag before
+the parent's own ~8 dp scroll slop can. Scroll physics are therefore
+hand-rolled — release velocity projected forward 0.15 s, snapped to the
+nearest row, settled by a spring carrying that velocity, rubber-banded past
+either end. As a second, independent guarantee the column reports
+`onInteractionChange`, and `ReminderEditorScreen` freezes `Screen`'s scroll
+view (new `scrollEnabled` prop) for the duration of a drag, so a touch the
+handler has not activated on yet still cannot scroll the page instead.
+Per-item opacity/scale is driven off the scroll offset on the UI thread, so a
+drag across sixty minutes costs zero re-renders; under `reduceMotion` that
+ramp collapses to a static selected/unselected split and the settle becomes a
+120 ms tween. The column stays one `adjustable` control for assistive tech
+with increment/decrement actions, and every row is still tappable.
+`AnalogClockPicker` is deleted: it existed only to work around the bug that
+is now fixed, and an unused modal dial would have been a second, divergent
+way to set the same value. The editor also finally honors `use24HourTime` —
+the hour column runs 00-23 and the AM/PM column disappears — rather than
+showing a 12-hour picker to someone who asked for 24.
+**Consequence:** The time field drags, flings and snaps, all 60 minutes are
+reachable, and the interaction matches the platform alarm clock the request
+pointed at. Covered by `WheelPicker.test.tsx` (adjustable semantics, tap,
+a11y increment/decrement, and a real `fireGestureHandler` drag asserting both
+the value change and the parent-scroll yield) and `TimePicker.test.tsx`
+(column set per mode, per-field isolation, and the 12/24-hour conversion
+across midday). Residual risk: gesture arbitration cannot be exercised on a
+real ancestor `ScrollView` in Jest — the wheel's own drag is tested, the
+"parent yields" half is asserted through the callback contract, so the
+combined behavior still wants one manual pass on a device.
+
+## DL-077 — Editing a reminder no longer resets its whole schedule
+
+**Date:** 2026-09-03
+**Context:** Found while wiring DL-076's wheel into `ReminderEditorScreen`:
+every "When" field — time, weekdays, day of month, month, interval — was a
+`useState` seeded from a create-time constant, not from the reminder being
+edited. Only `repeatType`, `label`, `notes`, `profileId`, `snooze` and
+`historyEnabled` read `existing`. So opening a saved 5:18 PM Sat/Sun reminder
+showed 6:15 AM, Mon-Fri, and Save wrote *that* back: the form silently
+rewrote the schedule of any reminder whose Save was pressed, even when the
+user had only changed its label.
+**Decision:** Extracted `whenDefaults.ts` — a pure
+`whenStateFromSchedule(schedule)` mapping each `ScheduleRuleDto` variant back
+to form state, with `newReminderWhenState()` as the only place the create
+defaults live. A `once` rule is read back from its instant in the device zone
+(it stores no local time); an unparseable or out-of-range `localTime` falls
+back to the defaults rather than rendering a nonsense hour. Kept out of the
+screen so the mapping is unit-testable without mounting it.
+**Consequence:** The editor opens on the reminder's own schedule, and a Save
+that did not touch the "When" section is now a no-op for it. Six unit tests
+cover the daily/weekday/monthly/yearly/custom/once variants, midnight and
+noon (the two hours a 12-hour split gets wrong most often), and the bad-input
+fallback. Residual risk: this only fixes what the form *starts* from —
+`repeatType` changes still rebuild the rule from whatever the other fields
+hold, which is existing behavior and unchanged here.
