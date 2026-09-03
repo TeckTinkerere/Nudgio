@@ -121,6 +121,7 @@
             android:launchMode="singleTop"
             android:noHistory="true"
             android:excludeFromRecents="true"
+            android:theme="@style/Theme.Nudgio.Alarm"
             android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize|keyboardHidden|uiMode" />
 
         <!--

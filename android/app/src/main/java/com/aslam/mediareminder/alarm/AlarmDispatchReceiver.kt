@@ -133,7 +133,13 @@ class AlarmDispatchReceiver : BroadcastReceiver() {
             // ring and use `CATEGORY_ALARM`, Gentle never does.
             val useAlarmChannel = profile?.fullScreenWhenLocked ?: true
             val notificationCoordinator = NotificationCoordinator(context)
-            val notificationBody = AlarmNotificationText.resolveBody(database, reminder)
+            val notificationContent = AlarmNotificationText.resolve(database, reminder)
+            val notificationBody = notificationContent.body
+            // Decoding the cached thumbnail (a <=640 px WebP) costs a few ms
+            // inside the bounded `goAsync()` window this dispatch already
+            // holds, and buys a notification that shows the reminder rather
+            // than describing it. Null whenever there is nothing to decode.
+            val artwork = AlarmArtwork.load(context, notificationContent.media)
 
             val decision = DevicePresentationState.classify(
                 isLockedOrNonInteractive = isLockedOrNonInteractive(context),
@@ -175,6 +181,8 @@ class AlarmDispatchReceiver : BroadcastReceiver() {
                 useAlarmChannel = useAlarmChannel,
                 ongoing = useAlarmChannel,
                 useFullScreenIntent = decision.useFullScreenIntent,
+                artwork = artwork,
+                subText = notificationContent.subText,
             )
 
             // Step 5 (the rest of it): start continuous ringing for a

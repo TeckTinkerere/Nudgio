@@ -5,44 +5,50 @@
   presentation request — Accept resolves the same way "Play" does everywhere
   else in the bridge/notification contract, see AlarmActivity's doc comment).
   Plain Views, not Compose (no Compose dependency exists in this project) —
-  Material components only, matching styles.xml's Theme.Material3 parent.
+  Material components only, matching styles.xml's Material3 parents.
+
+  The screen is laid out as an alarm clock, not as a dialog: the current time
+  reads first from across a room, then what the reminder is, then a card
+  showing the thing it is about, then the actions under the thumb. The media
+  preview is a *poster*, never a player — MR-06's "no media autoplays in the
+  alarm activity" is absolute, so the card carries an explicit play
+  affordance and the words "Plays when you accept" rather than a frame that
+  looks like it stalled.
+
+  The middle column scrolls (`fillViewport`, centred until it overflows) so
+  that a long label at a 2x font scale pushes rather than clips, and the
+  action buttons never leave the bottom of the screen where the thumb is.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#121212">
+    android:background="@color/alarm_background">
 
     <!--
-      The selected media's own thumbnail, behind everything, at low opacity:
-      the alarm should look like the thing it is reminding you of. Set from
-      AlarmActivity only when the reminder actually resolves to a thumbnail
-      on disk; it stays GONE otherwise, so the flat #121212 above remains
-      the fallback rather than a broken/empty image well. Not focusable and
-      marked decorative — the label/media-title text already carries the
-      same meaning for TalkBack.
+      The selected media's own thumbnail, behind everything: the alarm should
+      look like the thing it is reminding you of. Set from AlarmActivity only
+      when the reminder actually resolves to a thumbnail on disk; it stays
+      GONE otherwise, so the flat background remains the fallback rather than
+      a broken/empty image well. Not focusable and marked decorative — the
+      label and the preview card already carry the same meaning for TalkBack.
     -->
     <ImageView
         android:id="@+id/alarm_background_image"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:alpha="0.28"
+        android:alpha="0.5"
         android:contentDescription="@null"
         android:importantForAccessibility="no"
         android:scaleType="centerCrop"
         android:visibility="gone" />
 
-    <!--
-      Scrim over the artwork so the white body text keeps its contrast
-      regardless of how bright the underlying frame is (MR-13 ACC contrast
-      floor) — without it a light thumbnail makes the buttons unreadable.
-    -->
     <View
         android:id="@+id/alarm_background_scrim"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#99000000"
+        android:background="@drawable/alarm_backdrop_scrim"
         android:visibility="gone" />
 
     <LinearLayout
@@ -51,99 +57,302 @@
         android:orientation="vertical"
         android:fitsSystemWindows="true">
 
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="8dp">
-
-        <ImageButton
-            android:id="@+id/alarm_overflow_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_gravity="end|top"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/alarm_more_options"
-            android:src="@drawable/ic_more_vert" />
-    </FrameLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:paddingHorizontal="32dp">
-
-        <TextView
-            android:id="@+id/alarm_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:textColor="#FFFFFF"
-            android:textSize="30sp"
-            android:textStyle="bold"
-            tools:text="Take evening medication" />
-
-        <TextView
-            android:id="@+id/alarm_media_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:textColor="#CCFFFFFF"
-            android:textSize="18sp"
-            tools:text="Dosage reminder video" />
-
-        <TextView
-            android:id="@+id/alarm_repeat_summary"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:textColor="#99FFFFFF"
-            android:textSize="14sp"
-            tools:text="Every day at 8:00 PM" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="24dp">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/alarm_accept_button"
+        <!-- Status row: what is happening, and the accessibility overflow. -->
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="@string/alarm_accept"
-            android:textSize="18sp" />
+            android:layout_height="wrap_content"
+            android:paddingStart="20dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="8dp">
+
+            <LinearLayout
+                android:id="@+id/alarm_status_pill"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="start|center_vertical"
+                android:background="@drawable/alarm_status_pill"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp">
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:contentDescription="@null"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_alarm"
+                    app:tint="@color/alarm_ringing" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:letterSpacing="0.08"
+                    android:text="@string/alarm_status_ringing"
+                    android:textAllCaps="true"
+                    android:textColor="@color/alarm_ringing"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/alarm_overflow_button"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="end|top"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/alarm_more_options"
+                android:src="@drawable/ic_more_vert"
+                app:tint="@color/alarm_on_surface_variant" />
+        </FrameLayout>
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:minHeight="0dp"
+                android:orientation="vertical"
+                android:paddingHorizontal="24dp"
+                android:paddingVertical="8dp">
+
+                <!--
+                  The clock the user actually looks at first. A `TextClock`
+                  rather than a formatted string: it follows the device's own
+                  12/24-hour setting and keeps itself current without this
+                  activity running a ticker, which matters for a screen that
+                  can stay up for the whole ring timeout.
+                -->
+                <TextClock
+                    android:id="@+id/alarm_clock"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:format12Hour="h:mm"
+                    android:format24Hour="HH:mm"
+                    android:includeFontPadding="false"
+                    android:textColor="@color/alarm_on_surface"
+                    android:textSize="64sp"
+                    tools:text="5:18" />
+
+                <TextClock
+                    android:id="@+id/alarm_date"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:format12Hour="EEEE, d MMMM"
+                    android:format24Hour="EEEE, d MMMM"
+                    android:textColor="@color/alarm_on_surface_muted"
+                    android:textSize="14sp"
+                    tools:text="Wednesday, 3 September" />
+
+                <TextView
+                    android:id="@+id/alarm_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:gravity="center"
+                    android:textColor="@color/alarm_on_surface"
+                    android:textSize="28sp"
+                    android:textStyle="bold"
+                    tools:text="Take evening medication" />
+
+                <TextView
+                    android:id="@+id/alarm_repeat_summary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center"
+                    android:textColor="@color/alarm_on_surface_variant"
+                    android:textSize="14sp"
+                    tools:text="Every day at 8:00 PM" />
+
+                <!-- Preview mode (Settings > "Preview alarm styles") has no
+                     media behind it, so it shows its body copy here and the
+                     card below stays hidden. -->
+                <TextView
+                    android:id="@+id/alarm_body"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center"
+                    android:textColor="@color/alarm_on_surface_variant"
+                    android:textSize="16sp"
+                    android:visibility="gone"
+                    tools:text="This is how a Standard reminder looks." />
+
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/alarm_preview_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    app:cardBackgroundColor="@color/alarm_surface"
+                    app:cardCornerRadius="24dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/alarm_outline"
+                    app:strokeWidth="1dp">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="176dp">
+
+                        <ImageView
+                            android:id="@+id/alarm_preview_image"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/alarm_poster_placeholder"
+                            android:contentDescription="@null"
+                            android:importantForAccessibility="no"
+                            android:scaleType="centerCrop" />
+
+                        <!-- Shown instead of a frame when there is nothing to
+                             show one of: audio without cover art, a note. -->
+                        <ImageView
+                            android:id="@+id/alarm_preview_kind_glyph"
+                            android:layout_width="56dp"
+                            android:layout_height="56dp"
+                            android:layout_gravity="center"
+                            android:alpha="0.55"
+                            android:contentDescription="@null"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/ic_media_video"
+                            app:tint="@color/alarm_on_surface" />
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/alarm_poster_scrim" />
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="start|top"
+                            android:layout_margin="12dp"
+                            android:background="@drawable/alarm_kind_pill"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingHorizontal="10dp"
+                            android:paddingVertical="5dp">
+
+                            <ImageView
+                                android:id="@+id/alarm_preview_kind_icon"
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
+                                android:contentDescription="@null"
+                                android:importantForAccessibility="no"
+                                android:src="@drawable/ic_media_video"
+                                app:tint="@color/alarm_on_surface" />
+
+                            <TextView
+                                android:id="@+id/alarm_preview_kind_label"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:letterSpacing="0.06"
+                                android:textAllCaps="true"
+                                android:textColor="@color/alarm_on_surface"
+                                android:textSize="11sp"
+                                android:textStyle="bold"
+                                tools:text="Video" />
+                        </LinearLayout>
+
+                        <!--
+                          The play affordance. It is not a button: nothing on
+                          this screen starts media except Accept (MR-06). It
+                          is the one mark that says "there is something here,
+                          and it is waiting for you".
+                        -->
+                        <ImageView
+                            android:id="@+id/alarm_preview_play_badge"
+                            android:layout_width="56dp"
+                            android:layout_height="56dp"
+                            android:layout_gravity="center"
+                            android:background="@drawable/alarm_play_badge"
+                            android:contentDescription="@null"
+                            android:importantForAccessibility="no"
+                            android:padding="15dp"
+                            android:src="@drawable/ic_play"
+                            android:visibility="gone"
+                            app:tint="@color/alarm_background" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="bottom"
+                            android:orientation="vertical"
+                            android:paddingHorizontal="16dp"
+                            android:paddingBottom="14dp">
+
+                            <TextView
+                                android:id="@+id/alarm_media_title"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:textColor="@color/alarm_on_surface"
+                                android:textSize="17sp"
+                                android:textStyle="bold"
+                                tools:text="Dosage reminder video" />
+
+                            <TextView
+                                android:id="@+id/alarm_preview_hint"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:textColor="@color/alarm_on_surface_variant"
+                                android:textSize="13sp"
+                                tools:text="Plays when you accept" />
+                        </LinearLayout>
+                    </FrameLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+        </ScrollView>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="horizontal">
+            android:orientation="vertical"
+            android:paddingHorizontal="20dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="24dp">
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/alarm_snooze_button"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="52dp"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                android:text="@string/alarm_snooze"
-                android:textColor="#FFFFFF" />
+                android:id="@+id/alarm_accept_button"
+                style="@style/Widget.Nudgio.AlarmAction"
+                android:layout_width="match_parent"
+                android:text="@string/alarm_accept"
+                app:icon="@drawable/ic_play" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/alarm_dismiss_button"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="0dp"
-                android:layout_height="52dp"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="@string/alarm_dismiss"
-                android:textColor="#FFFFFF" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/alarm_snooze_button"
+                    style="@style/Widget.Nudgio.AlarmAction.Secondary"
+                    android:layout_width="0dp"
+                    android:layout_marginEnd="5dp"
+                    android:layout_weight="1"
+                    android:text="@string/alarm_snooze"
+                    app:icon="@drawable/ic_snooze" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/alarm_dismiss_button"
+                    style="@style/Widget.Nudgio.AlarmAction.Tertiary"
+                    android:layout_width="0dp"
+                    android:layout_marginStart="5dp"
+                    android:layout_weight="1"
+                    android:text="@string/alarm_dismiss"
+                    app:icon="@drawable/ic_close" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
-
-    </LinearLayout>
-
 </FrameLayout>

@@ -11,4 +11,17 @@
     <string name="alarm_more_options">More options</string>
     <string name="alarm_silence_sound">Silence sound</string>
     <string name="alarm_default_label">Reminder</string>
+
+    <!-- Status pill: what is happening right now, in two words. -->
+    <string name="alarm_status_ringing">Reminder due</string>
+
+    <!-- Preview card. MR-06 forbids autoplay here, so the card has to say,
+         without ambiguity, that the media is waiting rather than broken. -->
+    <string name="alarm_preview_hint_playable">Plays when you accept</string>
+    <string name="alarm_preview_hint_static">Opens when you accept</string>
+    <string name="alarm_preview_play_badge">Media preview</string>
+    <string name="alarm_kind_video">Video</string>
+    <string name="alarm_kind_audio">Audio</string>
+    <string name="alarm_kind_image">Photo</string>
+    <string name="alarm_kind_text">Note</string>
 </resources>

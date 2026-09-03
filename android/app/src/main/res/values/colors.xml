@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Native mirror of the design system's dark color roles
+  (`src/design-system/tokens/palette.ts`), for the two surfaces React Native
+  does not own: the full-screen alarm activity and the system notification.
+
+  The JS palette stays the source of truth — these are copies, and a change
+  there is not automatically a change here. That duplication is deliberate
+  and bounded: the alarm activity has to render before (and independently of)
+  the RN bridge, so it cannot read a JS token, and the notification is drawn
+  by the system process entirely outside the app.
+
+  The alarm surface is always dark, whatever the app theme is: it exists to
+  be read at 3 a.m. on a lock screen, and a light full-screen takeover in a
+  dark room is hostile. That is a product decision, not a missing DayNight
+  qualifier.
+-->
+<resources>
+    <!-- Surfaces, dark ramp. -->
+    <color name="alarm_background">#0E1513</color>
+    <color name="alarm_surface">#17201D</color>
+    <color name="alarm_surface_high">#1E2A26</color>
+    <color name="alarm_outline">#3A4441</color>
+
+    <!-- Content. -->
+    <color name="alarm_on_surface">#FFFFFF</color>
+    <color name="alarm_on_surface_variant">#BEC9C5</color>
+    <color name="alarm_on_surface_muted">#8D9995</color>
+
+    <!-- Brand accent (dark `primary` / `onPrimary`). -->
+    <color name="alarm_accent">#5EDBC8</color>
+    <color name="alarm_on_accent">#003732</color>
+
+    <!-- Dark `secondary`, used only as the "ringing now" accent. -->
+    <color name="alarm_ringing">#FFB951</color>
+
+    <!--
+      Notification tint (`setColor`). Neither ramp end works here: the shade
+      is drawn by the system in the *user's* theme, not the app's, so the
+      light primary disappears on a dark shade and the dark primary washes
+      out on a light one. This is the mid-ramp teal between them, which
+      clears 3:1 against both.
+    -->
+    <color name="notification_accent">#0E8C7E</color>
+</resources>
