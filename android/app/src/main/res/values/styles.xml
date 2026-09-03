@@ -16,4 +16,65 @@
     <style name="ResetEditText" parent="@android:style/Widget.EditText">
         <item name="android:padding">0dp</item>
     </style>
+
+    <!--
+      The full-screen alarm's own theme. Always the dark scheme, never
+      DayNight: this surface is read on a lock screen in the dark, and a
+      white full-screen takeover at 3 a.m. is hostile (see colors.xml).
+      Fixing it here rather than per-view also means the window background
+      behind the layout is already the right color during the launch frame,
+      so the takeover never flashes white before it draws.
+    -->
+    <style name="Theme.Nudgio.Alarm" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowBackground">@color/alarm_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="colorPrimary">@color/alarm_accent</item>
+        <item name="colorOnPrimary">@color/alarm_on_accent</item>
+    </style>
+
+    <!--
+      The three alarm actions, as one visual hierarchy: Accept is the only
+      filled control on the screen, Snooze is the tonal alternative, Dismiss
+      is the quiet one. MR-13 ACC-002 sets the floors (48 dp everywhere, 56 dp
+      for alarm actions) — the heights below are above both, because this
+      screen is operated half-awake and often one-handed. Colors are pinned
+      rather than themed for the reason the alarm theme itself is: this
+      surface is dark in every app theme.
+    -->
+    <style name="Widget.Nudgio.AlarmAction" parent="Widget.Material3.Button">
+        <item name="android:layout_height">64dp</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:letterSpacing">0.01</item>
+        <item name="cornerRadius">32dp</item>
+        <item name="iconGravity">textStart</item>
+        <item name="iconPadding">12dp</item>
+        <item name="iconSize">22dp</item>
+        <item name="backgroundTint">@color/alarm_accent</item>
+        <item name="android:textColor">@color/alarm_on_accent</item>
+        <item name="iconTint">@color/alarm_on_accent</item>
+    </style>
+
+    <style name="Widget.Nudgio.AlarmAction.Secondary" parent="Widget.Material3.Button.TonalButton">
+        <item name="android:layout_height">56dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="cornerRadius">28dp</item>
+        <item name="iconGravity">textStart</item>
+        <item name="iconPadding">8dp</item>
+        <item name="iconSize">20dp</item>
+        <item name="backgroundTint">@color/alarm_surface_high</item>
+        <item name="android:textColor">@color/alarm_on_surface</item>
+        <item name="iconTint">@color/alarm_on_surface</item>
+    </style>
+
+    <style name="Widget.Nudgio.AlarmAction.Tertiary" parent="Widget.Material3.Button.TextButton">
+        <item name="android:layout_height">56dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="cornerRadius">28dp</item>
+        <item name="iconGravity">textStart</item>
+        <item name="iconPadding">8dp</item>
+        <item name="iconSize">20dp</item>
+        <item name="android:textColor">@color/alarm_on_surface_variant</item>
+        <item name="iconTint">@color/alarm_on_surface_variant</item>
+    </style>
 </resources>

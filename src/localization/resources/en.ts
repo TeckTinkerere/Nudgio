@@ -263,6 +263,14 @@ export const en = {
   'due.play': 'Play',
   'due.snooze': 'Snooze',
   'due.dismiss': 'Dismiss',
+  // The in-app strip's primary action. "Accept", not "Play", to match the
+  // full-screen alarm's own wording — it resolves the same session, and the
+  // media may be a photo or a note, which nobody "plays".
+  'due.accept': 'Accept',
+  'due.status': 'Reminder due',
+  // Translator note: {label} is the user's own reminder label.
+  'due.collapsedHint': '{label}, reminder due. Double tap to expand.',
+  'due.dismissReminder': 'Dismiss reminder',
   // Translator note: {time} is the resolved absolute time, e.g. "6:25 AM".
   'due.snoozedUntil': 'Snoozed until {time}',
   'due.silenceSound': 'Silence sound',

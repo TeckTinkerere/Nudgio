@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The play affordance on the preview card. Deliberately near-opaque white
+  with a dark glyph: the card is the one element that has to say "there is
+  something here to watch, and it is not playing yet" at a glance, from
+  arm's length, on a lock screen.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#F2FFFFFF" />
+</shape>

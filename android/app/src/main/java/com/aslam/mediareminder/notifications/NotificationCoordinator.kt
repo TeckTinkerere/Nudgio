@@ -3,6 +3,7 @@ package com.aslam.mediareminder.notifications
 import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
+import android.graphics.Bitmap
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.app.NotificationManager
@@ -112,6 +113,8 @@ class NotificationCoordinator(private val context: Context) {
         useAlarmChannel: Boolean,
         ongoing: Boolean,
         useFullScreenIntent: Boolean,
+        artwork: Bitmap? = null,
+        subText: String? = null,
     ): Notification {
         // Bug fix: this is the real due-alarm path (AlarmDispatchReceiver,
         // AlarmRingingService), but unlike postGenericDueNotification/
@@ -130,18 +133,53 @@ class NotificationCoordinator(private val context: Context) {
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(reminderLabel)
             .setContentText(mediaTitle)
+            // The schedule summary, on the header line beside the app name —
+            // "why am I seeing this now" answered without opening anything.
+            // Null when it would only repeat the body (see AlarmNotificationText).
+            .setSubText(subText)
             .setCategory(category)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setOngoing(ongoing)
             .setAutoCancel(!ongoing)
+            .setShowWhen(true)
+            .setWhen(System.currentTimeMillis())
+            // Brand tint for the small icon, the app name and (when colorized
+            // below) the whole heads-up card.
+            .setColor(ContextCompat.getColor(context, R.color.notification_accent))
+            // Colorized applies only to ongoing/foreground-service
+            // notifications — which is exactly the ringing-alarm case, and the
+            // one time this app is entitled to own the whole card instead of
+            // sitting in a stack of grey rows. A Gentle reminder stays an
+            // ordinary notification on purpose.
+            .setColorized(ongoing)
+            // Lock-screen redaction stays on: a heads-up over a *locked*
+            // screen would otherwise print the label, the media title and its
+            // thumbnail to anyone holding the phone (MR-06 privacy).
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             // MR-06 "A content intent opens the due item... without
             // resolving it" — tapping the body brings the alarm UI forward,
             // it is not itself a Play/Snooze/Dismiss action.
             .setContentIntent(alarmActivityIntent(sessionId))
-            .addAction(actionFor("Play", AlarmIds.ACTION_PLAY, sessionId, nonce, notificationIdFor(sessionId)))
-            .addAction(actionFor("Snooze", AlarmIds.ACTION_SNOOZE, sessionId, nonce, notificationIdFor(sessionId)))
-            .addAction(actionFor("Dismiss", AlarmIds.ACTION_DISMISS, sessionId, nonce, notificationIdFor(sessionId)))
+            .addAction(actionFor("Play", R.drawable.ic_play, AlarmIds.ACTION_PLAY, sessionId, nonce, notificationIdFor(sessionId)))
+            .addAction(actionFor("Snooze", R.drawable.ic_snooze, AlarmIds.ACTION_SNOOZE, sessionId, nonce, notificationIdFor(sessionId)))
+            .addAction(actionFor("Dismiss", R.drawable.ic_close, AlarmIds.ACTION_DISMISS, sessionId, nonce, notificationIdFor(sessionId)))
+
+        if (artwork != null) {
+            // Collapsed: the frame rides as the large icon, so the reminder is
+            // recognisable in the shade at a glance. Expanded: the same frame
+            // fills the notification, and `bigLargeIcon(null)` drops the
+            // thumbnail that would otherwise sit on top of its own picture.
+            builder.setLargeIcon(artwork)
+                .setStyle(
+                    NotificationCompat.BigPictureStyle()
+                        .bigPicture(artwork)
+                        .bigLargeIcon(null as Bitmap?),
+                )
+        } else {
+            // No artwork: at least let a long media title wrap when expanded
+            // instead of being truncated to one line forever.
+            builder.setStyle(NotificationCompat.BigTextStyle().bigText(mediaTitle))
+        }
 
         if (useFullScreenIntent) {
             builder.setFullScreenIntent(alarmActivityIntent(sessionId), true)
@@ -158,10 +196,22 @@ class NotificationCoordinator(private val context: Context) {
         useAlarmChannel: Boolean,
         ongoing: Boolean,
         useFullScreenIntent: Boolean = false,
+        artwork: Bitmap? = null,
+        subText: String? = null,
     ) {
         postNotification(
             notificationIdFor(sessionId),
-            buildDueNotification(sessionId, reminderLabel, mediaTitle, nonce, useAlarmChannel, ongoing, useFullScreenIntent),
+            buildDueNotification(
+                sessionId = sessionId,
+                reminderLabel = reminderLabel,
+                mediaTitle = mediaTitle,
+                nonce = nonce,
+                useAlarmChannel = useAlarmChannel,
+                ongoing = ongoing,
+                useFullScreenIntent = useFullScreenIntent,
+                artwork = artwork,
+                subText = subText,
+            ),
         )
     }
 
@@ -220,6 +270,7 @@ class NotificationCoordinator(private val context: Context) {
             .setContentText("Unlock your device to see details.")
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setColor(ContextCompat.getColor(context, R.color.notification_accent))
             .setAutoCancel(true)
             .build()
         postNotification(GENERIC_DIRECT_BOOT_NOTIFICATION_ID, notification)
@@ -264,6 +315,8 @@ class NotificationCoordinator(private val context: Context) {
             .setContentText(body)
             .setCategory(category)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setColor(ContextCompat.getColor(context, R.color.notification_accent))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setAutoCancel(true)
             .setContentIntent(previewAlarmActivityIntent(title, body))
         if (fullScreenWhenLocked) {
@@ -286,8 +339,14 @@ class NotificationCoordinator(private val context: Context) {
         )
     }
 
+    /**
+     * `icon` is not decoration: Wear, Android Auto and several OEM shades
+     * render notification actions icon-first, and an action built with icon
+     * `0` (as all three of these were) shows up there as a blank square.
+     */
     private fun actionFor(
         label: String,
+        icon: Int,
         action: String,
         sessionId: String,
         nonce: String,
@@ -307,7 +366,7 @@ class NotificationCoordinator(private val context: Context) {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        return NotificationCompat.Action.Builder(0, label, pendingIntent).build()
+        return NotificationCompat.Action.Builder(icon, label, pendingIntent).build()
     }
 
     /**

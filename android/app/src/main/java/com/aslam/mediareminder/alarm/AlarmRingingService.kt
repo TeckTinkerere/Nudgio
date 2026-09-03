@@ -148,14 +148,23 @@ class AlarmRingingService : Service() {
                 return@launch
             }
 
+            // Same content as the shade notification this replaces, artwork
+            // included: `startForeground` shows whatever it is handed, so a
+            // plainer build here would visibly downgrade the notification the
+            // moment ringing started. `AlarmArtwork` decodes on IO, which
+            // matters more here than anywhere else — this coroutine runs on
+            // the main dispatcher.
+            val notificationContent = reminder?.let { AlarmNotificationText.resolve(database, it) }
             val notification = notificationCoordinator.buildDueNotification(
                 sessionId = sessionId,
                 reminderLabel = reminder?.label ?: "Reminder",
-                mediaTitle = reminder?.let { AlarmNotificationText.resolveBody(database, it) } ?: "",
+                mediaTitle = notificationContent?.body ?: "",
                 nonce = session.actionNonce,
                 useAlarmChannel = true,
                 ongoing = true,
                 useFullScreenIntent = false,
+                artwork = AlarmArtwork.load(this@AlarmRingingService, notificationContent?.media),
+                subText = notificationContent?.subText,
             )
             ServiceCompat.startForeground(
                 this@AlarmRingingService,

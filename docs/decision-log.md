@@ -2374,3 +2374,66 @@ noon (the two hours a 12-hour split gets wrong most often), and the bad-input
 fallback. Residual risk: this only fixes what the form *starts* from —
 `repeatType` changes still rebuild the rule from whatever the other fields
 hold, which is existing behavior and unchanged here.
+
+## DL-078 — The alarm surfaces get a design: preview card, poster notification, drawn countdown
+
+**Date:** 2026-09-03
+**Context:** The three surfaces a reminder actually arrives on had never had a
+visual pass. The full-screen alarm was a label, a subtitle and three grey
+Material buttons over a flat `#121212`, with the reminder's own artwork
+behind it at 28 % opacity under a flat 60 % black — and that artwork never
+appeared at all, because `MediaAssetEntity.thumbnailPath` is not a path (the
+importer stores `thumbnailFile.name`, bare `<id>.webp`) and `AlarmActivity`
+was doing `File(thumbnailPath)`, which resolves against the process working
+directory. The notification was title + text with three actions built with
+icon `0`, no artwork, no tint and no expanded style. The in-app due strip
+was a row of three equal buttons that silently vanished after fifteen
+seconds. The alarm activity also printed the *reminder label* as its media
+title — the same duplication `AlarmNotificationText` was written to kill on
+the notification side.
+**Decision:** All three now show the thing the reminder is about, and say
+what will happen to it.
+ - `AlarmArtwork` is the single correct thumbnail loader (`MediaStorage.
+   thumbnailFileFor`, decoded on IO), shared by all three callers so the
+   path bug cannot come back a fourth time.
+ - The alarm activity is laid out as an alarm clock: a `TextClock` that
+   follows the device's own 12/24-hour setting, the label, and a **media
+   preview card** — poster frame, kind pill, media title, and, for video and
+   audio only, a play badge over the words "Plays when you accept". It is a
+   poster, never a player: MR-06's "no media autoplays in the alarm activity"
+   is absolute, so the card's whole job is to make the still frame legible as
+   "waiting" rather than "stalled". Photos and notes get no play badge —
+   promising playback that will not happen is worse than promising nothing.
+   Two fallbacks, so the card is never a hole: no thumbnail leaves a gradient
+   placeholder with the kind glyph; no media row hides the card outright. The
+   middle column scrolls (`fillViewport`) so a long label at 2x font scale
+   pushes instead of clipping, and the actions stay under the thumb.
+ - The surface is pinned dark via its own `Theme.Nudgio.Alarm` rather than
+   following DayNight — this is read on a lock screen at 3 a.m. — which also
+   kills the white launch frame before the layout draws. Buttons became one
+   hierarchy (`Widget.Nudgio.AlarmAction[.Secondary|.Tertiary]`, 64/56/56 dp,
+   above MR-13's 48/56 floors) instead of three defaults.
+ - The notification carries the same frame: thumbnail as large icon
+   (collapsed) and `BigPictureStyle` (expanded), real action icons, the brand
+   tint, `setColorized` for the ringing case only, and the schedule summary
+   promoted to the header line — suppressed when it would repeat the body,
+   which is the same duplication rule as above. Lock-screen redaction
+   (`VISIBILITY_PRIVATE`) stays on, so the artwork never reaches a locked
+   screen.
+ - The in-app strip leads with an accent status line and the occurrence's own
+   time, and *draws* its fifteen-second auto-collapse as a hairline that
+   empties along the bottom edge — a surface that disappears by itself with
+   no warning reads as a bug the first time it happens. Its buttons were
+   hardcoded English (`"Dismiss"`, `"Snooze"`, `"Accept"`) and now go through
+   `t()` like everything else.
+ - No looping animation anywhere, deliberately: MR-04 forbids it outright and
+   names flashing as an urgency signal specifically. The one motion added is
+   a 220 ms one-shot rise on the preview card, skipped when the platform's
+   animator scale is 0.
+**Consequence:** A reminder now looks like its media on every surface it can
+appear on. Residual risk, stated plainly: **none of the native half has been
+compiled.** This session has no Android SDK and `dl.google.com` is blocked by
+the environment's network policy, so `assembleDebug`/`lintDebug` could not be
+run — the Kotlin and XML here are reviewed, not verified, and the first real
+build may still turn up a resource or API mistake. The JS half is verified
+(`tsc`, `npm test`). The device pass this needs is in TODO.md.
