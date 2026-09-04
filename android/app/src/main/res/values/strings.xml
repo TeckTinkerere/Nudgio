@@ -19,6 +19,10 @@
          without ambiguity, that the media is waiting rather than broken. -->
     <string name="alarm_preview_hint_playable">Plays when you accept</string>
     <string name="alarm_preview_hint_static">Opens when you accept</string>
+    <!-- Composed as the whole preview card's single TalkBack label — see
+         AlarmActivity.bindPreview. %1$s is the media kind ("Video"), %2$s
+         its title, %3$s the playable/static hint above. -->
+    <string name="alarm_preview_card_description">%1$s. %2$s. %3$s.</string>
     <string name="alarm_preview_play_badge">Media preview</string>
     <string name="alarm_kind_video">Video</string>
     <string name="alarm_kind_audio">Audio</string>

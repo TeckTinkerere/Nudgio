@@ -2437,3 +2437,45 @@ the environment's network policy, so `assembleDebug`/`lintDebug` could not be
 run — the Kotlin and XML here are reviewed, not verified, and the first real
 build may still turn up a resource or API mistake. The JS half is verified
 (`tsc`, `npm test`). The device pass this needs is in TODO.md.
+
+## DL-079 — Second-pass review of DL-078: a real staleness bug, a dead affordance, and one simplification
+
+**Date:** 2026-09-03
+**Context:** Asked to look back over the DL-078 alarm-surface work for
+anything missed, given it was written and never compiled. Found two things
+worth fixing on inspection alone (no compiler needed for either) and one
+platform-API simplification.
+**Decision:**
+ - **Backdrop staleness.** `loadSession`'s reset block reset every piece of
+   per-session chrome except the full-screen backdrop image/scrim. `AlarmActivity`
+   is `singleTop`, and `AlarmRingingService.advanceForegroundActivityIfShowing`
+   re-invokes this exact instance in place when a queued session is promoted
+   (`AlarmRingingService`'s own doc comment: "multiple simultaneous reminders").
+   So a session with a thumbnail followed by one without would leave the
+   *previous* reminder's picture behind the *new* one's label and preview card
+   — the wrong artwork paired with the wrong reminder, and a real path, not a
+   hypothetical one. Added `hideBackdrop()` (also clears the held `Bitmap`, not
+   only visibility) and call it from the session reset, `showPreview`, and both
+   of `bindPreview`'s no-artwork branches.
+ - **Dead affordance.** The preview card's play badge visually promises an
+   action a tap did nothing to honor — nothing on the card was clickable.
+   Wired `previewCard.setOnClickListener` to the same Accept action the button
+   below already dispatches (album-art-plays-the-track precedent, not a new
+   intent), with a ripple (`app:rippleColor`) so the card itself signals it is
+   tappable. Its three text children (kind label, title, hint) are now
+   `importantForAccessibility="no"` and the card carries one composed
+   `contentDescription` (new `alarm_preview_card_description` format string)
+   set in `bindPreview` — TalkBack hears "Video. Dosage reminder video. Plays
+   when you accept." once, not three separate stops for one control.
+ - **Simplification.** `revealPreviewCard`'s reduced-motion gate re-read the
+   raw `Settings.Global.ANIMATOR_DURATION_SCALE` key by hand. Replaced with
+   `ValueAnimator.areAnimatorsEnabled()` — added API 26, exactly this app's
+   minSdk — which is the platform's own check for the same "Remove
+   animations" developer setting `ObjectAnimator`/`ViewPropertyAnimator`
+   already honor internally.
+**Consequence:** Still not compiled (same environment constraint as DL-078:
+no Android SDK, `dl.google.com` blocked). Every resource cross-reference
+(`R.id`, `R.string`, `R.drawable`, `R.color`, `R.style`) was checked by hand
+against its definition after each edit, and all XML re-parses. The residual
+compiled/device-verified gap in TODO.md is unchanged in kind, just now covers
+slightly more surface.
