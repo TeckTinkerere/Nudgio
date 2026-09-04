@@ -1,10 +1,10 @@
 package com.aslam.mediareminder.alarm
 
+import android.animation.ValueAnimator
 import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.view.View
 import android.view.WindowManager
 import android.view.animation.PathInterpolator
@@ -168,6 +168,13 @@ class AlarmActivity : AppCompatActivity() {
         acceptButton.setOnClickListener {
             dispatchAction(AlarmIds.ACTION_PLAY)
         }
+        // The preview card's play badge visually promises an action; a tap
+        // that did nothing would be worse than no badge at all. Resolves the
+        // same Accept action as the button below — a second, larger target
+        // for the same intent, not a different one.
+        previewCard.setOnClickListener {
+            dispatchAction(AlarmIds.ACTION_PLAY)
+        }
         snoozeButton.setOnClickListener {
             dispatchAction(AlarmIds.ACTION_SNOOZE)
         }
@@ -205,6 +212,7 @@ class AlarmActivity : AppCompatActivity() {
         // put in it, and an empty poster frame reads as a failure rather than
         // as "this style has no media".
         previewCard.visibility = View.GONE
+        hideBackdrop()
         acceptButton.visibility = View.GONE
         snoozeButton.visibility = View.GONE
         overflowButton.visibility = View.GONE
@@ -223,12 +231,18 @@ class AlarmActivity : AppCompatActivity() {
         // Reset every piece of per-session chrome: this activity is
         // `singleTop`, so the instance being filled in here may be the one
         // that just finished showing a *different* session — or a preview,
-        // which hides three controls this one needs back.
+        // which hides three controls this one needs back. The backdrop
+        // matters most of the three: `AlarmRingingService.
+        // advanceForegroundActivityIfShowing` re-invokes this exact instance
+        // in place when a queued session is promoted, so without this reset
+        // a reminder with no thumbnail of its own would keep showing the
+        // *previous* reminder's picture behind it.
         labelView.text = getString(R.string.alarm_default_label)
         bodyView.visibility = View.GONE
         repeatSummaryView.text = ""
         repeatSummaryView.visibility = View.GONE
         previewCard.visibility = View.GONE
+        hideBackdrop()
         acceptButton.visibility = View.VISIBLE
         snoozeButton.visibility = View.VISIBLE
         overflowButton.visibility = View.VISIBLE
@@ -282,16 +296,26 @@ class AlarmActivity : AppCompatActivity() {
     private suspend fun bindPreview(media: MediaAssetEntity?, forSessionId: String) {
         if (media == null) {
             previewCard.visibility = View.GONE
+            hideBackdrop()
             return
         }
         val playable = isTimeBased(media.kind)
-        mediaTitleView.text = media.title
-        previewKindLabel.setText(kindLabelRes(media.kind))
-        previewKindIcon.setImageResource(kindIconRes(media.kind))
-        previewKindGlyph.setImageResource(kindIconRes(media.kind))
-        previewHint.setText(
+        val kindLabel = getString(kindLabelRes(media.kind))
+        val hint = getString(
             if (playable) R.string.alarm_preview_hint_playable else R.string.alarm_preview_hint_static,
         )
+        mediaTitleView.text = media.title
+        previewKindLabel.text = kindLabel
+        previewKindIcon.setImageResource(kindIconRes(media.kind))
+        previewKindGlyph.setImageResource(kindIconRes(media.kind))
+        previewHint.text = hint
+        // One composed label for the whole clickable card (its own text
+        // children are `importantForAccessibility="no"` in the layout for
+        // exactly this reason) — TalkBack hears "Video. Dosage reminder
+        // video. Plays when you accept." once, not three separate stops for
+        // one control.
+        previewCard.contentDescription =
+            getString(R.string.alarm_preview_card_description, kindLabel, media.title, hint)
         previewCard.visibility = View.VISIBLE
         revealPreviewCard()
 
@@ -304,6 +328,7 @@ class AlarmActivity : AppCompatActivity() {
             previewImage.setImageDrawable(null)
             previewKindGlyph.visibility = View.VISIBLE
             previewPlayBadge.visibility = View.GONE
+            hideBackdrop()
             return
         }
         previewImage.setImageBitmap(artwork)
@@ -337,14 +362,14 @@ class AlarmActivity : AppCompatActivity() {
      * alarm screen is the last place to pulse something at someone — and is
      * skipped entirely when the platform's own animator scale is off
      * (MR-13 ACC-006's reduced-motion signal at the native layer).
+     * [ValueAnimator.areAnimatorsEnabled] is the platform's own check for
+     * this (API 26, matching this app's minSdk exactly) — the same "Remove
+     * animations" developer setting `ObjectAnimator`/`ViewPropertyAnimator`
+     * honor internally, rather than a hand-rolled re-read of the raw
+     * `Settings.Global` key underneath it.
      */
     private fun revealPreviewCard() {
-        val animatorScale = Settings.Global.getFloat(
-            contentResolver,
-            Settings.Global.ANIMATOR_DURATION_SCALE,
-            1f,
-        )
-        if (animatorScale == 0f) return
+        if (!ValueAnimator.areAnimatorsEnabled()) return
         previewCard.alpha = 0f
         previewCard.translationY = 24f * resources.displayMetrics.density
         previewCard.animate()
@@ -367,6 +392,18 @@ class AlarmActivity : AppCompatActivity() {
         backgroundImage.setImageBitmap(artwork)
         backgroundImage.visibility = View.VISIBLE
         backgroundScrim.visibility = View.VISIBLE
+    }
+
+    /**
+     * Pairs with [showBackdrop]. Clears the bitmap, not just the visibility —
+     * leaving a hidden `ImageView` holding the previous session's decoded
+     * `Bitmap` would keep it reachable for the lifetime of this (long-lived,
+     * `singleTop`) activity instance for no reason once nothing draws it.
+     */
+    private fun hideBackdrop() {
+        backgroundImage.setImageDrawable(null)
+        backgroundImage.visibility = View.GONE
+        backgroundScrim.visibility = View.GONE
     }
 
     /**

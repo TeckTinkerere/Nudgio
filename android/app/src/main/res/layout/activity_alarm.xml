@@ -187,14 +187,31 @@
                     android:visibility="gone"
                     tools:text="This is how a Standard reminder looks." />
 
+                <!--
+                  Clickable as a whole: the play badge inside visually
+                  promises an action, and a promise a tap does not honor is
+                  worse than no badge at all. Resolves the same Accept action
+                  as the button below it — a second, larger target for the
+                  same intent, the way tapping album art plays a track in
+                  most media apps. `clickable`/`focusable` here are explicit
+                  even though `setOnClickListener` would set them anyway, so
+                  the affordance is visible in the XML, not only at runtime.
+                  `AlarmActivity.bindPreview` sets one `contentDescription`
+                  covering the whole card and hides its text children from
+                  TalkBack individually, so this reads as one control, not
+                  three.
+                -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/alarm_preview_card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
+                    android:clickable="true"
+                    android:focusable="true"
                     app:cardBackgroundColor="@color/alarm_surface"
                     app:cardCornerRadius="24dp"
                     app:cardElevation="0dp"
+                    app:rippleColor="@color/alarm_accent"
                     app:strokeColor="@color/alarm_outline"
                     app:strokeWidth="1dp">
 
@@ -254,6 +271,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginStart="6dp"
+                                android:importantForAccessibility="no"
                                 android:letterSpacing="0.06"
                                 android:textAllCaps="true"
                                 android:textColor="@color/alarm_on_surface"
@@ -294,6 +312,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:ellipsize="end"
+                                android:importantForAccessibility="no"
                                 android:maxLines="1"
                                 android:textColor="@color/alarm_on_surface"
                                 android:textSize="17sp"
@@ -305,6 +324,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
+                                android:importantForAccessibility="no"
                                 android:textColor="@color/alarm_on_surface_variant"
                                 android:textSize="13sp"
                                 tools:text="Plays when you accept" />
