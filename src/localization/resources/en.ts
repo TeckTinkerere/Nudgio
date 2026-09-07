@@ -289,6 +289,9 @@ export const en = {
   'capability.notifications.blocked': 'Reminders cannot show a notification until this is allowed.',
   'capability.exactAlarm.ready': 'Reminders fire at the exact time you set.',
   'capability.exactAlarm.limited': 'Android may deliver reminders a little later than the exact time you set.',
+  'capability.fullScreenIntent.ready': 'Alarms can take over the screen, even when it is locked.',
+  'capability.fullScreenIntent.limited':
+    'Reminders will show as a notification instead of taking over the screen, even when it is locked.',
   'capability.batteryEnvironment.ready': 'Background alerts are not restricted.',
   'capability.batteryEnvironment.limited':
     'Your battery settings may delay background alerts. This is expected — Nudgio never asks to be exempted.',

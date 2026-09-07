@@ -80,6 +80,13 @@ const mockCapability = (): CapabilitySnapshot => ({
       observedAt: now() as CapabilitySnapshot['observedAt'],
     },
     {
+      kind: 'full_screen_intent',
+      status: 'ready',
+      effectKey: 'capability.fullScreenIntent.ready',
+      action: 'none',
+      observedAt: now() as CapabilitySnapshot['observedAt'],
+    },
+    {
       kind: 'scheduler',
       status: 'ready',
       effectKey: 'capability.scheduler.ready',

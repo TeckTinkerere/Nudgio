@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.PowerManager
 import androidx.core.app.NotificationManagerCompat
 import com.aslam.mediareminder.alarm.ExactAlarmAccess
+import com.aslam.mediareminder.alarm.FullScreenIntentAccess
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
@@ -13,15 +14,12 @@ import java.time.Instant
 /**
  * Produces the MR-08 `CapabilitySnapshot` / MR-06 "Capability state machine".
  *
- * `notifications`, `exact_alarm` and `battery_environment` are real,
- * observed platform queries. `full_screen_intent` and `channels` remain
- * unreported — `AlarmActivity`'s locked/full-screen path is out of scope for
- * this pass (see `NotificationCoordinator`'s scope note in
- * docs/decision-log.md), and reporting a capability for a surface the app
- * does not yet implement would be exactly the kind of unearned "Ready" MR-04
- * warns against ("Avoid a dashboard filled with green checks"). `scheduler`
- * is still a placeholder pending task #20's boot/timezone reconciliation
- * work, which is what makes that row meaningfully "Limited" vs "Ready".
+ * `notifications`, `exact_alarm`, `full_screen_intent` and
+ * `battery_environment` are real, observed platform queries. `channels`
+ * remains unreported — no per-channel Settings surface exists to deep-link
+ * to yet. `scheduler` is still a placeholder pending task #20's boot/
+ * timezone reconciliation work, which is what makes that row meaningfully
+ * "Limited" vs "Ready".
  */
 object CapabilitySnapshotProvider {
 
@@ -66,6 +64,22 @@ object CapabilitySnapshotProvider {
     }
 
     /**
+     * MR-06 "Adaptive presentation decision" rule 1 depends on this: without
+     * it, `AlarmDispatchReceiver` silently falls back to a heads-up
+     * notification instead of the full-screen alarm surface, on API 34+
+     * where the OS treats this as revocable special access rather than a
+     * manifest-granted permission. Below API 34 there is no runtime gate at
+     * all, so this always reports Ready there.
+     */
+    private fun fullScreenIntentStatus(context: Context): Pair<String, String> {
+        return if (FullScreenIntentAccess.isAvailable(context)) {
+            "ready" to "capability.fullScreenIntent.ready"
+        } else {
+            "limited" to "capability.fullScreenIntent.limited"
+        }
+    }
+
+    /**
      * Report-only, per MR-06 "No battery optimization exemption request is
      * part of onboarding": this reads [PowerManager.isIgnoringBatteryOptimizations]
      * purely to inform Health, and the returned [CapabilityAction] is always
@@ -91,6 +105,7 @@ object CapabilitySnapshotProvider {
     fun snapshot(context: Context): WritableMap {
         val (notificationStatus, notificationEffectKey) = notificationsStatus(context)
         val (exactAlarmStatus, exactAlarmEffectKey) = exactAlarmStatus(context)
+        val (fullScreenIntentStatus, fullScreenIntentEffectKey) = fullScreenIntentStatus(context)
         val (batteryStatus, batteryEffectKey) = batteryEnvironmentStatus(context)
 
         val items: WritableArray = Arguments.createArray().apply {
@@ -108,6 +123,14 @@ object CapabilitySnapshotProvider {
                     status = exactAlarmStatus,
                     effectKey = exactAlarmEffectKey,
                     action = if (exactAlarmStatus == "ready") "none" else "open_special_access",
+                ),
+            )
+            pushMap(
+                capabilityItem(
+                    kind = "full_screen_intent",
+                    status = fullScreenIntentStatus,
+                    effectKey = fullScreenIntentEffectKey,
+                    action = if (fullScreenIntentStatus == "ready") "none" else "open_special_access",
                 ),
             )
             pushMap(
