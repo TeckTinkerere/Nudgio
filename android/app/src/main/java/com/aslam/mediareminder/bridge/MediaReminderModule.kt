@@ -23,6 +23,7 @@ import com.facebook.react.turbomodule.core.interfaces.TurboModule
 import com.aslam.mediareminder.BuildConfig
 import com.aslam.mediareminder.alarm.AlarmActionProcessor
 import com.aslam.mediareminder.alarm.AlarmIds
+import com.aslam.mediareminder.alarm.FullScreenIntentAccess
 import com.aslam.mediareminder.statistics.StatisticsProvider
 import com.aslam.mediareminder.alarm.AlarmRingingService
 import com.aslam.mediareminder.alarm.SchedulerCoordinator
@@ -670,8 +671,12 @@ class MediaReminderModule(
      * screen for a capability that has no (or no longer usable) in-app
      * runtime dialog — `notifications` after a permanent denial
      * (`requestPermissions` above then silently no-ops instead of showing
-     * anything), and `exact_alarm`, which Android never offers a runtime
-     * dialog for at all.
+     * anything), `exact_alarm`, which Android never offers a runtime dialog
+     * for at all, and `full_screen_intent`, API 34+'s equivalent special
+     * access for `USE_FULL_SCREEN_INTENT` (`ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT`
+     * does not exist before API 34 — [FullScreenIntentAccess] already
+     * reports Ready unconditionally below that level, so this case is
+     * unreachable there).
      */
     @ReactMethod
     fun openCapabilitySettings(kind: String, promise: Promise) {
@@ -682,6 +687,14 @@ class MediaReminderModule(
             "exact_alarm" -> Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
                 data = Uri.parse("package:${reactApplicationContext.packageName}")
             }
+            "full_screen_intent" ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
+                        data = Uri.parse("package:${reactApplicationContext.packageName}")
+                    }
+                } else {
+                    null
+                }
             else -> null
         }
         if (intent == null) {

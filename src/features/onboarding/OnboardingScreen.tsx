@@ -4,9 +4,10 @@
  * 2-3 were left as "UX content work" (see decision log).
  *
  * Page 3 is a real permissions step, not a description of one: it renders the
- * live `CapabilityRow`s for `notifications` and `exact_alarm` (the same rows
- * the Health screen uses), so the user grants them here, in context, having
- * just been told why. This is deliberately the *first* ask —
+ * live `CapabilityRow`s for `notifications`, `exact_alarm` and
+ * `full_screen_intent` (the same rows the Health screen uses), so the user
+ * grants them here, in context, having just been told why. This is
+ * deliberately the *first* ask —
  * `useRequestNotificationPermissionOnLaunch` now stays silent until
  * onboarding is complete, because Android only ever shows the notification
  * dialog twice and spending one of those on an unexplained cold-launch
@@ -75,13 +76,14 @@ function PageIndicator({page, label}: {readonly page: PageIndex; readonly label:
 }
 
 /**
- * The permissions step's live content. `notifications` and `exact_alarm` are
- * the only two capabilities a user can meaningfully act on before they have
- * created anything — the rest of the `CapabilitySnapshot` (channels, battery,
- * scheduler) is either derived from these or has no first-run action, so
- * showing it here would be noise on a page whose whole job is "grant these
- * two." Rows are filtered by kind, not sliced by index, so a future snapshot
- * that reorders or adds items cannot silently change what this page asks for.
+ * The permissions step's live content. `notifications`, `exact_alarm` and
+ * `full_screen_intent` are the only capabilities a user can meaningfully act
+ * on before they have created anything — the rest of the `CapabilitySnapshot`
+ * (channels, battery, scheduler) is either derived from these or has no
+ * first-run action, so showing it here would be noise on a page whose whole
+ * job is "grant these three." Rows are filtered by kind, not sliced by
+ * index, so a future snapshot that reorders or adds items cannot silently
+ * change what this page asks for.
  */
 function PermissionsPage() {
   const t = useTranslation();
@@ -91,6 +93,7 @@ function PermissionsPage() {
   const items = capability.data?.items ?? [];
   const notifications = items.find(item => item.kind === 'notifications');
   const exactAlarm = items.find(item => item.kind === 'exact_alarm');
+  const fullScreenIntent = items.find(item => item.kind === 'full_screen_intent');
 
   return (
     <Stack style={styles.flexFill} justify="center" gap="lg" paddingHorizontal="lg">
@@ -107,6 +110,7 @@ function PermissionsPage() {
       <Stack gap="sm">
         {notifications ? <CapabilityRow item={notifications} /> : null}
         {exactAlarm ? <CapabilityRow item={exactAlarm} /> : null}
+        {fullScreenIntent ? <CapabilityRow item={fullScreenIntent} /> : null}
       </Stack>
     </Stack>
   );

@@ -1,11 +1,9 @@
 package com.aslam.mediareminder.alarm
 
 import android.app.KeyguardManager
-import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.PowerManager
 import androidx.core.app.NotificationManagerCompat
 import com.aslam.mediareminder.bridge.ReminderEventEmitter
@@ -139,7 +137,7 @@ class AlarmDispatchReceiver : BroadcastReceiver() {
                 isLockedOrNonInteractive = isLockedOrNonInteractive(context),
                 profilePermitsLockedAlarm = useAlarmChannel,
                 notificationsUsable = NotificationManagerCompat.from(context).areNotificationsEnabled(),
-                fullScreenIntentEligible = fullScreenIntentEligible(context),
+                fullScreenIntentEligible = FullScreenIntentAccess.isAvailable(context),
             )
             val presentationDecisionLabel = when {
                 decision.useFullScreenIntent -> "locked_full_screen"
@@ -225,17 +223,6 @@ class AlarmDispatchReceiver : BroadcastReceiver() {
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         return !powerManager.isInteractive || keyguardManager.isKeyguardLocked
-    }
-
-    /**
-     * Below API 34, full-screen intents work once the manifest permission is
-     * declared — no runtime gate exists. API 34+ additionally requires
-     * `NotificationManager.canUseFullScreenIntent()`.
-     */
-    private fun fullScreenIntentEligible(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true
-        val manager = context.getSystemService(NotificationManager::class.java) ?: return false
-        return manager.canUseFullScreenIntent()
     }
 
     private companion object {
