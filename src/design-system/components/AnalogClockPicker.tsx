@@ -22,7 +22,7 @@
  */
 import {useCallback} from 'react';
 import {Modal, Pressable, StyleSheet, View, useWindowDimensions} from 'react-native';
-import {Gesture, GestureDetector} from 'react-native-gesture-handler';
+import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import {runOnJS} from 'react-native-reanimated';
 import Svg, {Circle, G, Line, Text as SvgText} from 'react-native-svg';
 
@@ -132,76 +132,86 @@ export function AnalogClockPicker({
       onRequestClose={onDismiss}
       animationType={theme.a11y.reduceMotion ? 'none' : 'fade'}
       statusBarTranslucent>
-      <View style={[styles.backdrop, {backgroundColor: theme.color.scrim}]}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={onDismiss}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        />
+      {/*
+       * `Modal` mounts its content in its own native view hierarchy (a
+       * separate window on Android, a separate `UIViewController` on iOS) —
+       * it is not a visual descendant of the `GestureHandlerRootView`
+       * mounted once at the app root, so gesture-handler has no root to
+       * attach touch handling to in here and every gesture silently no-ops.
+       * Nesting a second root inside the modal gives it one.
+       */}
+      <GestureHandlerRootView style={styles.backdrop}>
+        <View style={[styles.backdrop, {backgroundColor: theme.color.scrim}]}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={onDismiss}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
 
-        <View
-          testID={testID}
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.color.surfaceContainerHigh,
-              borderRadius: theme.radius.sheet,
-              padding: theme.spacing.lg,
-              gap: theme.spacing.md,
-            },
-          ]}>
-          <Text variant="titleMedium" isHeading align="center">
-            {title}
-          </Text>
+          <View
+            testID={testID}
+            style={[
+              styles.sheet,
+              {
+                backgroundColor: theme.color.surfaceContainerHigh,
+                borderRadius: theme.radius.sheet,
+                padding: theme.spacing.lg,
+                gap: theme.spacing.md,
+              },
+            ]}>
+            <Text variant="titleMedium" isHeading align="center">
+              {title}
+            </Text>
 
-          <GestureDetector gesture={gesture}>
-            <View style={{width: size, height: size}}>
-              <Svg width={size} height={size}>
-                <Circle cx={radius} cy={radius} r={radius} fill={theme.color.surfaceContainer} />
-                <G>
-                  <Line
-                    x1={radius}
-                    y1={radius}
-                    x2={handX}
-                    y2={handY}
-                    stroke={theme.color.primary}
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                  />
-                  <Circle cx={handX} cy={handY} r={radius * 0.13} fill={theme.color.primary} />
-                  <Circle cx={radius} cy={radius} r={4} fill={theme.color.primary} />
-                </G>
-                {labels.map(n => {
-                  const a = angleFor(n);
-                  const lx = radius + Math.cos(a) * handLength;
-                  const ly = radius + Math.sin(a) * handLength;
-                  const isSelected = mode === 'hour' ? n === value : n === value;
-                  return (
-                    <SvgText
-                      key={n}
-                      x={lx}
-                      y={ly}
-                      fontSize={radius * 0.13}
-                      fill={isSelected ? theme.color.onPrimary : theme.color.onSurface}
-                      textAnchor="middle"
-                      alignmentBaseline="central">
-                      {mode === 'minute' ? String(n).padStart(2, '0') : String(n)}
-                    </SvgText>
-                  );
-                })}
-              </Svg>
-            </View>
-          </GestureDetector>
+            <GestureDetector gesture={gesture}>
+              <View style={{width: size, height: size}}>
+                <Svg width={size} height={size}>
+                  <Circle cx={radius} cy={radius} r={radius} fill={theme.color.surfaceContainer} />
+                  <G>
+                    <Line
+                      x1={radius}
+                      y1={radius}
+                      x2={handX}
+                      y2={handY}
+                      stroke={theme.color.primary}
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                    />
+                    <Circle cx={handX} cy={handY} r={radius * 0.13} fill={theme.color.primary} />
+                    <Circle cx={radius} cy={radius} r={4} fill={theme.color.primary} />
+                  </G>
+                  {labels.map(n => {
+                    const a = angleFor(n);
+                    const lx = radius + Math.cos(a) * handLength;
+                    const ly = radius + Math.sin(a) * handLength;
+                    const isSelected = mode === 'hour' ? n === value : n === value;
+                    return (
+                      <SvgText
+                        key={n}
+                        x={lx}
+                        y={ly}
+                        fontSize={radius * 0.13}
+                        fill={isSelected ? theme.color.onPrimary : theme.color.onSurface}
+                        textAnchor="middle"
+                        alignmentBaseline="central">
+                        {mode === 'minute' ? String(n).padStart(2, '0') : String(n)}
+                      </SvgText>
+                    );
+                  })}
+                </Svg>
+              </View>
+            </GestureDetector>
 
-          {/* The live value, so a drag is readable without staring at the hand. */}
-          <Text variant="displaySmall" align="center" tabularNumbers>
-            {mode === 'minute' ? String(value).padStart(2, '0') : String(value)}
-          </Text>
+            {/* The live value, so a drag is readable without staring at the hand. */}
+            <Text variant="displaySmall" align="center" tabularNumbers>
+              {mode === 'minute' ? String(value).padStart(2, '0') : String(value)}
+            </Text>
 
-          <Button label={doneLabel} onPress={onDismiss} fullWidth />
+            <Button label={doneLabel} onPress={onDismiss} fullWidth />
+          </View>
         </View>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
