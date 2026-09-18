@@ -142,6 +142,25 @@ const deviceZone = (): ZoneId => {
   }
 };
 
+const timeFromLocalTime = (localTime: string): TimeOfDayValue => {
+  const [hh = 6, mm = 0] = localTime.split(':').map(Number);
+  const period = hh < 12 ? 'AM' : 'PM';
+  const hour = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;
+  return {hour, minute: mm, period};
+};
+
+const initialTimeFromSchedule = (schedule: ScheduleRuleDto | undefined): TimeOfDayValue => {
+  if (!schedule) return {hour: 6, minute: 15, period: 'AM'};
+  if (schedule.type === 'once') {
+    const d = new Date(schedule.instant);
+    const h24 = d.getHours();
+    const period = h24 < 12 ? 'AM' : 'PM';
+    const hour = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+    return {hour, minute: d.getMinutes(), period};
+  }
+  return timeFromLocalTime(schedule.localTime);
+};
+
 /**
  * Loads the real reminder to edit before the form ever mounts — the form's
  * fields are seeded once, from `useState`'s initializer, so if `existing`
@@ -264,11 +283,26 @@ function ReminderEditorForm({
   const [label, setLabel] = useState(existing?.label ?? '');
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [repeatType, setRepeatType] = useState<RepeatType>(existing?.schedule.type ?? 'daily');
-  const [time, setTime] = useState<TimeOfDayValue>({hour: 6, minute: 15, period: 'AM'});
-  const [weekdays, setWeekdays] = useState<readonly number[]>([1, 2, 3, 4, 5]);
-  const [dayOfMonth, setDayOfMonth] = useState(1);
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [intervalDays, setIntervalDays] = useState(3);
+  const [time, setTime] = useState<TimeOfDayValue>(() => initialTimeFromSchedule(existing?.schedule));
+  const [weekdays, setWeekdays] = useState<readonly number[]>(
+    () =>
+      existing?.schedule.type === 'weekdays' ? existing.schedule.isoWeekdays : [1, 2, 3, 4, 5],
+  );
+  const [dayOfMonth, setDayOfMonth] = useState(
+    () =>
+      existing?.schedule.type === 'monthly' || existing?.schedule.type === 'yearly'
+        ? existing.schedule.dayOfMonth
+        : 1,
+  );
+  const [month, setMonth] = useState(
+    () =>
+      existing?.schedule.type === 'yearly'
+        ? existing.schedule.month
+        : new Date().getMonth() + 1,
+  );
+  const [intervalDays, setIntervalDays] = useState(
+    () => (existing?.schedule.type === 'custom' ? existing.schedule.intervalDays : 3),
+  );
   const [profileId, setProfileId] = useState(existing?.profileId ?? profiles[1]?.id);
   // Settings' preference, not `appConfig`: the build constant is only the
   // fallback for a preferences read that failed. Using it unconditionally
