@@ -79,12 +79,7 @@ android {
         }
         release {
             buildConfigField "String", "BUILD_VARIANT", '"release"'
-            // TEMPORARY: false while a persistent OS-level file lock (not
-            // Gradle, not this app's code) blocks a full minified build on
-            // this machine tonight. Revert to true once that's resolved —
-            // see TODO.md/KNOWN_ISSUES.md's "minifyEnabled has never been
-            // build-verified" item, which this does NOT close.
-            minifyEnabled false
+            minifyEnabled true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             if (hasReleaseSigning) {
                 signingConfig signingConfigs.release
