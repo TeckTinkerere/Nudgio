@@ -26,5 +26,8 @@ export const useDeleteReminder = () => {
       void queryClient.invalidateQueries({queryKey: queryKeys.startup()});
       showToast({message: t('reminders.detail.deleteSuccess'), tone: 'success'});
     },
+    onError: () => {
+      showToast({message: t('reminders.detail.deleteError'), tone: 'error'});
+    },
   });
 };

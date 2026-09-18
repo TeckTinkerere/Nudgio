@@ -29,7 +29,9 @@ import {Icon} from '../design-system/icons';
 import {useSurfaceStyle, useTheme} from '../design-system/theme/useTheme';
 import {inAppStripMaxHeight} from '../design-system/tokens';
 import {useHaptics, useMotionDuration} from '../hooks';
+import {useTranslation} from '../localization';
 import {useAppContainer} from './di/useAppContainer';
+import {useToast} from './toast/ToastProvider';
 
 // MR-04 motion tokens are cubic-bezier control points, not RN `Easing`
 // functions — this is the one place that gap is bridged, deliberately kept
@@ -48,6 +50,8 @@ export function InAppDueCard() {
   const surface = useSurfaceStyle('level3');
   const {height: windowHeight} = useWindowDimensions();
   const container = useAppContainer();
+  const {showToast} = useToast();
+  const t = useTranslation();
   const haptics = useHaptics();
 
   const banner = useSessionStore(state => state.inAppDueBanner);
@@ -172,10 +176,12 @@ export function InAppDueCard() {
       .then(result => {
         if (!result.ok) {
           container.logger.warn('inAppDueCard.actionFailed', {sessionId: current.sessionId});
+          showToast({message: t('error.unexpected.effect'), tone: 'error'});
         }
       })
       .catch(() => {
         container.logger.warn('inAppDueCard.actionThrew', {sessionId: current.sessionId});
+        showToast({message: t('error.unexpected.effect'), tone: 'error'});
       });
   };
 
@@ -220,13 +226,13 @@ export function InAppDueCard() {
 
             <View style={buttonRowStyle}>
               <View style={flexOneStyle}>
-                <Button label="Dismiss" variant="text" onPress={handleDismiss} fullWidth />
+                <Button label={t('action.dismiss')} variant="text" onPress={handleDismiss} fullWidth />
               </View>
               <View style={flexOneStyle}>
-                <Button label="Snooze" variant="outlined" onPress={handleSnooze} fullWidth />
+                <Button label={t('action.snooze')} variant="outlined" onPress={handleSnooze} fullWidth />
               </View>
               <View style={flexOneStyle}>
-                <Button label="Accept" variant="filled" onPress={handleAccept} fullWidth />
+                <Button label={t('action.accept')} variant="filled" onPress={handleAccept} fullWidth />
               </View>
             </View>
           </View>
