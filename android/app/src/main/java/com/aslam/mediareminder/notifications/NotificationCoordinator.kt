@@ -18,6 +18,7 @@ import com.aslam.mediareminder.R
 import com.aslam.mediareminder.alarm.AlarmActionReceiver
 import com.aslam.mediareminder.alarm.AlarmActivity
 import com.aslam.mediareminder.alarm.AlarmIds
+import com.aslam.mediareminder.diagnostics.NativeLogger
 
 /**
  * MR-06 "Notification construction" / "Notification channels".

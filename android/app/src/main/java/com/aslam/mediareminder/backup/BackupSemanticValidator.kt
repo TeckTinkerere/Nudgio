@@ -188,6 +188,7 @@ object BackupSemanticValidator {
                 languageTag = if (json.isNull("languageTag") || !json.has("languageTag")) null else json.getString("languageTag"),
                 hasCompletedOnboarding = json.optBoolean("hasCompletedOnboarding", false),
                 defaultSnoozeMinutes = json.optInt("defaultSnoozeMinutes", 10),
+                alarmRingtoneUri = if (json.isNull("alarmRingtoneUri") || !json.has("alarmRingtoneUri")) null else json.getString("alarmRingtoneUri"),
             )
         } catch (error: org.json.JSONException) {
             null
