@@ -400,6 +400,8 @@ export interface PreferencesSnapshotWire {
   readonly languageTag: string | null;
   readonly hasCompletedOnboarding: boolean;
   readonly defaultSnoozeMinutes: number;
+  readonly alarmRingtoneUri: string | null;
+  readonly alarmRingtoneTitle: string;
 }
 
 /**
@@ -414,6 +416,14 @@ export interface PreferencePatchWire {
   readonly languageTag?: string | null;
   readonly hasCompletedOnboarding?: boolean;
   readonly defaultSnoozeMinutes?: number;
+  readonly alarmRingtoneUri?: string | null;
+}
+
+/** Result of `pickAlarmRingtone` — `null` when the user backed out, object otherwise. */
+export interface PickedRingtoneWire {
+  /** `null` means the user selected "Default"; a string is the `content://` URI. */
+  readonly uri: string | null;
+  readonly title: string;
 }
 
 /**
@@ -454,6 +464,13 @@ export interface Spec extends TurboModule {
    * `Intent.EXTRA_MIME_TYPES` semantics.
    */
   pickDocument(mimeTypes: readonly string[]): Promise<PickedDocumentWire | null>;
+
+  /**
+   * Launches the system ringtone picker pre-filtered to TYPE_ALARM tones.
+   * `currentUri` pre-selects the currently saved tone. Resolves with
+   * `{uri, title}` or `null` when the user backs out.
+   */
+  pickAlarmRingtone(currentUri: string | null): Promise<PickedRingtoneWire | null>;
 
   // --- Reminder engine (implemented — see module doc above) ------------------
   listReminders(): Promise<ReminderPageWire>;

@@ -17,6 +17,7 @@ import Animated, {FadeInUp} from 'react-native-reanimated';
 import {useAppearanceSettings} from './useAppearanceSettings';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {useToast} from '../../app/toast/ToastProvider';
+import {useAppContainer} from '../../app/di';
 import {testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
 import {appConfig} from '../../core/config/appConfig';
@@ -39,7 +40,8 @@ import {
 } from '../../design-system';
 import type {IconName, ThemePreference} from '../../design-system';
 import type {AppError} from '../../core/errors';
-import {useHaptics, usePreferences, useProfiles, useUpdatePreferences} from '../../hooks';
+import {useAppMutation, useHaptics, usePreferences, useProfiles, useUpdatePreferences} from '../../hooks';
+import {unwrapResult} from '../../core/state';
 import {useTranslation, type TranslationKey} from '../../localization';
 import {isBuiltInProfileNameKey} from '../../native-client/reminderProfileNameKeys';
 import type {ReminderProfile, UUID} from '../../native-client/types';
@@ -119,6 +121,7 @@ export function SettingsScreen() {
   const t = useTranslation();
   const theme = useTheme();
   const navigation = useNavigation<Navigation>();
+  const {client} = useAppContainer();
   const appearance = useAppearanceSettings();
   const preferences = usePreferences();
   const updatePreferences = useUpdatePreferences();
@@ -126,6 +129,18 @@ export function SettingsScreen() {
   const profiles = useProfiles();
   const {showToast} = useToast();
   const testReminder = useScheduleTestReminder();
+  const pickRingtone = useAppMutation({
+    mutationFn: (currentUri: string | null) =>
+      unwrapResult(() => client.pickAlarmRingtone(currentUri)),
+    onSuccess: picked => {
+      if (picked === null) return;
+      updatePreferences.mutate({alarmRingtoneUri: picked.uri});
+      showToast({message: t('settings.defaults.alarmRingtone.changed'), tone: 'info'});
+    },
+    onError: () => {
+      showToast({message: t('settings.defaults.alarmRingtone.failed'), tone: 'error'});
+    },
+  });
   const [previewingProfileId, setPreviewingProfileId] = useState<UUID | null>(null);
   const appBar = useFloatingAppBar();
 
@@ -330,6 +345,24 @@ export function SettingsScreen() {
                   value={preferences.data?.use24HourTime ?? false}
                   onValueChange={next => updatePreferences.mutate({use24HourTime: next})}
                   label={t('settings.defaults.use24HourTime')}
+                />
+              }
+            />
+
+            <Divider spacing="xs" />
+
+            <ListRow
+              title={t('settings.defaults.alarmRingtone')}
+              subtitle={preferences.data?.alarmRingtoneTitle ?? t('settings.defaults.alarmRingtone.helper')}
+              leading={<SettingsRowIcon name="notification" />}
+              trailing={
+                <Button
+                  label={t('settings.defaults.alarmRingtone.change')}
+                  variant="text"
+                  loading={pickRingtone.isPending}
+                  onPress={() =>
+                    pickRingtone.mutate(preferences.data?.alarmRingtoneUri ?? null)
+                  }
                 />
               }
             />
