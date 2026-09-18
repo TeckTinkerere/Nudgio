@@ -370,6 +370,8 @@ export const en = {
   'settings.alarmPreview.hint': 'Tap Preview to see and hear what each alert style looks like.',
   'settings.alarmPreview.notificationTitle': '{name} preview',
   'settings.alarmPreview.scheduled': "Preview scheduled — check your notifications in a few seconds.",
+  'settings.alarmPreview.notificationsBlocked': 'Turn on notifications first so the preview can appear.',
+  'settings.alarmPreview.failed': 'Preview could not be scheduled. Try again.',
   'settings.row.defaults': 'Reminder defaults',
   'settings.row.defaults.subtitle': 'Default snooze duration',
   'settings.row.statistics': 'Statistics',
@@ -442,6 +444,8 @@ export const en = {
   'action.back': 'Back',
   'error.unexpected.title': 'Something went wrong',
   'error.unexpected.effect': 'The last action could not be completed.',
+  'error.notificationsBlocked.title': 'Notifications are turned off',
+  'error.notificationsBlocked.effect': 'Allow notifications in Settings so alerts and previews can appear.',
   'error.bridgeUnavailable.title': 'Native features are unavailable',
   'error.bridgeUnavailable.effect':
     'This build is running without the Android reliability core connected.',

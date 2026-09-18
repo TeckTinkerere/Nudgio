@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
 import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.modules.core.PermissionAwareActivity
@@ -778,6 +779,21 @@ class MediaReminderModule(
      */
     @ReactMethod
     fun scheduleTestReminder(request: ReadableMap, promise: Promise) {
+        // Fail early: if POST_NOTIFICATIONS is not granted the alarm would
+        // fire 15 s later and silently drop the notification, giving the user
+        // a success toast with no visible outcome.
+        if (!NotificationManagerCompat.from(reactApplicationContext).areNotificationsEnabled()) {
+            NativeLogger.warn("scheduleTestReminder.notificationsBlocked", emptyMap())
+            NativeErrorEnvelope.reject(
+                promise,
+                "MR_NOTIFICATIONS_BLOCKED",
+                "error.notificationsBlocked",
+                NativeErrorEnvelope.Category.CAPABILITY,
+                retryable = false,
+                field = "notifications",
+            )
+            return
+        }
         val title = request.getString("title").orEmpty()
         val body = request.getString("body").orEmpty()
         val fullScreenWhenLocked = request.hasKey("fullScreenWhenLocked") &&
