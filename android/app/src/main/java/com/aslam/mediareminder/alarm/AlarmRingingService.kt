@@ -17,6 +17,7 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.aslam.mediareminder.data.PreferencesRepository
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.data.db.entity.ActiveAlarmSessionEntity
 import com.aslam.mediareminder.data.db.entity.OccurrenceEntity
@@ -170,9 +171,13 @@ class AlarmRingingService : Service() {
                 return@launch
             }
 
+            val customRingtoneUri = runCatching {
+                PreferencesRepository(applicationContext).readSnapshot().alarmRingtoneUri
+            }.getOrNull()
+
             val timeoutSeconds = (profile?.timeoutSeconds ?: DEFAULT_TIMEOUT_SECONDS).coerceIn(1, MAX_LIFETIME_SECONDS)
             acquireWakeLock(timeoutSeconds)
-            startRinging()
+            startRinging(customRingtoneUri)
             scheduleTimeout(session, reminder, profile, timeoutSeconds)
             advanceForegroundActivityIfShowing(sessionId)
             NativeLogger.debug("alarmRinging.promoted", mapOf("sessionId" to sessionId, "timeoutSeconds" to timeoutSeconds))
@@ -326,15 +331,15 @@ class AlarmRingingService : Service() {
      * than overpower a call. No phone-state permission is requested" —
      * `AudioManager.getMode()` needs none.
      */
-    private fun startRinging() {
+    private fun startRinging(customRingtoneUri: String?) {
         val inCall = audioManager.mode == AudioManager.MODE_IN_CALL || audioManager.mode == AudioManager.MODE_IN_COMMUNICATION
         vibrate(short = inCall)
         if (!inCall) {
-            playTone()
+            playTone(customRingtoneUri)
         }
     }
 
-    private fun playTone() {
+    private fun playTone(customRingtoneUri: String?) {
         stopTone()
         val attributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ALARM)
@@ -348,13 +353,14 @@ class AlarmRingingService : Service() {
         audioFocusRequest = focusRequest
         audioManager.requestAudioFocus(focusRequest)
 
-        // MR-06: "Alarm audio never uses the attached media file before
-        // Play" — always the system default alarm tone.
+        // Use the custom ringtone URI from preferences when set; otherwise
+        // fall back to the system default alarm tone.
         // "Bluetooth/headphone routing follows system alarm routing. The
         // app does not secretly force speaker output" — no
         // `setAudioStreamType`/output-device override here; `MediaPlayer`
         // follows whatever route `AudioAttributes.USAGE_ALARM` resolves to.
-        val toneUri = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_ALARM)
+        val toneUri = customRingtoneUri?.let { runCatching { android.net.Uri.parse(it) }.getOrNull() }
+            ?: RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getValidRingtoneUri(this)
         if (toneUri == null) {
             NativeLogger.warn("alarmRinging.noToneAvailable")

@@ -1,6 +1,8 @@
 package com.aslam.mediareminder.data
 
 import android.content.Context
+import android.media.RingtoneManager
+import android.net.Uri
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -37,6 +39,7 @@ class PreferencesRepository(private val context: Context) {
         val LANGUAGE_TAG = stringPreferencesKey("language_tag")
         val HAS_COMPLETED_ONBOARDING = booleanPreferencesKey("has_completed_onboarding")
         val DEFAULT_SNOOZE_MINUTES = intPreferencesKey("default_snooze_minutes")
+        val ALARM_RINGTONE_URI = stringPreferencesKey("alarm_ringtone_uri")
     }
 
     /** Matches `defaultPreferences` in `src/core/storage/PreferencesStore.ts`. */
@@ -55,6 +58,7 @@ class PreferencesRepository(private val context: Context) {
         val languageTag: String?,
         val hasCompletedOnboarding: Boolean,
         val defaultSnoozeMinutes: Int,
+        val alarmRingtoneUri: String?,
     )
 
     suspend fun readSnapshot(): Snapshot {
@@ -66,6 +70,7 @@ class PreferencesRepository(private val context: Context) {
             languageTag = snapshot[Keys.LANGUAGE_TAG],
             hasCompletedOnboarding = snapshot[Keys.HAS_COMPLETED_ONBOARDING] ?: Defaults.HAS_COMPLETED_ONBOARDING,
             defaultSnoozeMinutes = snapshot[Keys.DEFAULT_SNOOZE_MINUTES] ?: Defaults.DEFAULT_SNOOZE_MINUTES,
+            alarmRingtoneUri = snapshot[Keys.ALARM_RINGTONE_URI],
         )
     }
 
@@ -84,6 +89,9 @@ class PreferencesRepository(private val context: Context) {
 
             putBoolean("hasCompletedOnboarding", snapshot.hasCompletedOnboarding)
             putInt("defaultSnoozeMinutes", snapshot.defaultSnoozeMinutes)
+            val ringtoneUri = snapshot.alarmRingtoneUri
+            if (ringtoneUri == null) putNull("alarmRingtoneUri") else putString("alarmRingtoneUri", ringtoneUri)
+            putString("alarmRingtoneTitle", resolveRingtoneTitle(ringtoneUri))
         }
     }
 
@@ -120,6 +128,13 @@ class PreferencesRepository(private val context: Context) {
             if (patch.hasKey("defaultSnoozeMinutes")) {
                 prefs[Keys.DEFAULT_SNOOZE_MINUTES] = patch.getInt("defaultSnoozeMinutes")
             }
+            if (patch.hasKey("alarmRingtoneUri")) {
+                if (patch.isNull("alarmRingtoneUri")) {
+                    prefs.remove(Keys.ALARM_RINGTONE_URI)
+                } else {
+                    patch.getString("alarmRingtoneUri")?.let { prefs[Keys.ALARM_RINGTONE_URI] = it }
+                }
+            }
         }
         return read()
     }
@@ -141,6 +156,16 @@ class PreferencesRepository(private val context: Context) {
             if (snapshot.languageTag == null) prefs.remove(Keys.LANGUAGE_TAG) else prefs[Keys.LANGUAGE_TAG] = snapshot.languageTag
             prefs[Keys.HAS_COMPLETED_ONBOARDING] = snapshot.hasCompletedOnboarding
             prefs[Keys.DEFAULT_SNOOZE_MINUTES] = snapshot.defaultSnoozeMinutes
+            if (snapshot.alarmRingtoneUri == null) prefs.remove(Keys.ALARM_RINGTONE_URI) else prefs[Keys.ALARM_RINGTONE_URI] = snapshot.alarmRingtoneUri
         }
+    }
+
+    private fun resolveRingtoneTitle(uriString: String?): String {
+        val uri = uriString?.let { runCatching { Uri.parse(it) }.getOrNull() }
+            ?: RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_ALARM)
+            ?: return "Default alarm"
+        return runCatching {
+            RingtoneManager.getRingtone(context, uri)?.getTitle(context)
+        }.getOrNull() ?: "Default alarm"
     }
 }

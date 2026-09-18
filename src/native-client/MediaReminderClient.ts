@@ -33,6 +33,7 @@ import type {
   NotificationPermissionResult,
   Page,
   PickedDocument,
+  PickedRingtone,
   PreferencePatch,
   PreferencesSnapshot,
   ReminderDetail,
@@ -82,6 +83,9 @@ export interface MediaReminderClient {
 
   /** `ok(null)`, not an error, when the user backed out of the picker with no selection. */
   pickDocument(mimeTypes: readonly string[]): Promise<Result<PickedDocument | null, AppError>>;
+
+  /** `ok(null)` when the user backed out. `ok({uri: null, title})` when they picked "Default". */
+  pickAlarmRingtone(currentUri: string | null): Promise<Result<PickedRingtone | null, AppError>>;
   beginMediaImport(request: ImportRequest): Promise<Result<MediaDetail, AppError>>;
   updateMedia(request: UpdateMediaRequest): Promise<Result<MediaDetail, AppError>>;
   deleteMedia(request: DeleteMediaRequest): Promise<Result<MutationResult, AppError>>;
@@ -233,6 +237,9 @@ export const createMediaReminderClient = (
     listProfiles: () => call('listProfiles', native => native.listProfiles()),
 
     pickDocument: mimeTypes => call('pickDocument', native => native.pickDocument(mimeTypes)),
+
+    pickAlarmRingtone: currentUri =>
+      call('pickAlarmRingtone', native => native.pickAlarmRingtone(currentUri)),
 
     beginMediaImport: request =>
       call('beginMediaImport', native => native.beginMediaImport(request)),

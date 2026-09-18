@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
@@ -98,6 +99,9 @@ class MediaReminderModule(
      */
     private val pendingPickers = ConcurrentHashMap<Int, Promise>()
     private val nextPickerRequestCode = AtomicInteger(PICKER_REQUEST_CODE_BASE)
+
+    private val pendingRingtonePickers = ConcurrentHashMap<Int, Promise>()
+    private val nextRingtoneRequestCode = AtomicInteger(RINGTONE_REQUEST_CODE_BASE)
 
     /** Separate counter from [nextPickerRequestCode] so a permission request in flight can never collide with a picker's `onActivityResult` request code. */
     private val nextPermissionRequestCode = AtomicInteger(PERMISSION_REQUEST_CODE_BASE)
@@ -329,6 +333,45 @@ class MediaReminderModule(
             NativeErrorEnvelope.reject(
                 promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
                 NativeErrorEnvelope.Category.MEDIA, field = "picker",
+            )
+        }
+    }
+
+    /**
+     * Launches the system ringtone picker pre-filtered to TYPE_ALARM tones.
+     * `currentUri` (nullable string) pre-selects the currently saved tone so
+     * the picker opens to the right row. Resolves with
+     * `{uri: string | null, title: string}` — `uri` is null when the user
+     * chose the system default, string otherwise. The caller is expected to
+     * persist the uri via [setPreferences] immediately after.
+     */
+    @ReactMethod
+    fun pickAlarmRingtone(currentUri: String?, promise: Promise) {
+        val activity = reactApplicationContext.currentActivity
+        if (activity == null) {
+            NativeErrorEnvelope.reject(
+                promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
+                NativeErrorEnvelope.Category.MEDIA, field = "activity",
+            )
+            return
+        }
+        val existingUri = currentUri?.let { runCatching { Uri.parse(it) }.getOrNull() }
+        val intent = android.content.Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Choose alarm ringtone")
+            if (existingUri != null) putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, existingUri)
+        }
+        val requestCode = nextRingtoneRequestCode.getAndIncrement()
+        pendingRingtonePickers[requestCode] = promise
+        try {
+            activity.startActivityForResult(intent, requestCode)
+        } catch (error: Exception) {
+            pendingRingtonePickers.remove(requestCode)
+            NativeErrorEnvelope.reject(
+                promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
+                NativeErrorEnvelope.Category.MEDIA, field = "ringtonePicker",
             )
         }
     }
@@ -1059,6 +1102,14 @@ class MediaReminderModule(
                 )
             }
         }
+        pendingRingtonePickers.keys.toList().forEach { requestCode ->
+            pendingRingtonePickers.remove(requestCode)?.let { promise ->
+                NativeErrorEnvelope.reject(
+                    promise, "MR_INTERNAL_FAILED_SAFE", "error.unexpected",
+                    NativeErrorEnvelope.Category.INTERNAL, field = "invalidated",
+                )
+            }
+        }
         // MR-18: every scope has a bounded, deterministic teardown. Cancelling
         // here means an in-flight DataStore read simply never resolves its
         // promise rather than touching a torn-down ReactContext.
@@ -1069,6 +1120,31 @@ class MediaReminderModule(
     // --- ActivityEventListener (ADR-011 picker result delivery) -----------------
 
     override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
+        // Ringtone picker takes priority — its request codes never overlap with
+        // PICKER_REQUEST_CODE_BASE (9100) or PERMISSION_REQUEST_CODE_BASE (9200).
+        pendingRingtonePickers.remove(requestCode)?.let { promise ->
+            if (resultCode != Activity.RESULT_OK) {
+                // User backed out — not a failure; caller keeps the current setting.
+                promise.resolve(null)
+                return
+            }
+            @Suppress("DEPRECATION")
+            val pickedUri: Uri? = data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            val uriString = pickedUri?.toString()
+            val title = runCatching {
+                val resolveUri = pickedUri
+                    ?: RingtoneManager.getActualDefaultRingtoneUri(reactApplicationContext, RingtoneManager.TYPE_ALARM)
+                RingtoneManager.getRingtone(reactApplicationContext, resolveUri)?.getTitle(reactApplicationContext)
+            }.getOrNull() ?: "Default alarm"
+            promise.resolve(
+                Arguments.createMap().apply {
+                    if (uriString == null) putNull("uri") else putString("uri", uriString)
+                    putString("title", title)
+                },
+            )
+            return
+        }
+
         val promise = pendingPickers.remove(requestCode) ?: return
 
         if (resultCode != Activity.RESULT_OK || data?.data == null) {
@@ -1151,5 +1227,8 @@ class MediaReminderModule(
 
         /** Kept well clear of [PICKER_REQUEST_CODE_BASE]'s range so the two request-code spaces can never collide. */
         private const val PERMISSION_REQUEST_CODE_BASE = 9200
+
+        /** Kept well clear of both [PICKER_REQUEST_CODE_BASE] and [PERMISSION_REQUEST_CODE_BASE] to avoid collisions in [onActivityResult]. */
+        private const val RINGTONE_REQUEST_CODE_BASE = 9300
     }
 }

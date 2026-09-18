@@ -289,6 +289,11 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
       };
     },
 
+    pickAlarmRingtone: async (_currentUri: string | null) => ({
+      uri: null,
+      title: 'Default alarm',
+    }),
+
     beginMediaImport: async (request: ImportRequest): Promise<MediaDetail> => {
       const now = new Date().toISOString() as Instant;
       const kind = kindFromMimeType(request.mimeType);
