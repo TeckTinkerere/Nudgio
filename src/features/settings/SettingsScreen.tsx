@@ -38,6 +38,7 @@ import {
   useTheme,
 } from '../../design-system';
 import type {IconName, ThemePreference} from '../../design-system';
+import type {AppError} from '../../core/errors';
 import {useHaptics, usePreferences, useProfiles, useUpdatePreferences} from '../../hooks';
 import {useTranslation, type TranslationKey} from '../../localization';
 import {isBuiltInProfileNameKey} from '../../native-client/reminderProfileNameKeys';
@@ -152,7 +153,14 @@ export function SettingsScreen() {
           showToast({message: t('settings.alarmPreview.scheduled'), tone: 'info'});
           setPreviewingProfileId(null);
         },
-        onError: () => setPreviewingProfileId(null),
+        onError: (error: AppError) => {
+          setPreviewingProfileId(null);
+          const messageKey =
+            error.code === 'MR_NOTIFICATIONS_BLOCKED'
+              ? 'settings.alarmPreview.notificationsBlocked'
+              : 'settings.alarmPreview.failed';
+          showToast({message: t(messageKey), tone: 'error'});
+        },
       },
     );
   };

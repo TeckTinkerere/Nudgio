@@ -157,12 +157,18 @@ class AlarmRingingService : Service() {
                 ongoing = true,
                 useFullScreenIntent = false,
             )
-            ServiceCompat.startForeground(
-                this@AlarmRingingService,
-                notificationCoordinator.notificationIdFor(sessionId),
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
-            )
+            runCatching {
+                ServiceCompat.startForeground(
+                    this@AlarmRingingService,
+                    notificationCoordinator.notificationIdFor(sessionId),
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
+                )
+            }.onFailure { error ->
+                NativeLogger.error("alarmRinging.startForegroundFailed", mapOf("sessionId" to sessionId), cause = error)
+                stopCurrentAndAdvance()
+                return@launch
+            }
 
             val timeoutSeconds = (profile?.timeoutSeconds ?: DEFAULT_TIMEOUT_SECONDS).coerceIn(1, MAX_LIFETIME_SECONDS)
             acquireWakeLock(timeoutSeconds)
