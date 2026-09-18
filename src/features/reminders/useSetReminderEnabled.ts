@@ -7,8 +7,10 @@
  * visually race against.
  */
 import {useAppContainer} from '../../app/di';
+import {useToast} from '../../app/toast/ToastProvider';
 import {queryKeys, unwrapResult} from '../../core/state';
 import {useAppMutation, useAppQueryClient} from '../../hooks';
+import {useTranslation} from '../../localization';
 import type {EnableResult, UUID} from '../../native-client/types';
 
 export interface SetReminderEnabledRequest {
@@ -19,6 +21,8 @@ export interface SetReminderEnabledRequest {
 export const useSetReminderEnabled = () => {
   const {repositories} = useAppContainer();
   const queryClient = useAppQueryClient();
+  const {showToast} = useToast();
+  const t = useTranslation();
 
   return useAppMutation<EnableResult, SetReminderEnabledRequest>({
     mutationFn: ({id, enabled}) => unwrapResult(() => repositories.reminders.setEnabled(id, enabled)),
@@ -30,6 +34,12 @@ export const useSetReminderEnabled = () => {
       void queryClient.invalidateQueries({queryKey: queryKeys.reminders.all()});
       // eslint-disable-next-line no-void
       void queryClient.invalidateQueries({queryKey: queryKeys.startup()});
+    },
+    onError: (_error, {enabled}) => {
+      showToast({
+        message: enabled ? t('reminders.toggle.enableError') : t('reminders.toggle.disableError'),
+        tone: 'error',
+      });
     },
   });
 };
