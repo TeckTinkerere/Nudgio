@@ -196,6 +196,7 @@ class NotificationCoordinator(private val context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
+            NativeLogger.warn("NotificationCoordinator.postNotification.blocked", mapOf("notificationId" to id))
             return
         }
         manager.notify(id, notification)
