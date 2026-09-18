@@ -574,6 +574,13 @@ export interface PreferencesSnapshot {
   readonly languageTag: string | null;
   readonly hasCompletedOnboarding: boolean;
   readonly defaultSnoozeMinutes: number;
+  readonly alarmRingtoneUri: string | null;
+  readonly alarmRingtoneTitle: string;
+}
+
+export interface PickedRingtone {
+  readonly uri: string | null;
+  readonly title: string;
 }
 
 export type PreferencePatch = Partial<PreferencesSnapshot>;

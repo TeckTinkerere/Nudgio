@@ -167,6 +167,10 @@ export const createMockNativeModule = (
     // Jest mock/spy at a higher level, not this native-module fake.
     pickDocument: async () => null,
 
+    // No real ringtone picker in Metro-only dev mode or Jest — null signals
+    // "user backed out", which is the safe default for a settings fake.
+    pickAlarmRingtone: async () => null,
+
     // No real OS permission dialog exists in Metro-only dev mode or Jest —
     // always resolves granted, matching what a fresh install with no prior
     // denial would see.
