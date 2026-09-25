@@ -24,6 +24,7 @@ import {useCallback} from 'react';
 import {Modal, Pressable, StyleSheet, View, useWindowDimensions} from 'react-native';
 import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import {runOnJS} from 'react-native-reanimated';
+// eslint-disable-next-line import/no-named-as-default
 import Svg, {Circle, G, Line, Text as SvgText} from 'react-native-svg';
 
 import {Button} from './Button';

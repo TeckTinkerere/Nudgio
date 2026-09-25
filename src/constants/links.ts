@@ -5,7 +5,7 @@
  * are opened via the system browser through an explicit user tap only.
  */
 export const links = {
-  privacyDetails: 'https://example.invalid/nudgio/privacy',
-  sourceRepository: 'https://example.invalid/nudgio',
+  privacyDetails: 'https://nudgio.mohdaslam.dev/privacy.html',
+  sourceRepository: 'https://github.com/TeckTinkerere/Nudgio',
   licenses: 'https://example.invalid/nudgio/licenses',
 } as const;

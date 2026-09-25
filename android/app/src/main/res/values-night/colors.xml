@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_primary">@color/brand_dark_primary</color>
+    <color name="brand_on_primary">@color/brand_dark_on_primary</color>
+    <color name="brand_primary_container">@color/brand_dark_primary_container</color>
+    <color name="brand_on_primary_container">@color/brand_dark_on_primary_container</color>
+    <color name="brand_surface">@color/brand_dark_surface</color>
+    <color name="brand_surface_container">@color/brand_dark_surface_container</color>
+    <color name="brand_on_surface">@color/brand_dark_on_surface</color>
+    <color name="brand_on_surface_variant">@color/brand_dark_on_surface_variant</color>
+    <color name="brand_outline">@color/brand_dark_outline</color>
+    <color name="brand_error">@color/brand_dark_error</color>
+</resources>

@@ -35,4 +35,6 @@ export const defaultPreferences: PreferencesSnapshot = {
   languageTag: null,
   hasCompletedOnboarding: false,
   defaultSnoozeMinutes: 10,
+  alarmRingtoneUri: null,
+  alarmRingtoneTitle: 'Default',
 };

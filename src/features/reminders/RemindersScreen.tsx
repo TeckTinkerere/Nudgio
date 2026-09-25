@@ -225,11 +225,11 @@ export function RemindersScreen() {
       }>
       {/* `isPending`, not `isLoading` — see TodayScreen for why. */}
       {reminders.isPending ? (
-        <View style={{flex: 1, paddingTop: appBar.barHeight}}>
+        <View style={[styles.flexFill, {paddingTop: appBar.barHeight}]}>
           <LoadingState label={t('loading.startingUp')} />
         </View>
       ) : reminders.isError ? (
-        <View style={{flex: 1, paddingTop: appBar.barHeight}}>
+        <View style={[styles.flexFill, {paddingTop: appBar.barHeight}]}>
           <ErrorState
             title={t('error.unexpected.title')}
             effect={t('error.unexpected.effect')}
@@ -238,7 +238,7 @@ export function RemindersScreen() {
           />
         </View>
       ) : reminders.data.items.length === 0 ? (
-        <View style={{flex: 1, paddingTop: appBar.barHeight}}>
+        <View style={[styles.flexFill, {paddingTop: appBar.barHeight}]}>
           <EmptyState
             icon="reminders"
             title={t('today.empty.title')}

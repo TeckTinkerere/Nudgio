@@ -15,6 +15,8 @@ import {Text} from '../../design-system/components/Text';
 import type {Theme} from '../../design-system/theme';
 import {neutral} from '../../design-system/tokens';
 
+// Factory-created styles are consumed by the two viewers; the rule cannot trace them.
+/* eslint-disable react-native/no-unused-styles */
 export function mediaViewerStyles(theme: Theme, insets: EdgeInsets) {
   return StyleSheet.create({
     root: {flex: 1, backgroundColor: neutral.black},
