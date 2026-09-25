@@ -112,6 +112,8 @@ const defaultPreferences: PreferencesSnapshot = {
   languageTag: null,
   hasCompletedOnboarding: false,
   defaultSnoozeMinutes: 10,
+  alarmRingtoneUri: null,
+  alarmRingtoneTitle: 'Default',
 };
 
 export const createMockNativeModule = (
@@ -170,6 +172,11 @@ export const createMockNativeModule = (
     // No real ringtone picker in Metro-only dev mode or Jest — null signals
     // "user backed out", which is the safe default for a settings fake.
     pickAlarmRingtone: async () => null,
+
+    // No real audio playback in Metro-only dev mode or Jest — a no-op
+    // success is the safe default for a settings fake.
+    previewAlarmRingtone: async () => ({status: 'ok', affectedCount: 1}),
+    stopAlarmRingtonePreview: async () => ({status: 'ok', affectedCount: 0}),
 
     // No real OS permission dialog exists in Metro-only dev mode or Jest —
     // always resolves granted, matching what a fresh install with no prior

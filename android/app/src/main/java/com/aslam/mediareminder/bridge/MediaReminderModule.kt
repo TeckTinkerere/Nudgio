@@ -103,6 +103,16 @@ class MediaReminderModule(
     private val pendingRingtonePickers = ConcurrentHashMap<Int, Promise>()
     private val nextRingtoneRequestCode = AtomicInteger(RINGTONE_REQUEST_CODE_BASE)
 
+    /**
+     * The currently-playing preview started by [previewAlarmRingtone], if
+     * any. A plain [android.media.Ringtone], not [AlarmRingingService]'s
+     * looping alarm-stream `MediaPlayer` — this is a short, one-shot,
+     * Settings-only "does this sound right" check, the same idiom every OS
+     * ringtone picker uses for its own row-tap preview, deliberately not
+     * routed through any session/schema machinery.
+     */
+    private var previewRingtone: android.media.Ringtone? = null
+
     /** Separate counter from [nextPickerRequestCode] so a permission request in flight can never collide with a picker's `onActivityResult` request code. */
     private val nextPermissionRequestCode = AtomicInteger(PERMISSION_REQUEST_CODE_BASE)
 
@@ -374,6 +384,66 @@ class MediaReminderModule(
                 NativeErrorEnvelope.Category.MEDIA, field = "ringtonePicker",
             )
         }
+    }
+
+    /**
+     * Settings-only "does this sound right" preview for the alarm ringtone
+     * row — a `null` uri previews the system default alarm tone, matching
+     * [pickAlarmRingtone]'s own null-means-default convention. Stops any
+     * preview already playing first, so repeated taps (or picking a new
+     * tone right after this one) never overlap two tones. Uses
+     * [RingtoneManager.getRingtone] (a short, one-shot, `USAGE_ALARM`-routed
+     * player) rather than [AlarmRingingService]'s looping `MediaPlayer` —
+     * this never touches a real session, so it has no business going
+     * through that service.
+     */
+    @ReactMethod
+    fun previewAlarmRingtone(uri: String?, promise: Promise) {
+        stopPreviewRingtone()
+        val toneUri = uri?.let { runCatching { Uri.parse(it) }.getOrNull() }
+            ?: RingtoneManager.getActualDefaultRingtoneUri(reactApplicationContext, RingtoneManager.TYPE_ALARM)
+        if (toneUri == null) {
+            promise.resolve(
+                Arguments.createMap().apply {
+                    putString("status", "needs_action")
+                    putInt("affectedCount", 0)
+                },
+            )
+            return
+        }
+        runCatching {
+            RingtoneManager.getRingtone(reactApplicationContext, toneUri)?.apply {
+                audioAttributes = android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                play()
+            }
+        }.onSuccess { ringtone ->
+            previewRingtone = ringtone
+        }
+        promise.resolve(
+            Arguments.createMap().apply {
+                putString("status", "ok")
+                putInt("affectedCount", 1)
+            },
+        )
+    }
+
+    @ReactMethod
+    fun stopAlarmRingtonePreview(promise: Promise) {
+        stopPreviewRingtone()
+        promise.resolve(
+            Arguments.createMap().apply {
+                putString("status", "ok")
+                putInt("affectedCount", 0)
+            },
+        )
+    }
+
+    private fun stopPreviewRingtone() {
+        runCatching { previewRingtone?.stop() }
+        previewRingtone = null
     }
 
     /**
@@ -1089,6 +1159,7 @@ class MediaReminderModule(
 
     override fun invalidate() {
         reactApplicationContext.removeActivityEventListener(this)
+        stopPreviewRingtone()
         // A picker left open across module teardown (rare — RN tears the
         // module down on reload/backgrounding, not the system picker dialog)
         // would otherwise leak a promise that never resolves. Reject rather

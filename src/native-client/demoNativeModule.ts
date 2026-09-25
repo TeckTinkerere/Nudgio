@@ -294,6 +294,14 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
       title: 'Default alarm',
     }),
 
+    // No real audio playback in Metro-only dev mode — a no-op success is the
+    // safe default for the demo module.
+    previewAlarmRingtone: async (_uri: string | null) => ({
+      status: 'ok' as const,
+      affectedCount: 1,
+    }),
+    stopAlarmRingtonePreview: async () => ({status: 'ok' as const, affectedCount: 0}),
+
     beginMediaImport: async (request: ImportRequest): Promise<MediaDetail> => {
       const now = new Date().toISOString() as Instant;
       const kind = kindFromMimeType(request.mimeType);

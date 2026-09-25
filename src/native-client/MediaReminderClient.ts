@@ -86,6 +86,9 @@ export interface MediaReminderClient {
 
   /** `ok(null)` when the user backed out. `ok({uri: null, title})` when they picked "Default". */
   pickAlarmRingtone(currentUri: string | null): Promise<Result<PickedRingtone | null, AppError>>;
+  /** Settings-only preview; a `null` uri previews the system default alarm tone. */
+  previewAlarmRingtone(uri: string | null): Promise<Result<MutationResult, AppError>>;
+  stopAlarmRingtonePreview(): Promise<Result<MutationResult, AppError>>;
   beginMediaImport(request: ImportRequest): Promise<Result<MediaDetail, AppError>>;
   updateMedia(request: UpdateMediaRequest): Promise<Result<MediaDetail, AppError>>;
   deleteMedia(request: DeleteMediaRequest): Promise<Result<MutationResult, AppError>>;
@@ -240,6 +243,12 @@ export const createMediaReminderClient = (
 
     pickAlarmRingtone: currentUri =>
       call('pickAlarmRingtone', native => native.pickAlarmRingtone(currentUri)),
+
+    previewAlarmRingtone: uri =>
+      call('previewAlarmRingtone', native => native.previewAlarmRingtone(uri)),
+
+    stopAlarmRingtonePreview: () =>
+      call('stopAlarmRingtonePreview', native => native.stopAlarmRingtonePreview()),
 
     beginMediaImport: request =>
       call('beginMediaImport', native => native.beginMediaImport(request)),

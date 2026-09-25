@@ -5,6 +5,10 @@
  * new animation cannot ship without someone deciding what it does when the
  * user has asked for less movement. MR-04 also forbids looping decorative
  * animation and flashing as an urgency signal — there is no `loop` token.
+ *
+ * App-wide rule: screens never animate their own content on mount (the
+ * navigation transition already covers arrival). Motion is reserved for a
+ * specific user action or state change — a swipe, a toast, a success, a delete.
  */
 
 /** Material 3 easing curves expressed as cubic-bezier control points. */

@@ -117,6 +117,7 @@
         -->
         <activity
             android:name=".alarm.AlarmActivity"
+            android:theme="@style/Theme.AppTheme.Alarm"
             android:exported="false"
             android:launchMode="singleTop"
             android:noHistory="true"

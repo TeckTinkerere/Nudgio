@@ -472,6 +472,16 @@ export interface Spec extends TurboModule {
    */
   pickAlarmRingtone(currentUri: string | null): Promise<PickedRingtoneWire | null>;
 
+  /**
+   * Settings-only preview of an alarm tone (a `null` uri previews the
+   * system default), decoupled from any real alarm session — see the
+   * native doc comment. Stops any preview already playing first.
+   */
+  previewAlarmRingtone(uri: string | null): Promise<MutationResultWire>;
+
+  /** Stops a preview started by {@link previewAlarmRingtone}, if one is playing. */
+  stopAlarmRingtonePreview(): Promise<MutationResultWire>;
+
   // --- Reminder engine (implemented — see module doc above) ------------------
   listReminders(): Promise<ReminderPageWire>;
   getReminder(id: string): Promise<ReminderDetailWire>;

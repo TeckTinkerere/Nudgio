@@ -39,6 +39,8 @@ module.exports = {
     'node_modules/',
     'android/',
     'specs/',
+    'web/',
+    'releases/',
     'coverage/',
     '*.config.js',
     'jest.setup*.js',

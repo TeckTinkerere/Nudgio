@@ -12,7 +12,6 @@
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useState} from 'react';
 import {Image, StyleSheet} from 'react-native';
-import Animated, {FadeInUp} from 'react-native-reanimated';
 
 import {useDeleteReminder} from './useDeleteReminder';
 import {useReminderDetail} from './useReminderDetail';
@@ -86,7 +85,10 @@ export function ReminderDetailScreen({navigation, route}: Props) {
           <ErrorState
             title={t('error.unexpected.title')}
             effect={t('error.unexpected.effect')}
-            recoveryAction={{label: t('action.retry'), onPress: () => reminderQuery.refetch()}}
+            recoveryAction={{
+              label: t('action.retry'),
+              onPress: () => reminderQuery.refetch(),
+            }}
             diagnosticCode={reminderQuery.error.correlationId}
           />
         ) : (
@@ -132,7 +134,9 @@ export function ReminderDetailScreen({navigation, route}: Props) {
               icon: 'edit',
               label: t('reminders.detail.edit'),
               onPress: () =>
-                navigation.navigate(rootRoutes.reminderEditor, {reminderId: reminder.id}),
+                navigation.navigate(rootRoutes.reminderEditor, {
+                  reminderId: reminder.id,
+                }),
             },
           ]}
           floating
@@ -140,107 +144,104 @@ export function ReminderDetailScreen({navigation, route}: Props) {
           onHeightChange={appBar.onHeightChange}
         />
       }>
-      <Animated.View
-        entering={
-          theme.a11y.reduceMotion ? undefined : FadeInUp.springify().damping(18)
-        }>
-        <Stack gap="lg" paddingVertical="md">
-          {reminder.effectiveState === 'disabled' ? (
-            <Banner
-              kind="neutral"
-              title={reminder.label}
-              effect={t('reminders.detail.disabledNotice')}
-            />
-          ) : reminder.effectiveState === 'needs_setup' ? (
-            <Banner
-              kind="actionNeeded"
-              title={reminder.label}
-              effect={t('reminders.detail.needsSetupNotice')}
-              action={{
-                label: t('today.capability.openHealth'),
-                onPress: () => navigation.navigate(rootRoutes.health),
-              }}
-            />
-          ) : null}
+      <Stack gap="lg" paddingVertical="md">
+        {reminder.effectiveState === 'disabled' ? (
+          <Banner
+            kind="neutral"
+            title={reminder.label}
+            effect={t('reminders.detail.disabledNotice')}
+          />
+        ) : reminder.effectiveState === 'needs_setup' ? (
+          <Banner
+            kind="actionNeeded"
+            title={reminder.label}
+            effect={t('reminders.detail.needsSetupNotice')}
+            action={{
+              label: t('today.capability.openHealth'),
+              onPress: () => navigation.navigate(rootRoutes.health),
+            }}
+          />
+        ) : null}
 
+        <Card>
+          <Stack direction="row" align="center" gap="sm">
+            <Stack style={avatarStyle.box} align="center" justify="center">
+              {thumbnail ? (
+                <Image
+                  source={thumbnail}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                />
+              ) : (
+                <Icon
+                  name={MEDIA_ICON[reminder.mediaKind]}
+                  size="lg"
+                  color={theme.color.onPrimaryContainer}
+                />
+              )}
+            </Stack>
+            <Stack gap="xxs" style={styles.flexFill}>
+              <Text variant="labelLarge" tone="variant">
+                {t('reminders.editor.enabledToggle')}
+              </Text>
+              <Text variant="titleMedium">{reminder.label}</Text>
+            </Stack>
+            <Toggle
+              value={reminder.enabledIntent}
+              onValueChange={value =>
+                setEnabled.mutate({id: reminder.id, enabled: value})
+              }
+              label={reminder.label}
+            />
+          </Stack>
+        </Card>
+
+        <Stack gap="xxs">
+          <Text variant="titleMedium">{t('reminders.detail.schedule')}</Text>
           <Card>
             <Stack direction="row" align="center" gap="sm">
-              <Stack style={avatarStyle.box} align="center" justify="center">
-                {thumbnail ? (
-                  <Image
-                    source={thumbnail}
-                    style={StyleSheet.absoluteFill}
-                    resizeMode="cover"
-                    accessibilityElementsHidden
-                    importantForAccessibility="no-hide-descendants"
-                  />
-                ) : (
-                  <Icon
-                    name={MEDIA_ICON[reminder.mediaKind]}
-                    size="lg"
-                    color={theme.color.onPrimaryContainer}
-                  />
-                )}
-              </Stack>
-              <Stack gap="xxs" style={styles.flexFill}>
-                <Text variant="labelLarge" tone="variant">
-                  {t('reminders.editor.enabledToggle')}
-                </Text>
-                <Text variant="titleMedium">{reminder.label}</Text>
-              </Stack>
-              <Toggle
-                value={reminder.enabledIntent}
-                onValueChange={value => setEnabled.mutate({id: reminder.id, enabled: value})}
-                label={reminder.label}
-              />
+              <Icon name="repeat" color={theme.color.onSurfaceVariant} />
+              <Text variant="bodyLarge">{reminder.repeatSummary}</Text>
             </Stack>
           </Card>
-
-          <Stack gap="xxs">
-            <Text variant="titleMedium">{t('reminders.detail.schedule')}</Text>
-            <Card>
-              <Stack direction="row" align="center" gap="sm">
-                <Icon name="repeat" color={theme.color.onSurfaceVariant} />
-                <Text variant="bodyLarge">{reminder.repeatSummary}</Text>
-              </Stack>
-            </Card>
-          </Stack>
-
-          <Stack gap="xxs">
-            <Text variant="titleMedium">{t('reminders.detail.alertStyle')}</Text>
-            <Card>
-              <Text variant="titleMedium">
-                {profile && isBuiltInProfileNameKey(profile.nameKey)
-                  ? t(profile.nameKey)
-                  : ''}
-              </Text>
-              {profile?.nameKey === 'profile.persistent.name' ? (
-                <Text variant="labelMedium" tone="variant">
-                  {t('profile.persistent.notice')}
-                </Text>
-              ) : null}
-            </Card>
-          </Stack>
-
-          <Stack gap="xxs">
-            <Text variant="titleMedium">{t('reminders.detail.snooze')}</Text>
-            <Card>
-              <Text variant="bodyLarge">
-                {t('reminders.editor.snoozeMinutes', {
-                  minutes: reminder.snooze.defaultMinutes,
-                })}
-              </Text>
-            </Card>
-          </Stack>
-
-          <Button
-            label={t('reminders.detail.delete')}
-            variant="destructive"
-            icon="delete"
-            onPress={() => setDeleteDialogOpen(true)}
-          />
         </Stack>
-      </Animated.View>
+
+        <Stack gap="xxs">
+          <Text variant="titleMedium">{t('reminders.detail.alertStyle')}</Text>
+          <Card>
+            <Text variant="titleMedium">
+              {profile && isBuiltInProfileNameKey(profile.nameKey)
+                ? t(profile.nameKey)
+                : ''}
+            </Text>
+            {profile?.nameKey === 'profile.persistent.name' ? (
+              <Text variant="labelMedium" tone="variant">
+                {t('profile.persistent.notice')}
+              </Text>
+            ) : null}
+          </Card>
+        </Stack>
+
+        <Stack gap="xxs">
+          <Text variant="titleMedium">{t('reminders.detail.snooze')}</Text>
+          <Card>
+            <Text variant="bodyLarge">
+              {t('reminders.editor.snoozeMinutes', {
+                minutes: reminder.snooze.defaultMinutes,
+              })}
+            </Text>
+          </Card>
+        </Stack>
+
+        <Button
+          label={t('reminders.detail.delete')}
+          variant="destructive"
+          icon="delete"
+          onPress={() => setDeleteDialogOpen(true)}
+        />
+      </Stack>
 
       <Dialog
         visible={deleteDialogOpen}

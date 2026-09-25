@@ -29,8 +29,8 @@ import {useState} from 'react';
 import {Linking, StyleSheet, View} from 'react-native';
 import Animated, {FadeIn} from 'react-native-reanimated';
 
-import {useToast} from '../../app/toast/ToastProvider';
 import type {RootStackParamList} from '../../app/navigation/types';
+import {useToast} from '../../app/toast/ToastProvider';
 import {links, testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
 import {Button, EmptyState, Icon, Screen, Stack, Text, useTheme} from '../../design-system';

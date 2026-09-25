@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Native mirror of src/design-system/tokens/palette.ts, which is the source of
+  truth. Keep these hex values in sync with it.
+
+  brand_light_* and brand_dark_* are fixed. brand_* follows the system
+  day/night setting (overridden in values-night/colors.xml).
+-->
+<resources>
+    <color name="brand_light_primary">#006A60</color>
+    <color name="brand_light_on_primary">#FFFFFF</color>
+    <color name="brand_light_primary_container">#D7F5EE</color>
+    <color name="brand_light_on_primary_container">#00201C</color>
+    <color name="brand_light_surface">#F8FAF9</color>
+    <color name="brand_light_surface_container">#EEF2F0</color>
+    <color name="brand_light_on_surface">#171D1B</color>
+    <color name="brand_light_on_surface_variant">#3F4946</color>
+    <color name="brand_light_outline">#6F7975</color>
+    <color name="brand_light_error">#B42318</color>
+
+    <color name="brand_dark_primary">#5EDBC8</color>
+    <color name="brand_dark_on_primary">#003732</color>
+    <color name="brand_dark_primary_container">#005047</color>
+    <color name="brand_dark_on_primary_container">#D7F5EE</color>
+    <color name="brand_dark_surface">#0E1513</color>
+    <color name="brand_dark_surface_container">#17201D</color>
+    <color name="brand_dark_surface_container_high">#212B28</color>
+    <color name="brand_dark_on_surface">#DEE4E1</color>
+    <color name="brand_dark_on_surface_variant">#BEC9C5</color>
+    <color name="brand_dark_outline">#89938F</color>
+    <color name="brand_dark_error">#FFB4AB</color>
+    <!-- 0.64 black: the dark-mode scrim token. -->
+    <color name="brand_dark_scrim">#A3000000</color>
+
+    <color name="brand_primary">@color/brand_light_primary</color>
+    <color name="brand_on_primary">@color/brand_light_on_primary</color>
+    <color name="brand_primary_container">@color/brand_light_primary_container</color>
+    <color name="brand_on_primary_container">@color/brand_light_on_primary_container</color>
+    <color name="brand_surface">@color/brand_light_surface</color>
+    <color name="brand_surface_container">@color/brand_light_surface_container</color>
+    <color name="brand_on_surface">@color/brand_light_on_surface</color>
+    <color name="brand_on_surface_variant">@color/brand_light_on_surface_variant</color>
+    <color name="brand_outline">@color/brand_light_outline</color>
+    <color name="brand_error">@color/brand_light_error</color>
+</resources>

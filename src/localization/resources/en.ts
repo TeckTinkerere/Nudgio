@@ -394,8 +394,10 @@ export const en = {
   'settings.defaults.use24HourTime.helper':
     'Show times as 18:30 instead of 6:30 PM. Off follows your phone’s own setting.',
   'settings.defaults.alarmRingtone': 'Alarm ringtone',
-  'settings.defaults.alarmRingtone.helper': 'Used for all alarms and previews.',
-  'settings.defaults.alarmRingtone.change': 'Change ringtone',
+  'settings.defaults.alarmRingtone.helper': 'Plays whenever an alarm rings.',
+  'settings.defaults.alarmRingtone.change': 'Change',
+  'settings.defaults.alarmRingtone.preview': 'Play ringtone preview',
+  'settings.defaults.alarmRingtone.stopPreview': 'Stop ringtone preview',
   'settings.defaults.alarmRingtone.changed': 'Ringtone updated.',
   'settings.defaults.alarmRingtone.failed': 'Could not open ringtone picker.',
   'settings.accessibility.reduceMotion': 'Reduce motion',

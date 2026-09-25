@@ -150,7 +150,7 @@ const timeFromLocalTime = (localTime: string): TimeOfDayValue => {
 };
 
 const initialTimeFromSchedule = (schedule: ScheduleRuleDto | undefined): TimeOfDayValue => {
-  if (!schedule) return {hour: 6, minute: 15, period: 'AM'};
+  if (!schedule) {return {hour: 6, minute: 15, period: 'AM'};}
   if (schedule.type === 'once') {
     const d = new Date(schedule.instant);
     const h24 = d.getHours();

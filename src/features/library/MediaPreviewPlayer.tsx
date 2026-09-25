@@ -18,11 +18,11 @@ import {ActivityIndicator, Modal, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import ReactVideo from 'react-native-video';
 
+import {MediaViewerHeader, mediaViewerStyles} from './MediaViewerChrome';
 import {Text} from '../../design-system/components/Text';
 import {Icon} from '../../design-system/icons';
 import {useTheme} from '../../design-system/theme/useTheme';
 import {neutral} from '../../design-system/tokens';
-import {MediaViewerHeader, mediaViewerStyles} from './MediaViewerChrome';
 import {mediaPlaybackSource} from '../../native-client/mediaTokens';
 import type {MediaSourceToken} from '../../native-client/types';
 
