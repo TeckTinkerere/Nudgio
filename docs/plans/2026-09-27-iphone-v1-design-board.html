@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Nudgio · Ink &amp; Apricot · iPhone design</title>
+<link rel="stylesheet" href="iphone-brand-tokens.css">
+<style>
+  :root{color-scheme:light;--page:var(--brand-background);--paper:var(--brand-surface);--ink:var(--brand-text);--muted:var(--brand-text-secondary);--line:var(--brand-border-subtle);--accent:var(--brand-primary);--tint:var(--brand-primary-container);--phone:var(--brand-background);--card:var(--brand-surface);--label:var(--brand-text);--secondary:var(--brand-text-secondary);--warn:var(--brand-on-warning-container);--warnbg:var(--brand-warning-container)}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--page);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+  a{color:var(--accent);text-underline-offset:4px}a:focus-visible{outline:3px solid var(--accent);outline-offset:5px}
+  header{max-width:1500px;margin:auto;padding:58px 40px 34px}.eyebrow{font-size:12px;font-weight:750;letter-spacing:.15em;text-transform:uppercase;color:var(--accent)}h1{font-size:clamp(34px,4.5vw,64px);font-weight:650;letter-spacing:-.055em;line-height:1.06;margin:16px 0 20px;max-width:920px}header p{max-width:740px;font-size:18px;color:var(--muted)}.meta{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;margin-top:24px}.tag{border:1px solid var(--line);border-radius:30px;padding:7px 12px;background:var(--paper)}
+  nav{display:flex;gap:20px;flex-wrap:wrap;margin-top:24px;font-size:14px}.notice{margin:0 40px 30px;padding:16px 20px;border-left:3px solid var(--accent);background:var(--tint);font-size:14px}.wrap{max-width:1500px;margin:auto;padding:0 40px 60px}.section-head{display:flex;gap:24px;align-items:baseline;justify-content:space-between;margin:30px 0 22px}.section-head h2{font-size:26px;letter-spacing:-.025em;margin:0}.section-head p{font-size:14px;color:var(--muted);margin:0;max-width:600px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:30px}.scene{min-width:0}.scene-label{font-size:12px;color:var(--accent);font-weight:750;text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px}.caption{font-size:14px;color:var(--muted);margin:16px 4px 0;max-width:390px}.caption strong{color:var(--ink)}
+  .phone{max-width:390px;margin:auto;border:1px solid #C5C6D0;border-radius:38px;padding:10px;background:#202638;box-shadow:0 12px 35px #20263812}.display{--phone:var(--brand-background);--card:var(--brand-surface);--label:var(--brand-text);--secondary:var(--brand-text-secondary);--accent:var(--brand-primary);--tint:var(--brand-primary-container);--line:var(--brand-border-subtle);position:relative;background:var(--phone);color:var(--label);border-radius:29px;overflow:hidden;min-height:744px;display:flex;flex-direction:column}.status{height:46px;padding:15px 20px 0;display:flex;justify-content:space-between;font-size:12px;font-weight:650;position:relative}.status:after{content:"";position:absolute;left:50%;transform:translateX(-50%);top:10px;width:88px;height:24px;border-radius:16px;background:#111}.signal{font-size:10px;letter-spacing:1px}.body{padding:18px 20px 24px;flex:1}.title-row{display:flex;justify-content:space-between;align-items:center;gap:12px}.screen-title{font-size:32px;font-weight:730;letter-spacing:-1px;margin:0}.plus{font-size:29px;line-height:44px;width:44px;text-align:center;color:var(--accent)}.date{font-size:14px;color:var(--secondary);margin:0 0 18px}.segmented{display:flex;background:var(--brand-surface-muted);border-radius:9px;padding:3px;margin:16px 0 25px;font-size:13px;font-weight:600}.segmented span{flex:1;text-align:center;padding:5px}.segmented .selected{background:var(--card);border-radius:7px;box-shadow:0 1px 4px #0001}.overline{font-size:11px;letter-spacing:.07em;color:var(--secondary);margin:22px 0 8px;font-weight:650}.card{background:var(--card);border-radius:16px;padding:16px}.time{font-size:39px;font-weight:650;line-height:1.2;letter-spacing:-1.5px;font-variant-numeric:tabular-nums}.time small{font-size:18px;letter-spacing:0}.next-top{display:flex;align-items:center;justify-content:space-between;gap:12px}.small{font-size:12px;color:var(--secondary)}.name{font-size:18px;font-weight:620;margin:12px 0 3px}.subtitle{font-size:13px;color:var(--secondary)}.ready{font-size:12px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line);color:var(--accent);display:flex;gap:7px;align-items:center}.circle{background:var(--tint);border-radius:50%;width:18px;height:18px;text-align:center;font-size:11px}.list{background:var(--card);border-radius:14px;overflow:hidden}.row{display:flex;align-items:center;gap:12px;min-height:66px;padding:13px 15px;border-bottom:1px solid #81878b25}.row:last-child{border:0}.row-main{flex:1;font-size:14px}.row-main strong{display:block;font-size:15px;font-weight:600}.row-main .small{display:block;margin-top:3px}.chevron{font-size:18px;color:var(--secondary)}.clock{width:61px;font-size:13px;font-weight:650;font-variant-numeric:tabular-nums}.tabs{display:flex;padding:10px 8px 25px;background:var(--card);border-top:1px solid #81878b25;gap:4px}.tab{flex:1;text-align:center;color:var(--secondary);font-size:10px}.tab.active{color:var(--accent)}.tab-icon{font-size:19px;display:block;line-height:24px}.homebar{height:4px;width:106px;border-radius:4px;background:var(--label);position:absolute;bottom:8px;left:50%;transform:translateX(-50%)}
+  .modal-nav{display:flex;align-items:center;justify-content:space-between;padding:15px 16px 10px;font-size:14px}.action{color:var(--accent);font-weight:550}.modal-nav strong{font-size:15px}.form-body{padding-top:8px}.field{padding:15px;background:var(--card);border-radius:12px;font-size:17px}.field-label{font-size:13px;color:var(--secondary);margin:8px 0}.form-row{display:flex;justify-content:space-between;align-items:center;padding:15px;font-size:15px;border-bottom:1px solid #81878b25;gap:10px;min-height:54px}.form-row:last-child{border:0}.value{color:var(--secondary);font-size:14px}.helper{font-size:12px;color:var(--secondary);margin:12px 4px;line-height:1.5}.optional{font-size:11px;font-weight:400;letter-spacing:0;text-transform:none}.add-line{color:var(--accent)}.next-preview{margin-top:25px;font-size:13px;color:var(--secondary);text-align:center}.pill{display:inline-block;background:var(--tint);border-radius:6px;padding:3px 7px;font-size:11px;color:var(--accent)}
+  .toolbar{display:flex;align-items:center;justify-content:space-between;font-size:14px;padding:14px 20px 0;color:var(--accent)}.detail-title{font-size:25px;line-height:1.2;letter-spacing:-.5px;margin:16px 0}.detail-time{font-size:34px;font-weight:650;letter-spacing:-1px}.toggle{background:var(--accent);width:43px;height:26px;border-radius:20px;position:relative;flex-shrink:0}.toggle:after{content:"";width:22px;height:22px;background:white;border-radius:50%;position:absolute;right:2px;top:2px}.audio-tile{margin-top:18px;display:flex;align-items:center;gap:12px;background:var(--tint);border-radius:12px;padding:14px}.audio-icon{font-size:28px;color:var(--accent)}.primary{background:var(--accent);color:var(--brand-on-primary);text-align:center;padding:15px;border-radius:13px;font-size:15px;font-weight:650;margin-top:16px}.secondary-button{border:1px solid var(--brand-control-outline);border-radius:13px;padding:14px;font-size:14px;text-align:center;margin-top:10px;color:var(--accent)}.notes{font-size:15px;line-height:1.5}.notice-card{background:var(--warnbg);color:var(--warn);padding:15px;border-radius:14px;font-size:13px}.notice-card strong{display:block;font-size:15px;margin-bottom:5px}.notice-card a{color:inherit}.warning-status{color:var(--warn)}.inline-action{font-weight:650;margin-top:10px;font-size:13px}.search{background:var(--brand-surface-muted);border-radius:11px;padding:11px 13px;font-size:14px;color:var(--secondary);margin:14px 0}.filters{display:flex;gap:7px;margin:16px 0}.filter{font-size:11px;border:1px solid var(--line);border-radius:20px;padding:5px 10px}.filter.active{background:var(--accent);color:#fff;border-color:var(--accent)}.media-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.media-card{background:var(--card);border-radius:14px;overflow:hidden}.thumb{aspect-ratio:1.25;background:var(--tint);display:grid;place-items:center;font-size:35px;color:var(--accent);position:relative}.thumb.blue{background:var(--brand-primary-container);color:var(--brand-on-primary-container)}.thumb.sand{background:var(--brand-accent-container);color:var(--brand-on-accent-container)}.thumb .length{position:absolute;bottom:7px;right:7px;background:#000b;color:white;font-size:10px;border-radius:4px;padding:2px 5px}.media-title{padding:10px;font-size:12px;font-weight:600}.media-title small{display:block;font-size:10px;color:var(--secondary);font-weight:400;margin-top:3px}.media-type{font-size:10px;position:absolute;top:8px;left:8px;font-weight:650}.dark-display .primary{color:var(--brand-on-primary)}.dark-display .status:after{background:var(--brand-surface-muted)}.native-kicker{color:var(--accent);font-size:11px;letter-spacing:.08em;margin:20px 0 8px}.native-title{font-size:30px;line-height:1.15;font-weight:650;letter-spacing:-.8px}.native-player{height:170px;border-radius:16px;background:var(--tint);display:flex;align-items:center;justify-content:center;gap:5px;margin:24px 0 18px}.bar{width:5px;background:var(--accent);border-radius:3px;opacity:.85}.player-name{font-size:16px;font-weight:600}.timeline{margin-top:16px;display:flex;justify-content:space-between;color:var(--secondary);font-size:11px}.track{height:3px;background:var(--brand-control-outline);border-radius:5px;margin-top:8px}.track:before{content:"";display:block;width:8px;height:8px;position:relative;top:-3px;border-radius:50%;background:var(--accent)}
+  .principles{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:40px}.principle{background:var(--paper);padding:22px;border:1px solid var(--line);border-radius:16px}.principle h3{font-size:17px;margin:0 0 8px}.principle p{font-size:14px;color:var(--muted);margin:0}.swatches{display:flex;gap:8px;margin-top:14px}.swatch{width:30px;height:30px;border-radius:50%;border:1px solid #0002}footer{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:24px;margin-top:40px}.visually-hidden{position:absolute;clip:rect(0,0,0,0);width:1px;height:1px;overflow:hidden}
+  @media(min-width:1550px){.notice{max-width:1420px;margin-left:auto;margin-right:auto}}@media(max-width:1080px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.principles{grid-template-columns:1fr}.section-head{display:block}.section-head p{margin-top:8px}}@media(max-width:680px){header{padding:35px 20px 24px}.notice{margin:0 20px 25px}.wrap{padding:0 20px 40px}.grid{grid-template-columns:1fr;gap:34px}.phone{width:100%}.caption{margin-left:auto;margin-right:auto}.section-head h2{font-size:23px}}
+  @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  @media print{body{background:white}.phone{box-shadow:none}.scene{break-inside:avoid}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}header{padding-top:20px}nav{display:none}.display{min-height:700px}.principles{break-inside:avoid}}
+
+  .palette-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin:0 0 32px}.palette-card{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--paper)}.palette-colour{height:104px;padding:16px;display:flex;align-items:flex-end;font-size:13px;font-weight:650}.palette-caption{padding:12px 15px;font-size:13px}.palette-caption strong{display:block;margin-bottom:2px}.palette-caption span{font-size:12px;color:var(--muted)}.palette-footnote{font-size:14px;color:var(--muted);max-width:900px;margin:0 0 32px}.snooze-button{background:var(--brand-accent-container);color:var(--brand-on-accent-container);border-color:var(--brand-accent)}
+  @media(max-width:680px){.palette-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.palette-card:last-child{grid-column:1/-1}.palette-colour{height:84px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">Nudgio / Ink &amp; Apricot / iPhone</div>
+  <h1>A little nudge.<br>A clearer day.</h1>
+  <p>Ink blue for clarity. Warm ivory for breathing room. A touch of apricot for warmth. A new colour direction for a simpler, dependable iPhone experience.</p>
+  <div class="meta"><span class="tag">27 September 2026</span><span class="tag">Local-first · no cross-device sync</span><span class="tag">iOS 26+ proposed baseline</span><span class="tag">Revised colour direction</span><span class="tag">Static design study</span></div>
+  <nav aria-label="Document navigation"><a href="#palette">The palette</a><a href="#core">Core journey</a><a href="#trust">Content &amp; trust</a><a href="#principles">Design rules</a><a href="2026-09-27-iphone-v1-implementation-plan.md">Detailed implementation plan</a></nav>
+</header>
+<aside class="notice"><strong>Planning artifact, not a working app.</strong> Controls inside the phone frames are illustrations. These are app-owned screens; the actual Lock Screen alarm is rendered by Apple and must be validated on a real iPhone. Dimensions and typography are visual references, not pixel-perfect system screenshots.</aside>
+<main class="wrap">
+  <section id="palette" aria-labelledby="palette-heading">
+    <div class="section-head"><h2 id="palette-heading">The new palette / Ink &amp; Apricot</h2><p>Warm everyday surfaces, unmistakable actions and a dark theme with the same identity.</p></div>
+    <div class="palette-grid">
+      <div class="palette-card"><div class="palette-colour" style="background:#2D4DB5;color:#FFFFFF">#2D4DB5</div><div class="palette-caption"><strong>Ink blue</strong><span>Primary actions &amp; links</span></div></div>
+      <div class="palette-card"><div class="palette-colour" style="background:#F7F4EE;color:#202638">#F7F4EE</div><div class="palette-caption"><strong>Warm ivory</strong><span>Calm app backgrounds</span></div></div>
+      <div class="palette-card"><div class="palette-colour" style="background:#E9B58E;color:#56321C">#E9B58E</div><div class="palette-caption"><strong>Apricot</strong><span>Snooze &amp; small highlights</span></div></div>
+      <div class="palette-card"><div class="palette-colour" style="background:#11141D;color:#F3F1EC">#11141D</div><div class="palette-caption"><strong>Midnight</strong><span>Dark-theme foundation</span></div></div>
+      <div class="palette-card"><div class="palette-colour" style="background:#BAC8FF;color:#172654">#BAC8FF</div><div class="palette-caption"><strong>Moon blue</strong><span>Dark-theme actions</span></div></div>
+    </div>
+    <p class="palette-footnote">Primary button text contrast: <strong>7.39:1 in light mode</strong> and <strong>8.87:1 in dark mode</strong>. Apricot uses dark text, never white. Warnings and errors have separate semantic colours. The real iPhone app still requires accessibility validation.</p>
+  </section>
+
+  <section id="core" aria-labelledby="core-heading">
+    <div class="section-head"><h2 id="core-heading">01 / The everyday journey</h2><p>Three tabs. One direct creation action. Optional media. Advanced choices stay inside the editor.</p></div>
+    <div class="grid">
+      <article class="scene">
+        <div class="scene-label">S02 · Today</div>
+        <div class="phone"><div class="display">
+          <div class="status" aria-hidden="true"><span>9:41</span><span class="signal">▮▮▮ ▰</span></div>
+          <div class="body">
+            <div class="title-row"><h3 class="screen-title">Today</h3><span class="plus" aria-label="Create reminder">+</span></div>
+            <p class="date">Sunday, 27 September</p>
+            <div class="segmented"><span class="selected">Upcoming</span><span>All</span></div>
+            <div class="overline">NEXT REMINDER</div>
+            <div class="card">
+              <div class="next-top"><div class="time">10:00 <small>AM</small></div><span class="small">Today</span></div>
+              <div class="name">Morning practice</div><div class="subtitle">Every day · Audio attached</div>
+              <div class="ready"><span class="circle">✓</span>Scheduled on this iPhone</div>
+            </div>
+            <div class="overline">LATER TODAY</div>
+            <div class="list">
+              <div class="row"><div class="clock">12:30 PM</div><div class="row-main"><strong>Stretch</strong><span class="small">Video attached</span></div><span class="chevron">›</span></div>
+              <div class="row"><div class="clock">6:00 PM</div><div class="row-main"><strong>Read ten minutes</strong><span class="small">No attachment</span></div><span class="chevron">›</span></div>
+            </div>
+          </div>
+          <div class="tabs" aria-hidden="true"><div class="tab active"><span class="tab-icon">◷</span>Today</div><div class="tab"><span class="tab-icon">▧</span>Library</div><div class="tab"><span class="tab-icon">⚙</span>Settings</div></div><div class="homebar"></div>
+        </div></div>
+        <p class="caption"><strong>The next action comes first.</strong> Time, purpose and scheduling status are visible together. “All” includes paused reminders. No separate dashboard of statistics.</p>
+      </article>
+      <article class="scene">
+        <div class="scene-label">S03 · Create reminder</div>
+        <div class="phone"><div class="display">
+          <div class="status" aria-hidden="true"><span>9:41</span><span class="signal">▮▮▮ ▰</span></div>
+          <div class="modal-nav"><span class="action">Cancel</span><strong>New reminder</strong><span class="action">Save</span></div>
+          <div class="body form-body">
+            <p class="field-label">What would you like to remember?</p><div class="field">Morning practice</div>
+            <div class="overline">WHEN</div><div class="list">
+              <div class="form-row"><span>Time</span><span class="value">8:00 AM &nbsp; ›</span></div>
+              <div class="form-row"><span>Repeat</span><span class="value">Every day &nbsp; ›</span></div>
+            </div>
+            <div class="overline">CONTENT <span class="optional">· optional</span></div><div class="list">
+              <div class="form-row add-line"><span>Add attachment</span><span>+</span></div>
+              <div class="form-row"><span>Add a note</span><span class="chevron">›</span></div>
+            </div>
+            <div class="helper">A reminder works with just a title and time.</div>
+            <div class="list" style="margin-top:22px"><div class="form-row"><span>More options</span><span class="chevron">›</span></div></div>
+            <div class="helper">Snooze, Lock Screen action and privacy.</div>
+            <div class="next-preview">Next: Monday, 28 September<br>at 8:00 AM</div>
+          </div><div class="homebar"></div>
+        </div></div>
+        <p class="caption"><strong>No library prerequisite.</strong> This example is recurring, so Date is hidden. Native controls handle time and repeat. The next occurrence is calculated by the Swift core.</p>
+      </article>
+      <article class="scene">
+        <div class="scene-label">S05 · Reminder detail</div>
+        <div class="phone"><div class="display">
+          <div class="status" aria-hidden="true"><span>9:41</span><span class="signal">▮▮▮ ▰</span></div>
+          <div class="toolbar"><span>‹ Today</span><span>Edit</span></div>
+          <div class="body">
+            <h3 class="detail-title">Morning practice</h3>
+            <div class="card"><div class="next-top"><div class="detail-time">8:00 AM</div><span class="toggle" aria-label="Reminder enabled"></span></div><div class="subtitle">Tomorrow · Every day</div><div class="ready"><span class="circle">✓</span>Scheduled on this iPhone</div></div>
+            <div class="audio-tile"><div class="audio-icon" aria-hidden="true">♫</div><div class="row-main"><strong>Morning recitation</strong><span class="small">Audio · 2 min 14 sec</span></div></div>
+            <div class="primary">▶ &nbsp; Play preview</div>
+            <div class="overline">NOTE</div><p class="notes">A few quiet minutes before the day begins.</p>
+            <div class="list"><div class="form-row"><span>Snooze</span><span class="value">10 minutes</span></div><div class="form-row"><span>Lock Screen action</span><span class="value">Snooze</span></div></div>
+          </div><div class="homebar"></div>
+        </div></div>
+        <p class="caption"><strong>Content and timing stay understandable.</strong> Preview does not dismiss an alarm or imply completion. Pausing must cancel the registered schedule before the UI confirms it.</p>
+      </article>
+    </div>
+  </section>
+  <section id="trust" aria-labelledby="trust-heading">
+    <div class="section-head"><h2 id="trust-heading">02 / Content, clarity and recovery</h2><p>Playback is deliberate. Status reflects the native schedule. Permission problems preserve the user's work.</p></div>
+    <div class="grid">
+      <article class="scene">
+        <div class="scene-label">S06 · Native content view</div>
+        <div class="phone"><div class="display dark-display">
+          <div class="status" aria-hidden="true"><span>8:00</span><span class="signal">▮▮▮ ▰</span></div>
+          <div class="toolbar"><span>Close</span><span>Nudgio</span></div>
+          <div class="body">
+            <div class="native-kicker">REMINDER · 8:00 AM</div><div class="native-title">Morning practice</div><div class="subtitle" style="margin-top:10px">Your alarm has stopped.</div>
+            <div class="native-player" aria-hidden="true"><span class="bar" style="height:24px"></span><span class="bar" style="height:52px"></span><span class="bar" style="height:36px"></span><span class="bar" style="height:74px"></span><span class="bar" style="height:96px"></span><span class="bar" style="height:57px"></span><span class="bar" style="height:82px"></span><span class="bar" style="height:40px"></span><span class="bar" style="height:62px"></span><span class="bar" style="height:28px"></span></div>
+            <div class="player-name">Morning recitation</div><div class="timeline"><span>0:00</span><span>2:14</span></div><div class="track"></div>
+            <div class="primary">▶ &nbsp; Play</div><div class="secondary-button snooze-button">Snooze for 10 minutes</div><div class="helper" style="text-align:center;margin-top:16px">Playback starts when you choose Play.</div>
+          </div><div class="homebar"></div>
+        </div></div>
+        <p class="caption"><strong>This is the app-owned view after Open.</strong> It works without React Native. Apple's alarm screen uses Stop plus Snooze or Open; this board does not invent a third system action.</p>
+      </article>
+      <article class="scene">
+        <div class="scene-label">S07 · Library</div>
+        <div class="phone"><div class="display">
+          <div class="status" aria-hidden="true"><span>9:41</span><span class="signal">▮▮▮ ▰</span></div>
+          <div class="body">
+            <div class="title-row"><h3 class="screen-title">Library</h3><span class="action">Import</span></div>
+            <div class="search">⌕ &nbsp; Search your media</div>
+            <div class="filters"><span class="filter active">All</span><span class="filter">Video</span><span class="filter">Audio</span><span class="filter">Images</span></div>
+            <div class="media-grid">
+              <div class="media-card"><div class="thumb"><span class="media-type">AUDIO</span>♫<span class="length">2:14</span></div><div class="media-title">Morning recitation<small>1 reminder</small></div></div>
+              <div class="media-card"><div class="thumb blue"><span class="media-type">VIDEO</span>▷<span class="length">0:48</span></div><div class="media-title">Desk stretches<small>1 reminder</small></div></div>
+              <div class="media-card"><div class="thumb sand"><span class="media-type">IMAGE</span>▧</div><div class="media-title">Practice notes<small>Not scheduled</small></div></div>
+              <div class="media-card"><div class="thumb"><span class="media-type">AUDIO</span>♫<span class="length">1:06</span></div><div class="media-title">Pronunciation<small>Not scheduled</small></div></div>
+            </div>
+            <div class="helper" style="margin-top:20px">4 items · 18.6 MB on this iPhone</div>
+          </div><div class="tabs" aria-hidden="true"><div class="tab"><span class="tab-icon">◷</span>Today</div><div class="tab active"><span class="tab-icon">▧</span>Library</div><div class="tab"><span class="tab-icon">⚙</span>Settings</div></div><div class="homebar"></div>
+        </div></div>
+        <p class="caption"><strong>A reusable local collection.</strong> Import uses system pickers. Grid switches to a list at larger text sizes. These neutral tiles stand in for actual media thumbnails.</p>
+      </article>
+      <article class="scene">
+        <div class="scene-label">S08 · Reminder check</div>
+        <div class="phone"><div class="display">
+          <div class="status" aria-hidden="true"><span>9:41</span><span class="signal">▮▮▮ ▰</span></div>
+          <div class="toolbar"><span>‹ Settings</span></div>
+          <div class="body">
+            <h3 class="detail-title">Reminder check</h3>
+            <div class="notice-card"><strong>Alarm access is off</strong>Your reminders are saved, but alarms cannot be scheduled until access is enabled.<div class="inline-action">Open Settings &nbsp; ›</div></div>
+            <div class="overline">ON THIS IPHONE</div><div class="list">
+              <div class="row"><div class="row-main"><strong>Alarm permission</strong><span class="small warning-status">Needs setup</span></div><span class="chevron">›</span></div>
+              <div class="row"><div class="row-main"><strong>Schedules</strong><span class="small">2 reminders waiting for setup</span></div><span class="chevron">›</span></div>
+              <div class="row"><div class="row-main"><strong>Attachments</strong><span class="small">All available on this iPhone</span></div></div>
+            </div>
+            <div class="helper">Last checked just now</div>
+            <div class="secondary-button" style="margin-top:24px">About test alarms</div>
+            <div class="helper">After enabling alarm access, you can try a test alarm in 15 seconds.</div>
+          </div><div class="homebar"></div>
+        </div></div>
+        <p class="caption"><strong>No false “Ready” state.</strong> The screen explains the consequence and provides one repair action. Test alarm becomes available after permission is granted.</p>
+      </article>
+    </div>
+  </section>
+  <section class="principles" id="principles" aria-label="Design rules">
+    <article class="principle"><h3>Platform-native where it matters</h3><p>System typography, native date/time controls, standard navigation and OS-owned alarm presentation. App content uses calm, readable grouped surfaces.</p><div class="swatches" aria-label="Reference colours: ink blue, warm ivory, apricot, midnight"><span class="swatch" style="background:#2D4DB5"></span><span class="swatch" style="background:#F7F4EE"></span><span class="swatch" style="background:#E9B58E"></span><span class="swatch" style="background:#11141D"></span></div></article>
+    <article class="principle"><h3>Accessible by construction</h3><p>44 pt minimum hit areas, 56 pt primary playback actions, Dynamic Type, VoiceOver labels, strong text contrast and no gesture-only essential action. The plan requires real accessibility tests.</p></article>
+    <article class="principle"><h3>Truthful at every step</h3><p>Saved, scheduled and heard are different facts. Missing media, denied permission and failed edits have specific recovery states. No sync, accounts, payments or background media playback in this release.</p></article>
+  </section>
+  <footer>Proposed screen hierarchy for the iPhone implementation plan. English reference copy; production uses localization resources. Native system surfaces and SDK behaviour must be verified in the feasibility gate. <a href="iphone-brand-guidelines.md">Brand guidelines</a> · <a href="2026-09-27-iphone-v1-implementation-plan.md">Read the complete plan →</a></footer>
+</main>
+</body>
+</html>

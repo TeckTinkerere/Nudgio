@@ -10,44 +10,55 @@
  */
 
 /**
- * Fixed brand values, verbatim from the MR-04 token table.
- *
- * Known constraint, measured rather than assumed: the light `secondary`
- * (#D97706) reaches only **3.04:1** against the light `surface` (#F8FAF9).
- * That clears the 3:1 UI-component threshold but fails ACC-005's 4.5:1 for
- * normal text. It is therefore usable as a fill, a border and an accent, but
- * never as a text or icon color on the light surface. `Text` deliberately
- * exposes no `secondary` tone, and status components take their icon color
- * from `onContainer`. Recorded as DL-003 in docs/decision-log.md.
+ * Ink & Apricot, shared with the approved iPhone brand direction (MR-04).
+ * Apricot is a decorative fill, not light-theme text or a control outline.
+ * Its explicit brown on-colors keep buttons readable. Warning is a separate
+ * amber role so a capability limitation never relies on the pale accent.
  */
 export const brandPalette = {
   light: {
-    primary: '#006A60',
+    primary: '#2D4DB5',
     onPrimary: '#FFFFFF',
-    primaryContainer: '#D7F5EE',
-    onPrimaryContainer: '#00201C',
-    secondary: '#D97706',
-    surface: '#F8FAF9',
-    surfaceContainer: '#EEF2F0',
-    onSurface: '#171D1B',
-    onSurfaceVariant: '#3F4946',
-    outline: '#6F7975',
-    error: '#B42318',
-    success: '#15803D',
+    primaryContainer: '#E7ECFB',
+    onPrimaryContainer: '#2D4DB5',
+    secondary: '#E9B58E',
+    onSecondary: '#56321C',
+    secondaryContainer: '#F8E9DC',
+    onSecondaryContainer: '#70401F',
+    surface: '#F7F4EE',
+    surfaceContainer: '#FFFEFA',
+    onSurface: '#202638',
+    onSurfaceVariant: '#5F6675',
+    outline: '#767E90',
+    error: '#B42332',
+    errorContainer: '#FCE8E9',
+    onErrorContainer: '#B42332',
+    warning: '#805600',
+    warningContainer: '#FFF0CA',
+    onWarningContainer: '#805600',
+    success: '#2D4DB5',
   },
   dark: {
-    primary: '#5EDBC8',
-    onPrimary: '#003732',
-    primaryContainer: '#005047',
-    onPrimaryContainer: '#D7F5EE',
-    secondary: '#FFB951',
-    surface: '#0E1513',
-    surfaceContainer: '#17201D',
-    onSurface: '#DEE4E1',
-    onSurfaceVariant: '#BEC9C5',
-    outline: '#89938F',
-    error: '#FFB4AB',
-    success: '#68D391',
+    primary: '#BAC8FF',
+    onPrimary: '#172654',
+    primaryContainer: '#26314E',
+    onPrimaryContainer: '#BAC8FF',
+    secondary: '#F1BE98',
+    onSecondary: '#56321C',
+    secondaryContainer: '#392A21',
+    onSecondaryContainer: '#FFD2AF',
+    surface: '#11141D',
+    surfaceContainer: '#1D2230',
+    onSurface: '#F3F1EC',
+    onSurfaceVariant: '#BCC2D0',
+    outline: '#858FA5',
+    error: '#FFB5BE',
+    errorContainer: '#421F29',
+    onErrorContainer: '#FFB5BE',
+    warning: '#FFE0A0',
+    warningContainer: '#382B12',
+    onWarningContainer: '#FFE0A0',
+    success: '#BAC8FF',
   },
 } as const;
 

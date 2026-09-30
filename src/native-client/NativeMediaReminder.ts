@@ -441,6 +441,7 @@ export interface PickedRingtoneWire {
  * `MediaReminderModule.kt` and `android/.../media/`.
  */
 export interface Spec extends TurboModule {
+  libraryCommand(requestJson: string): Promise<string>;
   // --- Implemented in the foundation ---------------------------------------
   getStartupSnapshot(): Promise<StartupSnapshotWire>;
   getCapabilitySnapshot(): Promise<CapabilitySnapshotWire>;

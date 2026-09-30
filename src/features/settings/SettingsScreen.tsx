@@ -121,9 +121,13 @@ export function SettingsScreen() {
       if (picked === null) {
         return;
       }
-      updatePreferences.mutate({alarmRingtoneUri: picked.uri});
-      showToast({message: t('settings.defaults.alarmRingtone.changed'), tone: 'info'});
-      startTonePreview(picked.uri);
+      updatePreferences.mutate({alarmRingtoneUri: picked.uri}, {
+        onSuccess: () => {
+          showToast({message: t('settings.defaults.alarmRingtone.changed'), tone: 'info'});
+          startTonePreview(picked.uri);
+        },
+        onError: () => showToast({message: t('settings.defaults.alarmRingtone.saveFailed'), tone: 'error'}),
+      });
     },
     onError: () => {
       showToast({message: t('settings.defaults.alarmRingtone.failed'), tone: 'error'});
@@ -133,7 +137,9 @@ export function SettingsScreen() {
   // Alarm tones can run long; a preview only needs a few seconds to be recognizable.
   const [isPreviewingTone, setIsPreviewingTone] = useState(false);
   const toneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewGeneration = useRef(0);
   const stopTonePreview = useCallback(() => {
+    previewGeneration.current += 1;
     if (toneTimer.current !== null) {
       clearTimeout(toneTimer.current);
       toneTimer.current = null;
@@ -141,12 +147,21 @@ export function SettingsScreen() {
     setIsPreviewingTone(false);
     client.stopAlarmRingtonePreview();
   }, [client]);
-  const startTonePreview = (uri: string | null) => {
+  const startTonePreview = async (uri: string | null) => {
+    const generation = ++previewGeneration.current;
     if (toneTimer.current !== null) {
       clearTimeout(toneTimer.current);
     }
+    const result = await client.previewAlarmRingtone(uri);
+    if (generation !== previewGeneration.current) {
+      return;
+    }
+    if (!result.ok || result.value.status !== 'ok') {
+      setIsPreviewingTone(false);
+      showToast({message: t('settings.defaults.alarmRingtone.previewFailed'), tone: 'error'});
+      return;
+    }
     setIsPreviewingTone(true);
-    client.previewAlarmRingtone(uri);
     toneTimer.current = setTimeout(stopTonePreview, TONE_PREVIEW_MS);
   };
   useFocusEffect(useCallback(() => stopTonePreview, [stopTonePreview]));
@@ -158,10 +173,8 @@ export function SettingsScreen() {
 
   /**
    * "Preview alarm styles": schedules a real, short-delay alarm styled
-   * exactly like this profile (same full-screen-when-locked behavior), so
-   * the user sees/hears the actual difference between Gentle/Standard/
-   * Persistent before picking one for a real reminder — not just a
-   * description of the difference.
+   * with this profile's presentation policy. This is not a session and
+   * does not test timeout, retries, or Snooze; the UI explains that limit.
    */
   const previewProfile = (profile: ReminderProfile) => {
     const name = isBuiltInProfileNameKey(profile.nameKey)
@@ -340,19 +353,23 @@ export function SettingsScreen() {
 
           <Divider spacing="xs" />
 
-          {/*
-              `use24HourTime` was a real, honored preference with no control
-              anywhere in the app — every time formatter already read it, but
-              nothing could ever set it. `null` means "follow the device",
-              which is the value a fresh install starts on, so the toggle
-              treats null as off rather than inventing a third state.
-            */}
+          <ListRow
+            title={t('settings.defaults.deviceTimeFormat')}
+            trailing={
+              <Toggle
+                value={(preferences.data?.use24HourTime ?? null) === null}
+                onValueChange={next => updatePreferences.mutate({use24HourTime: next ? null : false})}
+                label={t('settings.defaults.deviceTimeFormat')}
+              />
+            }
+          />
           <ListRow
             title={t('settings.defaults.use24HourTime')}
             subtitle={t('settings.defaults.use24HourTime.helper')}
             trailing={
               <Toggle
                 value={preferences.data?.use24HourTime ?? false}
+                disabled={(preferences.data?.use24HourTime ?? null) === null}
                 onValueChange={next => updatePreferences.mutate({use24HourTime: next})}
                 label={t('settings.defaults.use24HourTime')}
               />
@@ -388,7 +405,7 @@ export function SettingsScreen() {
                 <Button
                   label={t('settings.defaults.alarmRingtone.change')}
                   variant="text"
-                  loading={pickRingtone.isPending}
+                  loading={pickRingtone.isPending || updatePreferences.isPending}
                   onPress={() => {
                     stopTonePreview();
                     pickRingtone.mutate(preferences.data?.alarmRingtoneUri ?? null);

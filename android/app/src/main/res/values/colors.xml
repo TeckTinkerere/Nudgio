@@ -7,35 +7,52 @@
   day/night setting (overridden in values-night/colors.xml).
 -->
 <resources>
-    <color name="brand_light_primary">#006A60</color>
+    <color name="brand_light_primary">#2D4DB5</color>
     <color name="brand_light_on_primary">#FFFFFF</color>
-    <color name="brand_light_primary_container">#D7F5EE</color>
-    <color name="brand_light_on_primary_container">#00201C</color>
-    <color name="brand_light_surface">#F8FAF9</color>
-    <color name="brand_light_surface_container">#EEF2F0</color>
-    <color name="brand_light_on_surface">#171D1B</color>
-    <color name="brand_light_on_surface_variant">#3F4946</color>
-    <color name="brand_light_outline">#6F7975</color>
-    <color name="brand_light_error">#B42318</color>
+    <color name="brand_light_primary_container">#E7ECFB</color>
+    <color name="brand_light_on_primary_container">#2D4DB5</color>
+    <color name="brand_light_secondary">#E9B58E</color>
+    <color name="brand_light_on_secondary">#56321C</color>
+    <color name="brand_light_secondary_container">#F8E9DC</color>
+    <color name="brand_light_on_secondary_container">#70401F</color>
+    <color name="brand_light_surface">#F7F4EE</color>
+    <color name="brand_light_surface_container">#FFFEFA</color>
+    <color name="brand_light_on_surface">#202638</color>
+    <color name="brand_light_on_surface_variant">#5F6675</color>
+    <color name="brand_light_outline">#767E90</color>
+    <color name="brand_light_error">#B42332</color>
 
-    <color name="brand_dark_primary">#5EDBC8</color>
-    <color name="brand_dark_on_primary">#003732</color>
-    <color name="brand_dark_primary_container">#005047</color>
-    <color name="brand_dark_on_primary_container">#D7F5EE</color>
-    <color name="brand_dark_surface">#0E1513</color>
-    <color name="brand_dark_surface_container">#17201D</color>
-    <color name="brand_dark_surface_container_high">#212B28</color>
-    <color name="brand_dark_on_surface">#DEE4E1</color>
-    <color name="brand_dark_on_surface_variant">#BEC9C5</color>
-    <color name="brand_dark_outline">#89938F</color>
-    <color name="brand_dark_error">#FFB4AB</color>
+    <color name="brand_dark_primary">#BAC8FF</color>
+    <color name="brand_dark_on_primary">#172654</color>
+    <color name="brand_dark_primary_container">#26314E</color>
+    <color name="brand_dark_on_primary_container">#BAC8FF</color>
+    <color name="brand_dark_secondary">#F1BE98</color>
+    <color name="brand_dark_on_secondary">#56321C</color>
+    <color name="brand_dark_secondary_container">#392A21</color>
+    <color name="brand_dark_on_secondary_container">#FFD2AF</color>
+    <color name="brand_dark_surface">#11141D</color>
+    <color name="brand_dark_surface_container">#1D2230</color>
+    <color name="brand_dark_surface_container_high">#262B38</color>
+    <color name="brand_dark_on_surface">#F3F1EC</color>
+    <color name="brand_dark_on_surface_variant">#BCC2D0</color>
+    <color name="brand_dark_outline">#858FA5</color>
+    <color name="brand_dark_error">#FFB5BE</color>
     <!-- 0.64 black: the dark-mode scrim token. -->
     <color name="brand_dark_scrim">#A3000000</color>
+    <!-- Midnight overlays preserve readability over arbitrary user artwork. -->
+    <color name="brand_dark_artwork_scrim_start">#8011141D</color>
+    <color name="brand_dark_artwork_scrim_center">#B311141D</color>
+    <color name="brand_dark_artwork_scrim_end">#FF11141D</color>
+    <color name="brand_dark_hero_outline">#33BAC8FF</color>
 
     <color name="brand_primary">@color/brand_light_primary</color>
     <color name="brand_on_primary">@color/brand_light_on_primary</color>
     <color name="brand_primary_container">@color/brand_light_primary_container</color>
     <color name="brand_on_primary_container">@color/brand_light_on_primary_container</color>
+    <color name="brand_secondary">@color/brand_light_secondary</color>
+    <color name="brand_on_secondary">@color/brand_light_on_secondary</color>
+    <color name="brand_secondary_container">@color/brand_light_secondary_container</color>
+    <color name="brand_on_secondary_container">@color/brand_light_on_secondary_container</color>
     <color name="brand_surface">@color/brand_light_surface</color>
     <color name="brand_surface_container">@color/brand_light_surface_container</color>
     <color name="brand_on_surface">@color/brand_light_on_surface</color>

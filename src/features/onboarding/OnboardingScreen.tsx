@@ -35,6 +35,7 @@ import {links, testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
 import {Button, EmptyState, Icon, Screen, Stack, Text, useTheme} from '../../design-system';
 import type {IconName} from '../../design-system';
+import {BrandLogo} from '../../design-system/components/BrandLogo';
 import {useCapabilitySnapshot, useHaptics, useUpdatePreferences} from '../../hooks';
 import {useTranslation} from '../../localization';
 import {CapabilityRow} from '../capability/CapabilityRow';
@@ -161,6 +162,7 @@ export function OnboardingScreen() {
   ) : (
     <EmptyState
       icon={current.icon}
+      illustration={page === 0 ? <BrandLogo /> : undefined}
       title={t(current.titleKey)}
       body={t(current.bodyKey)}
       secondaryAction={

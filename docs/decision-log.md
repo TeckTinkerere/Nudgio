@@ -2303,3 +2303,17 @@ Lesson: a git worktree nested under a long harness-managed path is a poor
 place to run a Windows native Android build from; either keep worktrees
 used for Android builds shallow, or plan to build from the primary checkout
 from the start.
+
+## DL-076 — Shared Ink & Apricot brand applied to Android
+
+**Date:** 2026-09-27
+**Decision:** Apply the approved Ink & Apricot palette to the default light/dark React Native themes, native alarm screen and existing launcher geometry. Use ink blue for selections and primary actions, apricot for tonal decoration, and separate accessible warning roles. Preserve the existing opt-in Material You preference. iPhone implementation and cross-device sync remain deferred.
+**Scope:** MR-04 visual design; MR-21 ACC-001/002/003 semantics, target sizes and alarm focus order are preserved by retaining controls and layout. ACC-004/005 in MR-21 concern announcements and action alternatives, not colour contrast. No schema, backup format, permissions, network, scheduling or battery behaviour changes; no migration or new ADR is required.
+**Evidence:** `npm run verify` exited 0 (typecheck, lint, 12 suites/63 tests). Final `npm test -- --runInBand` again passed 12 suites/63 tests but remained alive with an open-handle warning and was interrupted after reporting results. Native `:app:processDebugResources --console=plain` passed with per-command JAVA_HOME set to installed JDK 23; no APK was built. `git diff --check` passed. See `docs/android-brand-refresh-validation.md` for limits. Device visual/TalkBack checks and release packaging remain outstanding.
+
+## DL-077 — Start iPhone development with the native feasibility target
+
+**Date:** 2026-09-28
+**Decision:** Follow the approved P0/P1-first sequence and ADR-022/ADR-IOS-001. Add isolated `ios/` SwiftUI app, AlarmKit adapter, validated test coordinator, native Open intent, countdown widget, 16 XCTest cases, source preflight and Mac build instructions. Production RN shell, Core Data, media, archives and sync are not introduced before G1. The app is explicitly named Nudgio Test, uses synthetic IDs/content and the approved brand, and does not advertise product readiness.
+**Requirements:** Source groundwork for IOS-005/006/007/009/017/020/021/023/024/026/028; these are not accepted device results. See the G1 evidence catalog for missing cases, including editing/recovery, duplicate-occurrence races, protected media and DST. No Android data/schema/permissions or alarm behaviour change. A contextual AlarmKit permission and Live Activity presentation belong only to this separate native app; no background mode, cloud entitlement, network client or runtime dependency added. XcodeGen is a development tool only.
+**Evidence:** Source preflight passed (10 Swift files, 16 tests authored); TypeScript and tooling ESLint passed. Windows prepare command correctly exits 1 without generating an iOS build. Native Swift tests, compilation, signing and device execution remain UNVERIFIED: Mac/Xcode access is unresolved. User expects an iPhone to be available later. Do not mark P0/P1 complete or proceed as if G1 passed.

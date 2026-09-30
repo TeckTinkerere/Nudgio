@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+<title id="title">Nudgio Android Library: two-level folder concept</title>
+<desc id="desc">Four static phone wireframes show Library folders, Learning with subfolders, scoped search results, and a Move here destination sheet. Ink blue, apricot and ivory palette. Synthetic examples, not implemented screens.</desc>
+<defs>
+ <style>
+  text{font-family:Arial,sans-serif;fill:#202638} .muted{fill:#5F6675} .blue{fill:#2D4DB5} .white{fill:#FFFFFF} .brown{fill:#56321C}
+  .h{font-size:27px;font-weight:700} .body{font-size:16px} .small{font-size:13px} .label{font-size:12px;letter-spacing:1.2px;font-weight:700} .strong{font-weight:700}
+ </style>
+ <g id="phone">
+  <rect width="350" height="730" rx="32" fill="#202638"/>
+  <rect x="7" y="7" width="336" height="716" rx="26" fill="#F7F4EE"/>
+  <text x="25" y="34" class="small strong">9:41</text>
+  <rect x="276" y="23" width="30" height="10" rx="3" fill="#202638"/>
+  <rect x="130" y="707" width="90" height="4" rx="2" fill="#202638"/>
+ </g>
+ <g id="nav">
+  <path d="M8 655H342" stroke="#DADCE2"/>
+  <text x="30" y="684" class="small muted">Today</text><text x="96" y="684" class="small muted">Reminders</text>
+  <rect x="191" y="665" width="69" height="29" rx="14" fill="#E7ECFB"/>
+  <text x="205" y="684" class="small blue strong">Library</text><text x="281" y="684" class="small muted">Settings</text>
+ </g>
+ <g id="cover">
+  <rect x="5" y="3" width="126" height="71" rx="12" fill="#E9B58E"/>
+  <rect x="0" y="13" width="135" height="66" rx="12" fill="#E7ECFB"/>
+  <rect x="13" y="26" width="37" height="39" rx="6" fill="#BAC8FF"/>
+  <rect x="55" y="26" width="29" height="39" rx="6" fill="#2D4DB5"/>
+  <rect x="89" y="26" width="32" height="39" rx="6" fill="#E9B58E"/>
+ </g>
+</defs>
+<rect width="1600" height="1000" fill="#FFFEFA"/>
+<text x="44" y="54" style="font-size:32px;font-weight:700">A Library with room to breathe.</text>
+<text x="44" y="84" class="body muted">Nudgio Android · two folder levels · one home per item · Ink &amp; Apricot</text>
+<g transform="translate(40 145)">
+ <use href="#phone"/><text x="22" y="82" class="h">Library</text><text x="281" y="83" class="h blue">+</text><text x="316" y="82" class="h">⋮</text>
+ <rect x="20" y="102" width="310" height="47" rx="13" fill="#FFFEFA" stroke="#767E90"/>
+ <text x="35" y="131" class="body muted">Search folders and media</text>
+ <rect x="20" y="165" width="310" height="40" rx="12" fill="#E7ECFB"/>
+ <rect x="23" y="168" width="151" height="34" rx="10" fill="#2D4DB5"/>
+ <text x="70" y="190" class="body white strong">Folders</text><text x="215" y="190" class="body blue">All media</text>
+ <rect x="20" y="221" width="135" height="36" rx="18" fill="#F8E9DC"/>
+ <text x="34" y="244" class="small brown strong">Unsorted · 18</text>
+ <text x="175" y="244" class="small blue">Used in reminders</text>
+ <text x="22" y="291" class="label muted">YOUR FOLDERS</text><text x="290" y="291" class="small blue">Sort</text>
+ <rect x="20" y="308" width="148" height="157" rx="16" fill="#FFFEFA"/>
+ <use href="#cover" x="27" y="314"/><text x="32" y="417" class="body strong">Learning</text>
+ <text x="32" y="438" class="small muted">32 items · 2 folders</text>
+ <rect x="182" y="308" width="148" height="157" rx="16" fill="#FFFEFA"/>
+ <use href="#cover" x="189" y="314"/><text x="194" y="417" class="body strong">Wellbeing</text>
+ <text x="194" y="438" class="small muted">24 items · 2 folders</text>
+ <rect x="20" y="479" width="148" height="112" rx="16" fill="#FFFEFA"/>
+ <rect x="33" y="494" width="43" height="28" rx="7" fill="#E9B58E"/>
+ <text x="33" y="548" class="body strong">Work</text><text x="33" y="571" class="small muted">16 items</text>
+ <rect x="182" y="479" width="148" height="112" rx="16" fill="#FFFEFA"/>
+ <rect x="195" y="494" width="43" height="28" rx="7" fill="#E7ECFB"/>
+ <text x="195" y="548" class="body strong">Family</text><text x="195" y="571" class="small muted">8 items</text>
+ <text x="22" y="627" class="small muted">98 items, each stored only once</text><use href="#nav"/>
+</g>
+<g transform="translate(430 145)">
+ <use href="#phone"/><text x="22" y="71" class="body blue">‹ Library</text>
+ <text x="22" y="110" class="h">Learning</text><text x="317" y="109" class="h">⋮</text>
+ <text x="22" y="137" class="body muted">32 items · 2 subfolders</text>
+ <rect x="20" y="156" width="310" height="47" rx="13" fill="#FFFEFA" stroke="#767E90"/>
+ <text x="35" y="185" class="body muted">Search Learning</text>
+ <text x="22" y="238" class="label muted">SUBFOLDERS</text>
+ <rect x="20" y="255" width="148" height="104" rx="16" fill="#F8E9DC"/>
+ <rect x="33" y="269" width="35" height="21" rx="6" fill="#E9B58E"/>
+ <text x="33" y="317" class="body strong">Languages</text><text x="33" y="340" class="small muted">12 items</text>
+ <rect x="182" y="255" width="148" height="104" rx="16" fill="#E7ECFB"/>
+ <rect x="195" y="269" width="35" height="21" rx="6" fill="#BAC8FF"/>
+ <text x="195" y="317" class="body strong">Talks</text><text x="195" y="340" class="small muted">14 items</text>
+ <text x="22" y="398" class="label muted">IN THIS FOLDER · 6</text><text x="285" y="398" class="small blue">Select</text>
+ <rect x="20" y="416" width="310" height="75" rx="13" fill="#FFFEFA"/>
+ <rect x="32" y="430" width="47" height="47" rx="10" fill="#E7ECFB"/>
+ <path d="M43 454h3l3-10 4 20 4-27 4 18 5-4" fill="none" stroke="#2D4DB5" stroke-width="2"/>
+ <text x="92" y="447" class="body strong">A daily practice</text><text x="92" y="471" class="small muted">Audio · 4:20</text>
+ <rect x="20" y="501" width="310" height="75" rx="13" fill="#FFFEFA"/>
+ <rect x="32" y="515" width="47" height="47" rx="10" fill="#F8E9DC"/>
+ <path d="M44 530h22m-22 8h22m-22 8h14" stroke="#70401F" stroke-width="2"/>
+ <text x="92" y="532" class="body strong">Things to remember</text><text x="92" y="556" class="small muted">Text · Used in a reminder</text>
+ <rect x="190" y="596" width="140" height="43" rx="21" fill="#2D4DB5"/>
+ <text x="216" y="623" class="body white strong">+ Add here</text><use href="#nav"/>
+</g>
+<g transform="translate(820 145)">
+ <use href="#phone"/><text x="22" y="76" class="body blue">‹ Learning</text>
+ <text x="22" y="113" class="h">Search Learning</text>
+ <rect x="20" y="133" width="310" height="47" rx="13" fill="#FFFEFA" stroke="#2D4DB5" stroke-width="2"/>
+ <text x="35" y="162" class="body">morning</text><text x="303" y="161" class="body muted">×</text>
+ <rect x="20" y="195" width="173" height="32" rx="16" fill="#E7ECFB"/>
+ <text x="34" y="216" class="small blue strong">Including subfolders</text>
+ <text x="22" y="270" class="label muted">MEDIA · 3 MATCHES</text>
+ <rect x="20" y="289" width="310" height="93" rx="13" fill="#FFFEFA"/>
+ <text x="36" y="318" class="body strong">Morning phrases</text>
+ <text x="36" y="343" class="small muted">Audio · 2:45</text>
+ <text x="36" y="365" class="small blue">Learning › Languages</text>
+ <rect x="20" y="394" width="310" height="93" rx="13" fill="#FFFEFA"/>
+ <text x="36" y="423" class="body strong">A slower morning</text>
+ <text x="36" y="448" class="small muted">Video · 6:10</text>
+ <text x="36" y="470" class="small blue">Learning › Talks</text>
+ <rect x="20" y="499" width="310" height="93" rx="13" fill="#FFFEFA"/>
+ <text x="36" y="528" class="body strong">Morning notes</text>
+ <text x="36" y="553" class="small muted">Text</text>
+ <text x="36" y="575" class="small blue">Learning</text>
+ <text x="84" y="628" class="body blue">Search all Library instead</text><use href="#nav"/>
+</g>
+<g transform="translate(1210 145)">
+ <use href="#phone"/><text x="22" y="79" class="h">Move 3 items</text><text x="278" y="78" class="body blue">Cancel</text>
+ <rect x="20" y="100" width="310" height="47" rx="13" fill="#FFFEFA" stroke="#767E90"/>
+ <text x="35" y="129" class="body muted">Find a folder</text>
+ <text x="22" y="177" class="small blue">Library › Learning</text>
+ <rect x="20" y="195" width="310" height="64" rx="13" fill="#E7ECFB" stroke="#2D4DB5" stroke-width="2"/>
+ <text x="37" y="223" class="body blue strong">This folder</text><text x="37" y="244" class="small muted">Learning · 6 direct items</text><text x="307" y="232" class="body blue">✓</text>
+ <rect x="20" y="271" width="310" height="68" rx="13" fill="#FFFEFA"/>
+ <text x="37" y="301" class="body strong">Languages</text><text x="37" y="323" class="small muted">12 items</text><text x="307" y="312" class="body blue">›</text>
+ <rect x="20" y="351" width="310" height="64" rx="13" fill="#FFFEFA"/>
+ <text x="37" y="379" class="body strong">Talks</text><text x="37" y="400" class="small muted">14 items</text>
+ <text x="34" y="459" class="body blue">+ New subfolder</text>
+ <path d="M20 529H330" stroke="#DADCE2"/>
+ <text x="22" y="557" class="small muted">DESTINATION</text>
+ <text x="22" y="583" class="body strong">Learning</text>
+ <rect x="20" y="603" width="310" height="50" rx="15" fill="#2D4DB5"/>
+ <text x="130" y="635" class="body white strong">Move here</text>
+ <text x="45" y="681" class="small muted">Same media. Same reminders. New home.</text>
+</g>
+<text x="42" y="914" class="body strong">01  A calm overview</text>
+<text x="432" y="914" class="body strong">02  A clear two-level structure</text>
+<text x="822" y="914" class="body strong">03  Search with visible scope</text>
+<text x="1212" y="914" class="body strong">04  A deliberate, reversible move</text>
+<text x="44" y="962" class="small muted">STATIC DESIGN CONCEPT · Synthetic content and counts · Layout and behaviour proposal, not an app screenshot · 28 September 2026</text>
+</svg>

@@ -19,8 +19,6 @@ const buildScheme = (appearance: ThemeAppearance): ColorRoles => {
 
   // Tinted containers, derived before the role map so their `on*` partners can
   // be measured against them.
-  const secondaryContainer = blend(base.surface, base.secondary, isDark ? 0.24 : 0.16);
-  const errorContainer = blend(base.surface, base.error, isDark ? 0.24 : 0.12);
   const successContainer = blend(base.surface, base.success, isDark ? 0.24 : 0.12);
 
   return {
@@ -30,17 +28,9 @@ const buildScheme = (appearance: ThemeAppearance): ColorRoles => {
     onPrimaryContainer: base.onPrimaryContainer,
 
     secondary: base.secondary,
-    // Derived: MR-04 fixes only `secondary`. Pick the readable pair rather than
-    // assuming white, because amber-on-white fails ACC-005 in light mode.
-    onSecondary: readableOn(base.secondary, white, black),
-    // Derived: a 16%/24% wash of the accent over the app surface keeps the
-    // container tinted without inventing a second hue.
-    secondaryContainer,
-    onSecondaryContainer: preferAccessible(
-      secondaryContainer,
-      base.secondary,
-      base.onSurface,
-    ),
+    onSecondary: base.onSecondary,
+    secondaryContainer: base.secondaryContainer,
+    onSecondaryContainer: base.onSecondaryContainer,
 
     surface: base.surface,
     surfaceContainer: base.surfaceContainer,
@@ -62,15 +52,17 @@ const buildScheme = (appearance: ThemeAppearance): ColorRoles => {
 
     error: base.error,
     onError: readableOn(base.error, white, black),
-    errorContainer,
-    onErrorContainer: preferAccessible(errorContainer, base.error, base.onSurface),
+    errorContainer: base.errorContainer,
+    onErrorContainer: base.onErrorContainer,
+
+    warning: base.warning,
+    warningContainer: base.warningContainer,
+    onWarningContainer: base.onWarningContainer,
 
     success: base.success,
     onSuccess: readableOn(base.success, white, black),
     successContainer,
-    // The light success green measures 4.07:1 on its own container, so this
-    // resolves to `onSurface` in light and stays green in dark. See
-    // docs/decision-log.md DL-003.
+    // Blue status content is always contrast-checked against its tinted fill.
     onSuccessContainer: preferAccessible(successContainer, base.success, base.onSurface),
 
     scrim: withAlpha(black, scrimOpacity[appearance]),
@@ -98,10 +90,6 @@ export const darkScheme: ColorRoles = buildScheme('dark');
  */
 export const alarmScheme: ColorRoles = {
   ...darkScheme,
-  surface: '#07100E',
-  surfaceContainer: '#101A17',
-  onSurface: '#F2F6F4',
-  onSurfaceVariant: '#C8D2CE',
 };
 
 export const statusRolesFor = (scheme: ColorRoles): StatusRoles => ({
@@ -110,12 +98,12 @@ export const statusRolesFor = (scheme: ColorRoles): StatusRoles => ({
     container: scheme.successContainer,
     onContainer: scheme.onSuccessContainer,
   },
-  // MR-04: red is reserved for destructive action or blocking fault, so a
-  // "Limited" capability uses the warm secondary, not error red.
+  // A pale decorative apricot cannot provide a legible warning border.
+  // Limited capabilities use a dedicated amber role, separate from Snooze.
   limited: {
-    color: scheme.secondary,
-    container: scheme.secondaryContainer,
-    onContainer: scheme.onSecondaryContainer,
+    color: scheme.warning,
+    container: scheme.warningContainer,
+    onContainer: scheme.onWarningContainer,
   },
   actionNeeded: {
     color: scheme.error,

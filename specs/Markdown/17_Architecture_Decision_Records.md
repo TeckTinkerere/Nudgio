@@ -230,6 +230,14 @@ Each ADR is immutable after approval except for status and superseding reference
 
 **Consequences:** Persistent profile remains bounded and cannot be marketed as critical alert infrastructure.
 
+# ADR-022 — Separate iPhone feasibility development
+
+**Status:** Accepted scope extension, 2026-09-28, following user approval of the iPhone plan and instruction to implement it.
+
+**Decision:** ADR-002 remains the Android v1 baseline. A separate iPhone edition may now be developed under [ADR-IOS-001](../../docs/ios/ADR-IOS-001.md) and the [approved iPhone plan](../../docs/plans/2026-09-27-iphone-v1-implementation-plan.md). Begin with the isolated iOS 26 native feasibility target and physical-device gate G1. Do not apply Android's single-earliest-alarm, Room or permission mechanisms to iOS. Production iPhone UI remains planned in React Native after feasibility; a SwiftUI test target is not a change to that decision. Cross-device sync and payments remain deferred.
+
+**Consequences:** XcodeGen becomes a Mac development tool, and the independent test app requests AlarmKit authorization contextually. No Android schema, archive, permission or runtime change. Native compilation, signing and device acceptance are not implied by source availability. See the iPhone ADR for rollback, privacy and evidence requirements.
+
 # Supersession procedure
 
 A new ADR states which prior ADR it supersedes, migration effect, backup/permission impact, release threshold and rollback. Code that contradicts an Accepted ADR is not merged merely because tests pass; the decision must be changed transparently first.

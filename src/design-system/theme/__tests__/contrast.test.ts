@@ -60,6 +60,7 @@ describe.each([
 
   it('labels every filled button variant legibly', () => {
     expectContrast(scheme.onPrimary, scheme.primary, normalText, `${name} filled Button`);
+    expectContrast(scheme.onSecondary, scheme.secondary, normalText, `${name} accent fill`);
     expectContrast(
       scheme.onError,
       scheme.error,
@@ -120,12 +121,13 @@ describe.each([
   });
 });
 
-describe('the light secondary constraint is asserted, not assumed', () => {
-  it('confirms MR-04 amber is a fill/accent color, never light-mode body text', () => {
-    // Documents the measured limitation (DL-003) so that if a future palette
-    // change makes amber text-safe, this test tells us we may relax the rule.
+describe('apricot and warning have distinct accessibility roles', () => {
+  it('keeps pale apricot decorative and uses legible amber for warnings', () => {
+    // Apricot is too pale for even a meaningful outline on the light surface.
+    // Limited-state borders must use the separate warning role instead.
     const ratio = contrastRatio(lightScheme.secondary, lightScheme.surface);
-    expect(ratio).toBeGreaterThanOrEqual(uiComponent);
-    expect(ratio).toBeLessThan(normalText);
+    expect(ratio).toBeLessThan(uiComponent);
+    expectContrast(lightScheme.warning, lightScheme.surface, normalText, 'warning label');
+    expect(statusRolesFor(lightScheme).limited.color).toBe(lightScheme.warning);
   });
 });

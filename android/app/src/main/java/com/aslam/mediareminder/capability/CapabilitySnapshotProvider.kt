@@ -6,6 +6,9 @@ import android.os.PowerManager
 import androidx.core.app.NotificationManagerCompat
 import com.aslam.mediareminder.alarm.ExactAlarmAccess
 import com.aslam.mediareminder.alarm.FullScreenIntentAccess
+import com.aslam.mediareminder.alarm.SchedulerHealth
+import com.aslam.mediareminder.data.db.MediaReminderDatabase
+import com.aslam.mediareminder.notifications.NotificationCoordinator
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
@@ -16,10 +19,8 @@ import java.time.Instant
  *
  * `notifications`, `exact_alarm`, `full_screen_intent` and
  * `battery_environment` are real, observed platform queries. `channels`
- * remains unreported — no per-channel Settings surface exists to deep-link
- * to yet. `scheduler` is still a placeholder pending task #20's boot/
- * timezone reconciliation work, which is what makes that row meaningfully
- * "Limited" vs "Ready".
+ * reports real channel eligibility and links to Android notification settings.
+ * `scheduler` reflects the persisted reconciliation acknowledgement.
  */
 object CapabilitySnapshotProvider {
 
@@ -102,11 +103,16 @@ object CapabilitySnapshotProvider {
         }
     }
 
-    fun snapshot(context: Context): WritableMap {
+    suspend fun snapshot(context: Context): WritableMap {
         val (notificationStatus, notificationEffectKey) = notificationsStatus(context)
         val (exactAlarmStatus, exactAlarmEffectKey) = exactAlarmStatus(context)
         val (fullScreenIntentStatus, fullScreenIntentEffectKey) = fullScreenIntentStatus(context)
         val (batteryStatus, batteryEffectKey) = batteryEnvironmentStatus(context)
+        val (schedulerStatus, schedulerEffectKey) = SchedulerHealth.classify(
+            MediaReminderDatabase.getInstance(context).schedulerStateDao().get(),
+        )
+        val coordinator = NotificationCoordinator(context)
+        val channelsUsable = coordinator.canAlert(true) && coordinator.canAlert(false)
 
         val items: WritableArray = Arguments.createArray().apply {
             pushMap(
@@ -141,20 +147,27 @@ object CapabilitySnapshotProvider {
                     action = "none",
                 ),
             )
-            // Placeholder until task #20 (SystemEventReceiver) makes
-            // "reconciliation pending" a real, observable distinction from
-            // "next event persisted and OS alarm registered" (MR-06).
+            pushMap(capabilityItem(
+                kind = "channels",
+                status = if (channelsUsable) "ready" else "blocked",
+                effectKey = if (channelsUsable) "capability.channels.ready" else "capability.channels.blocked",
+                action = "open_channel",
+            ))
             pushMap(
                 capabilityItem(
                     kind = "scheduler",
-                    status = "ready",
-                    effectKey = "capability.scheduler.ready",
+                    status = schedulerStatus,
+                    effectKey = schedulerEffectKey,
                     action = "none",
                 ),
             )
         }
 
-        val overall = if (notificationStatus == "blocked") "needs_action" else "ok"
+        val overall = when {
+            notificationStatus == "blocked" || !channelsUsable -> "needs_action"
+            exactAlarmStatus != "ready" || fullScreenIntentStatus != "ready" || schedulerStatus != "ready" -> "limited"
+            else -> "ok"
+        }
 
         return Arguments.createMap().apply {
             putString("overall", overall)

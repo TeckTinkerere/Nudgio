@@ -18,9 +18,9 @@ keywords:
 | Field | Value |
 |---|---|
 | Document ID | MR-04 |
-| Version | 1.0 |
+| Version | 1.1 |
 | Status | Approved baseline |
-| Last updated | 2026-08-05 |
+| Last updated | 2026-09-27 |
 | Product owner | Mohamed Aslam Abdul |
 | Package identifier | `com.aslam.mediareminder` |
 | Purpose | Define brand attributes, color, type, spacing, shape, components, responsive behavior, iconography, motion and visual accessibility. |
@@ -46,31 +46,41 @@ The words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are no
 
 # Design intent
 
-Nudgio should look like a quiet, modern utility rather than a loud alarm clock or generic social-media clone. The three brand attributes are **calm**, **intentional** and **dependable**. Material 3 provides the interaction foundation, while the product uses a restrained teal system, warm amber accents and generous spacing.
+Nudgio should look like a quiet, modern utility rather than a loud alarm clock or generic social-media clone. The three brand attributes are **calm**, **intentional** and **dependable**. Material 3 provides the Android interaction foundation. The approved **Ink & Apricot** brand uses ink-blue actions, warm ivory surfaces, small apricot accents and midnight dark-mode surfaces. See `docs/brand-guidelines.md` for usage and the logo brief.
 
 ![Design token overview](../Diagrams/13_design_tokens.png)
 
 # Color system
 
-All color pairings MUST meet the contrast requirements in MR-13. Dynamic color MAY be offered later but the fixed brand palette remains the default for consistent screenshots and alarm recognition.
+All color pairings MUST meet the contrast requirements in MR-13. The existing opt-in Material You setting remains available, while the fixed brand palette remains the default for consistent screenshots and alarm recognition.
 
 | Token | Light | Dark | Use |
 |---|---:|---:|---|
-| Primary | `#006A60` | `#5EDBC8` | Primary actions, selected state, key status |
-| On primary | `#FFFFFF` | `#003732` | Content on primary |
-| Primary container | `#D7F5EE` | `#005047` | Low-emphasis selected cards |
-| On primary container | `#00201C` | `#D7F5EE` | Text/icons on container |
-| Secondary | `#D97706` | `#FFB951` | Snooze, warm attention, due-soon indicator |
-| Surface | `#F8FAF9` | `#0E1513` | App background |
-| Surface container | `#EEF2F0` | `#17201D` | Cards, sheets, navigation |
-| On surface | `#171D1B` | `#DEE4E1` | Primary content |
-| On surface variant | `#3F4946` | `#BEC9C5` | Secondary content |
-| Outline | `#6F7975` | `#89938F` | Dividers, controls |
-| Error | `#B42318` | `#FFB4AB` | Destructive actions, blocking errors |
-| Success | `#15803D` | `#68D391` | Completed/healthy state, always with icon/text |
+| Primary | `#2D4DB5` | `#BAC8FF` | Primary actions, selected state, key status |
+| On primary | `#FFFFFF` | `#172654` | Content on primary |
+| Primary container | `#E7ECFB` | `#26314E` | Low-emphasis selected cards and navigation |
+| On primary container | `#2D4DB5` | `#BAC8FF` | Text/icons on container |
+| Secondary | `#E9B58E` | `#F1BE98` | Decorative apricot accent; not a light-theme outline or text colour |
+| On secondary | `#56321C` | `#56321C` | Content on apricot fill |
+| Secondary container | `#F8E9DC` | `#392A21` | Snooze and warm supporting cards |
+| On secondary container | `#70401F` | `#FFD2AF` | Text/icons on warm containers |
+| Surface | `#F7F4EE` | `#11141D` | App background |
+| Surface container | `#FFFEFA` | `#1D2230` | Cards, sheets, navigation |
+| On surface | `#202638` | `#F3F1EC` | Primary content |
+| On surface variant | `#5F6675` | `#BCC2D0` | Secondary content |
+| Outline | `#767E90` | `#858FA5` | Meaningful control boundaries |
+| Error | `#B42332` | `#FFB5BE` | Destructive actions, blocking errors |
+| Error container | `#FCE8E9` | `#421F29` | Blocking-error callouts |
+| On error container | `#B42332` | `#FFB5BE` | Text/icons on error containers |
+| Warning | `#805600` | `#FFE0A0` | Capability limitations; independent of decorative apricot |
+| Warning container | `#FFF0CA` | `#382B12` | Warning callouts |
+| On warning container | `#805600` | `#FFE0A0` | Text/icons on warning containers |
+| Success | `#2D4DB5` | `#BAC8FF` | Observed completed/healthy state, always with icon/text |
 | Scrim | `#000000` at 48% | `#000000` at 64% | Modal and alarm backdrop |
 
 The alarm surface uses dark tonal surfaces even when the app theme is light, reducing glare on a woken screen. Controls retain full contrast. Red is reserved for destructive action or blocking fault, not normal urgency.
+
+Apricot is deliberately too light for a meaningful boundary against ivory. It MUST be used with its brown on-colour and MUST NOT replace the warning role. Native Android resources mirror the fixed palette; wallpaper-based Material You remains an explicit user opt-in. The native alarm retains fixed brand colours. The launcher now uses the user-approved 2026-09-29 blue n/apricot sphere artwork unchanged.
 
 # Typography
 
@@ -195,7 +205,7 @@ Local history uses simple counts and accessible summaries rather than competitiv
 
 # Brand assets
 
-The initial icon direction is a rounded play triangle inside a subtle alarm-ring form, avoiding a literal bell-heavy or social-app appearance. Required exports: adaptive foreground/background, monochrome themed icon, 512 px store icon, SVG master and high-contrast small-size test. The logo MUST remain legible at 24 px and MUST not contain Arabic scripture or other sacred text that could appear in inappropriate system contexts.
+The user-approved 2026-09-29 logo supersedes the initial play/ring direction: a sculptural blue n, apricot sphere and blue arcs on ivory. The exact JPEG source is retained in `assets/brand/`. Do not invent a vector master or monochrome asset from this raster. Adaptive mask and 24 px legibility checks, store exports and an approved monochrome variant remain release design evidence. The logo MUST not contain Arabic scripture or other sacred text that could appear in inappropriate system contexts.
 
 # Content density and writing
 

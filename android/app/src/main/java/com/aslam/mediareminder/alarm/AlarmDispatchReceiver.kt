@@ -5,7 +5,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
-import androidx.core.app.NotificationManagerCompat
 import com.aslam.mediareminder.bridge.ReminderEventEmitter
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.data.db.entity.ActiveAlarmSessionEntity
@@ -131,12 +130,17 @@ class AlarmDispatchReceiver : BroadcastReceiver() {
             // ring and use `CATEGORY_ALARM`, Gentle never does.
             val useAlarmChannel = profile?.fullScreenWhenLocked ?: true
             val notificationCoordinator = NotificationCoordinator(context)
+            if (!notificationCoordinator.canAlert(useAlarmChannel)) {
+                occurrenceDao.resolve(occurrenceId, OccurrenceEntity.STATE_FAILED_SAFE, action = "notifications_blocked", resolvedAt = now)
+                SchedulerCoordinator(context, database).reconcile("notifications_blocked")
+                return
+            }
             val notificationBody = AlarmNotificationText.resolveBody(database, reminder)
 
             val decision = DevicePresentationState.classify(
                 isLockedOrNonInteractive = isLockedOrNonInteractive(context),
                 profilePermitsLockedAlarm = useAlarmChannel,
-                notificationsUsable = NotificationManagerCompat.from(context).areNotificationsEnabled(),
+                notificationsUsable = notificationCoordinator.canAlert(useAlarmChannel),
                 fullScreenIntentEligible = FullScreenIntentAccess.isAvailable(context),
             )
             val presentationDecisionLabel = when {

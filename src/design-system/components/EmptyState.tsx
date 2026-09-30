@@ -8,6 +8,7 @@
  * MR-13 "Cognitive accessibility": one primary action per screen — hence a
  * single `action` plus an optional lower-emphasis `secondaryAction`.
  */
+import type {ReactNode} from 'react';
 import {View} from 'react-native';
 
 import {Icon, type IconName} from '../icons';
@@ -17,6 +18,7 @@ import {useTheme} from '../theme/useTheme';
 
 export interface EmptyStateProps {
   readonly icon?: IconName;
+  readonly illustration?: ReactNode;
   readonly title: string;
   readonly body: string;
   readonly action?: {readonly label: string; readonly onPress: () => void};
@@ -26,6 +28,7 @@ export interface EmptyStateProps {
 
 export function EmptyState({
   icon,
+  illustration,
   title,
   body,
   action,
@@ -44,7 +47,7 @@ export function EmptyState({
         gap: theme.spacing.sm,
         padding: theme.spacing.xl,
       }}>
-      {icon ? <Icon name={icon} size="xl" color={theme.color.onSurfaceVariant} /> : null}
+      {illustration ?? (icon ? <Icon name={icon} size="xl" color={theme.color.onSurfaceVariant} /> : null)}
 
       <Text variant="titleLarge" align="center" isHeading>
         {title}
