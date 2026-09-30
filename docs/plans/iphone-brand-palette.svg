@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="730" viewBox="0 0 1440 730" role="img" aria-labelledby="title desc">
+  <title id="title">Nudgio — Ink and Apricot</title>
+  <desc id="desc">New iPhone palette: ink blue 2D4DB5, warm ivory F7F4EE, apricot E9B58E, midnight 11141D and moon blue BAC8FF. Light and dark action examples use checked contrasting text.</desc>
+  <rect width="1440" height="730" rx="24" fill="#F7F4EE"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="60" y="65" fill="#2D4DB5" font-size="16" font-weight="700" letter-spacing="3">NUDGIO / IPHONE COLOUR DIRECTION</text>
+    <text x="56" y="137" fill="#202638" font-size="58" font-weight="650">Ink &amp; Apricot</text>
+    <text x="60" y="179" fill="#5F6675" font-size="23">Clear blue actions. Warm everyday surfaces. A softer touch of colour.</text>
+    <g transform="translate(60 220)">
+      <rect width="252" height="240" rx="16" fill="#2D4DB5"/>
+      <text x="22" y="175" fill="#FFFFFF" font-size="24" font-weight="600">Ink blue</text><text x="22" y="211" fill="#FFFFFF" font-size="19">#2D4DB5</text>
+      <g transform="translate(267)"><rect width="252" height="240" rx="16" fill="#F7F4EE" stroke="#767E90"/><text x="22" y="175" fill="#202638" font-size="24" font-weight="600">Warm ivory</text><text x="22" y="211" fill="#5F6675" font-size="19">#F7F4EE</text></g>
+      <g transform="translate(534)"><rect width="252" height="240" rx="16" fill="#E9B58E"/><text x="22" y="175" fill="#56321C" font-size="24" font-weight="600">Apricot</text><text x="22" y="211" fill="#56321C" font-size="19">#E9B58E</text></g>
+      <g transform="translate(801)"><rect width="252" height="240" rx="16" fill="#11141D"/><text x="22" y="175" fill="#F3F1EC" font-size="24" font-weight="600">Midnight</text><text x="22" y="211" fill="#BCC2D0" font-size="19">#11141D</text></g>
+      <g transform="translate(1068)"><rect width="252" height="240" rx="16" fill="#BAC8FF"/><text x="22" y="175" fill="#172654" font-size="24" font-weight="600">Moon blue</text><text x="22" y="211" fill="#172654" font-size="19">#BAC8FF</text></g>
+    </g>
+    <g transform="translate(60 492)">
+      <rect width="648" height="158" rx="18" fill="#FFFEFA"/>
+      <text x="24" y="36" fill="#5F6675" font-size="14" font-weight="700" letter-spacing="1.5">LIGHT MODE</text>
+      <rect x="24" y="56" width="238" height="68" rx="14" fill="#2D4DB5"/><text x="143" y="99" text-anchor="middle" fill="#FFFFFF" font-size="21" font-weight="600">Play reminder</text>
+      <rect x="278" y="56" width="206" height="68" rx="14" fill="#F8E9DC" stroke="#767E90"/><text x="381" y="99" text-anchor="middle" fill="#70401F" font-size="21" font-weight="600">Snooze</text>
+      <text x="506" y="84" fill="#202638" font-size="21" font-weight="650">7.39:1</text><text x="506" y="108" fill="#5F6675" font-size="14">Play text contrast</text>
+    </g>
+    <g transform="translate(732 492)">
+      <rect width="648" height="158" rx="18" fill="#11141D"/>
+      <text x="24" y="36" fill="#BCC2D0" font-size="14" font-weight="700" letter-spacing="1.5">DARK MODE</text>
+      <rect x="24" y="56" width="238" height="68" rx="14" fill="#BAC8FF"/><text x="143" y="99" text-anchor="middle" fill="#172654" font-size="21" font-weight="600">Play reminder</text>
+      <rect x="278" y="56" width="206" height="68" rx="14" fill="#392A21" stroke="#F1BE98"/><text x="381" y="99" text-anchor="middle" fill="#FFD2AF" font-size="21" font-weight="600">Snooze</text>
+      <text x="506" y="84" fill="#F3F1EC" font-size="21" font-weight="650">8.87:1</text><text x="506" y="108" fill="#BCC2D0" font-size="14">Play text contrast</text>
+    </g>
+    <text x="60" y="695" fill="#5F6675" font-size="17">Shared Android and iPhone colour direction. iPhone implementation and cross-device sync remain on hold.</text>
+  </g>
+</svg>

@@ -4,6 +4,10 @@
     <color name="brand_on_primary">@color/brand_dark_on_primary</color>
     <color name="brand_primary_container">@color/brand_dark_primary_container</color>
     <color name="brand_on_primary_container">@color/brand_dark_on_primary_container</color>
+    <color name="brand_secondary">@color/brand_dark_secondary</color>
+    <color name="brand_on_secondary">@color/brand_dark_on_secondary</color>
+    <color name="brand_secondary_container">@color/brand_dark_secondary_container</color>
+    <color name="brand_on_secondary_container">@color/brand_dark_on_secondary_container</color>
     <color name="brand_surface">@color/brand_dark_surface</color>
     <color name="brand_surface_container">@color/brand_dark_surface_container</color>
     <color name="brand_on_surface">@color/brand_dark_on_surface</color>

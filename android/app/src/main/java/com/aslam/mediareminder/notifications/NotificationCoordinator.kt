@@ -2,6 +2,8 @@ package com.aslam.mediareminder.notifications
 
 import android.Manifest
 import android.app.Notification
+import android.app.KeyguardManager
+import android.os.PowerManager
 import android.app.NotificationChannel
 import android.media.AudioAttributes
 import android.media.RingtoneManager
@@ -18,6 +20,9 @@ import com.aslam.mediareminder.R
 import com.aslam.mediareminder.alarm.AlarmActionReceiver
 import com.aslam.mediareminder.alarm.AlarmActivity
 import com.aslam.mediareminder.alarm.AlarmIds
+import com.aslam.mediareminder.alarm.DevicePresentationState
+import com.aslam.mediareminder.alarm.FullScreenIntentAccess
+import com.aslam.mediareminder.alarm.NotificationDeliveryPolicy
 import com.aslam.mediareminder.diagnostics.NativeLogger
 
 /**
@@ -41,6 +46,16 @@ import com.aslam.mediareminder.diagnostics.NativeLogger
 class NotificationCoordinator(private val context: Context) {
 
     private val manager = NotificationManagerCompat.from(context)
+
+    fun canAlert(useAlarmChannel: Boolean): Boolean {
+        ensureChannels()
+        val system = context.getSystemService(NotificationManager::class.java) ?: return false
+        val channel = system.getNotificationChannel(if (useAlarmChannel) CHANNEL_ALARM else CHANNEL_REMINDER)
+        val groupBlocked = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            channel?.group?.let { system.getNotificationChannelGroup(it)?.isBlocked } == true
+        } else false
+        return NotificationDeliveryPolicy.canAlert(manager.areNotificationsEnabled(), channel?.importance, groupBlocked)
+    }
 
     fun ensureChannels() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -258,6 +273,7 @@ class NotificationCoordinator(private val context: Context) {
      */
     fun postTestNotification(title: String, body: String, fullScreenWhenLocked: Boolean) {
         ensureChannels()
+        if (!canAlert(fullScreenWhenLocked)) return
         val channelId = if (fullScreenWhenLocked) CHANNEL_ALARM else CHANNEL_REMINDER
         val category = if (fullScreenWhenLocked) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER
         val builder = NotificationCompat.Builder(context, channelId)
@@ -268,7 +284,15 @@ class NotificationCoordinator(private val context: Context) {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(previewAlarmActivityIntent(title, body))
-        if (fullScreenWhenLocked) {
+        val locked = runCatching {
+            val keyguard = context.getSystemService(KeyguardManager::class.java)
+            val power = context.getSystemService(PowerManager::class.java)
+            keyguard != null && power != null && (keyguard.isKeyguardLocked || !power.isInteractive)
+        }.getOrDefault(false)
+        val presentation = DevicePresentationState.classify(
+            locked, fullScreenWhenLocked, canAlert(fullScreenWhenLocked), FullScreenIntentAccess.isAvailable(context),
+        )
+        if (presentation.useFullScreenIntent) {
             builder.setFullScreenIntent(previewAlarmActivityIntent(title, body), true)
         }
         postNotification(TEST_NOTIFICATION_ID, builder.build())

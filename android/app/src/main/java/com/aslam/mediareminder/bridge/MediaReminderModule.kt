@@ -48,12 +48,15 @@ import com.aslam.mediareminder.media.MediaImporter
 import com.aslam.mediareminder.media.MediaLibraryService
 import com.aslam.mediareminder.media.MediaPicker
 import com.aslam.mediareminder.media.MediaStorage
+import com.aslam.mediareminder.library.LibraryService
 import com.aslam.mediareminder.notifications.NotificationCoordinator
 import com.aslam.mediareminder.reminders.ActionResultWriter
 import com.aslam.mediareminder.reminders.ReminderDtoWriter
 import com.aslam.mediareminder.reminders.ReminderMutationService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -87,6 +90,7 @@ class MediaReminderModule(
     private val database = MediaReminderDatabase.getInstance(reactContext)
     private val reminderMutations = ReminderMutationService(reactContext, database)
     private val mediaLibrary = MediaLibraryService(database, MediaStorage(reactContext))
+    private val libraryService = LibraryService(database)
 
     /**
      * [pickDocument]'s in-flight promises, keyed by the `startActivityForResult`
@@ -112,6 +116,7 @@ class MediaReminderModule(
      * routed through any session/schema machinery.
      */
     private var previewRingtone: android.media.Ringtone? = null
+    private var previewTimeout: Job? = null
 
     /** Separate counter from [nextPickerRequestCode] so a permission request in flight can never collide with a picker's `onActivityResult` request code. */
     private val nextPermissionRequestCode = AtomicInteger(PERMISSION_REQUEST_CODE_BASE)
@@ -169,6 +174,7 @@ class MediaReminderModule(
     @ReactMethod
     fun getStartupSnapshot(promise: Promise) {
         moduleScope.launch {
+            try {
             val capability = CapabilitySnapshotProvider.snapshot(reactApplicationContext)
             // The reminder engine has been real since the recurrence-engine
             // slice (docs/decision-log.md DL-005 onward) — `activeReminderCount`
@@ -182,10 +188,10 @@ class MediaReminderModule(
             val nextOccurrence = database.occurrenceDao().getEarliestEligible()
             val snapshot: WritableMap = Arguments.createMap().apply {
                 putInt("contractVersion", 1)
-                putInt("schemaVersion", 1)
+                putInt("schemaVersion", MediaReminderDatabase.SCHEMA_VERSION)
                 putString("appVersion", BuildConfig.VERSION_NAME)
                 putString("buildVariant", BuildVariant.current)
-                putInt("mediaCount", 0)
+                putInt("mediaCount", database.mediaDao().count())
                 putInt("activeReminderCount", activeReminderCount)
                 if (nextOccurrence != null) putMap("nextOccurrence", ReminderDtoWriter.writeOccurrence(nextOccurrence)) else putNull("nextOccurrence")
                 putMap("capability", capability)
@@ -200,18 +206,27 @@ class MediaReminderModule(
                 putString("sequence", "1")
             }
             promise.resolve(snapshot)
+            } catch (error: Exception) {
+                failSafe(promise, error, "getStartupSnapshot")
+            }
         }
     }
 
     @ReactMethod
     fun getCapabilitySnapshot(promise: Promise) {
-        promise.resolve(CapabilitySnapshotProvider.snapshot(reactApplicationContext))
+        moduleScope.launch {
+            runCatching { CapabilitySnapshotProvider.snapshot(reactApplicationContext) }
+                .onSuccess { promise.resolve(it) }
+                .onFailure { failSafe(promise, it, "getCapabilitySnapshot") }
+        }
     }
 
     @ReactMethod
     fun getPreferences(promise: Promise) {
         moduleScope.launch {
-            promise.resolve(preferences.read())
+            runCatching { preferences.read() }
+                .onSuccess { promise.resolve(it) }
+                .onFailure { failSafe(promise, it, "getPreferences") }
         }
     }
 
@@ -223,7 +238,9 @@ class MediaReminderModule(
             // of "keys only, never values" is the one every future write path
             // in this module should follow.
             NativeLogger.debug("preferences.write", mapOf("keys" to patch.toHashMap().keys.joinToString(",")))
-            promise.resolve(preferences.write(patch))
+            runCatching { preferences.write(patch) }
+                .onSuccess { promise.resolve(it) }
+                .onFailure { failSafe(promise, it, "setPreferences") }
         }
     }
 
@@ -261,6 +278,15 @@ class MediaReminderModule(
     }
 
     @ReactMethod
+    fun libraryCommand(requestJson: String, promise: Promise) {
+        moduleScope.launch {
+            runCatching { libraryService.command(requestJson) }
+                .onSuccess { promise.resolve(it) }
+                .onFailure { failSafe(promise, it, "libraryCommand") }
+        }
+    }
+
+    @ReactMethod
     fun listReminders(promise: Promise) {
         moduleScope.launch {
             runCatching { reminderMutations.list() }
@@ -271,7 +297,30 @@ class MediaReminderModule(
 
     @ReactMethod
     fun listProfiles(promise: Promise) {
-        promise.resolve(ReminderProfileSeed.asWritableArray())
+        moduleScope.launch {
+            runCatching {
+                val profiles = database.reminderProfileDao().getAll()
+                // First creation seeds asynchronously; retain the existing defaults
+                // during that one window rather than exposing an empty picker.
+                if (profiles.isEmpty()) return@runCatching ReminderProfileSeed.asWritableArray()
+                Arguments.createArray().apply {
+                    profiles.forEach { profile ->
+                        pushMap(Arguments.createMap().apply {
+                            putString("id", profile.id)
+                            putString("nameKey", profile.nameKey)
+                            putBoolean("isBuiltIn", profile.isBuiltIn)
+                            putBoolean("fullScreenWhenLocked", profile.fullScreenWhenLocked)
+                            putInt("timeoutSeconds", profile.timeoutSeconds)
+                            putInt("retryCount", profile.retryCount)
+                            putInt("graceSeconds", profile.graceSeconds)
+                            putInt("defaultSnoozeMinutes", profile.defaultSnoozeMinutes)
+                            putInt("entityVersion", profile.entityVersion)
+                        })
+                    }
+                }
+            }.onSuccess { promise.resolve(it) }
+                .onFailure { failSafe(promise, it, "listProfiles") }
+        }
     }
 
     // --- Media/profile/backup: still declared contract, not yet implemented ---
@@ -398,6 +447,7 @@ class MediaReminderModule(
      * through that service.
      */
     @ReactMethod
+    @Synchronized
     fun previewAlarmRingtone(uri: String?, promise: Promise) {
         stopPreviewRingtone()
         val toneUri = uri?.let { runCatching { Uri.parse(it) }.getOrNull() }
@@ -411,21 +461,34 @@ class MediaReminderModule(
             )
             return
         }
-        runCatching {
-            RingtoneManager.getRingtone(reactApplicationContext, toneUri)?.apply {
+        val played = runCatching {
+            val ringtone = RingtoneManager.getRingtone(reactApplicationContext, toneUri)
+                ?: error("Tone unavailable")
+            previewRingtone = ringtone
+            ringtone.apply {
                 audioAttributes = android.media.AudioAttributes.Builder()
                     .setUsage(android.media.AudioAttributes.USAGE_ALARM)
                     .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()
                 play()
             }
-        }.onSuccess { ringtone ->
-            previewRingtone = ringtone
+        }.isSuccess
+        if (played) {
+            // Native bound survives a stalled JS thread. No idle timer/service.
+            val boundedTone = previewRingtone
+            previewTimeout = moduleScope.launch {
+                delay(6_000)
+                synchronized(this@MediaReminderModule) {
+                    if (previewRingtone === boundedTone) stopPreviewRingtone()
+                }
+            }
+        } else {
+            stopPreviewRingtone()
         }
         promise.resolve(
             Arguments.createMap().apply {
-                putString("status", "ok")
-                putInt("affectedCount", 1)
+                putString("status", if (played) "ok" else "needs_action")
+                putInt("affectedCount", if (played) 1 else 0)
             },
         )
     }
@@ -441,7 +504,10 @@ class MediaReminderModule(
         )
     }
 
+    @Synchronized
     private fun stopPreviewRingtone() {
+        previewTimeout?.cancel()
+        previewTimeout = null
         runCatching { previewRingtone?.stop() }
         previewRingtone = null
     }
@@ -795,7 +861,7 @@ class MediaReminderModule(
     @ReactMethod
     fun openCapabilitySettings(kind: String, promise: Promise) {
         val intent = when (kind) {
-            "notifications" -> Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+            "notifications", "channels" -> Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
                 putExtra(Settings.EXTRA_APP_PACKAGE, reactApplicationContext.packageName)
             }
             "exact_alarm" -> Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
@@ -892,10 +958,12 @@ class MediaReminderModule(
      */
     @ReactMethod
     fun scheduleTestReminder(request: ReadableMap, promise: Promise) {
+        val fullScreenWhenLocked = request.hasKey("fullScreenWhenLocked") &&
+            request.getBoolean("fullScreenWhenLocked")
         // Fail early: if POST_NOTIFICATIONS is not granted the alarm would
         // fire 15 s later and silently drop the notification, giving the user
         // a success toast with no visible outcome.
-        if (!NotificationManagerCompat.from(reactApplicationContext).areNotificationsEnabled()) {
+        if (!NotificationCoordinator(reactApplicationContext).canAlert(fullScreenWhenLocked)) {
             NativeLogger.warn("scheduleTestReminder.notificationsBlocked", emptyMap())
             NativeErrorEnvelope.reject(
                 promise,
@@ -909,8 +977,6 @@ class MediaReminderModule(
         }
         val title = request.getString("title").orEmpty()
         val body = request.getString("body").orEmpty()
-        val fullScreenWhenLocked = request.hasKey("fullScreenWhenLocked") &&
-            request.getBoolean("fullScreenWhenLocked")
         runCatching { reminderMutations.scheduleTest(title, body, fullScreenWhenLocked) }
             .onSuccess { promise.resolve(it) }
             .onFailure { failSafe(promise, it, "scheduleTestReminder") }

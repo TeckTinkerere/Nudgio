@@ -73,7 +73,7 @@ export function SegmentedControl<T extends string>({
               justifyContent: 'center',
               paddingHorizontal: theme.spacing.xs,
               backgroundColor: selected
-                ? theme.color.secondaryContainer
+                ? theme.color.primaryContainer
                 : pressed
                   ? theme.color.surfaceContainerHigh
                   : theme.color.surface,
@@ -87,7 +87,7 @@ export function SegmentedControl<T extends string>({
               numberOfLines={1}
               style={{
                 color: selected
-                  ? theme.color.onSecondaryContainer
+                  ? theme.color.onPrimaryContainer
                   : theme.color.onSurfaceVariant,
               }}>
               {option.label}

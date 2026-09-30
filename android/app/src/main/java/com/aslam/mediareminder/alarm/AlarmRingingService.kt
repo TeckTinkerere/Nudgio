@@ -9,6 +9,7 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -18,6 +19,7 @@ import android.os.VibratorManager
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.aslam.mediareminder.data.PreferencesRepository
+import com.aslam.mediareminder.R
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.data.db.entity.ActiveAlarmSessionEntity
 import com.aslam.mediareminder.data.db.entity.OccurrenceEntity
@@ -64,8 +66,9 @@ class AlarmRingingService : Service() {
 
     private var currentSessionId: String? = null
     private val queue = ArrayDeque<String>()
+    private val silencedSessions = mutableSetOf<String>()
 
-    private var mediaPlayer: MediaPlayer? = null
+    private var tonePlayback: AlarmToneFallback<Uri>? = null
     private var audioFocusRequest: AudioFocusRequest? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var timeoutJob: Job? = null
@@ -103,6 +106,8 @@ class AlarmRingingService : Service() {
     }
 
     override fun onDestroy() {
+        currentSessionId = null
+        silencedSessions.clear()
         timeoutJob?.cancel()
         stopTone()
         stopVibration()
@@ -134,6 +139,17 @@ class AlarmRingingService : Service() {
             }
             val reminder = database.reminderDao().getById(session.reminderId)
             val profile = reminder?.let { database.reminderProfileDao().getById(it.profileId) }
+
+            if (currentSessionId != sessionId) return@launch
+            if (profile?.fullScreenWhenLocked != true || !notificationCoordinator.canAlert(true)) {
+                val now = System.currentTimeMillis()
+                database.activeAlarmSessionDao().resolve(sessionId, now)
+                database.occurrenceDao().resolve(session.occurrenceId, OccurrenceEntity.STATE_FAILED_SAFE,
+                    action = "notifications_blocked", resolvedAt = now)
+                notificationCoordinator.cancel(sessionId)
+                if (currentSessionId == sessionId) stopCurrentAndAdvance()
+                return@launch
+            }
 
             // Re-check after the suspend points above: `stopSession`/
             // `stopIfNothingRinging` run synchronously on the same
@@ -175,9 +191,21 @@ class AlarmRingingService : Service() {
                 PreferencesRepository(applicationContext).readSnapshot().alarmRingtoneUri
             }.getOrNull()
 
+            // A terminal action may arrive while DataStore is suspended.
+            if (currentSessionId != sessionId) return@launch
+            if (!notificationCoordinator.canAlert(true)) {
+                val now = System.currentTimeMillis()
+                database.activeAlarmSessionDao().resolve(sessionId, now)
+                database.occurrenceDao().resolve(session.occurrenceId, OccurrenceEntity.STATE_FAILED_SAFE,
+                    action = "notifications_blocked", resolvedAt = now)
+                notificationCoordinator.cancel(sessionId)
+                if (currentSessionId == sessionId) stopCurrentAndAdvance()
+                return@launch
+            }
+
             val timeoutSeconds = (profile?.timeoutSeconds ?: DEFAULT_TIMEOUT_SECONDS).coerceIn(1, MAX_LIFETIME_SECONDS)
             acquireWakeLock(timeoutSeconds)
-            startRinging(customRingtoneUri)
+            if (sessionId !in silencedSessions) startRinging(customRingtoneUri)
             scheduleTimeout(session, reminder, profile, timeoutSeconds)
             advanceForegroundActivityIfShowing(sessionId)
             NativeLogger.debug("alarmRinging.promoted", mapOf("sessionId" to sessionId, "timeoutSeconds" to timeoutSeconds))
@@ -210,6 +238,7 @@ class AlarmRingingService : Service() {
         stopTone()
         stopVibration()
         releaseWakeLock()
+        currentSessionId?.let { silencedSessions.remove(it) }
         currentSessionId = null
         val next = queue.removeFirstOrNull()
         if (next != null) {
@@ -239,6 +268,7 @@ class AlarmRingingService : Service() {
     }
 
     private fun silenceCurrent() {
+        currentSessionId?.let { silencedSessions.add(it) }
         // MR-06: "the alarm UI also has a visible Silence sound action" —
         // mutes audio/vibration only. The session stays `alerting`; the
         // user still must explicitly Accept/Snooze/Dismiss.
@@ -359,56 +389,35 @@ class AlarmRingingService : Service() {
         // app does not secretly force speaker output" — no
         // `setAudioStreamType`/output-device override here; `MediaPlayer`
         // follows whatever route `AudioAttributes.USAGE_ALARM` resolves to.
-        val toneUri = customRingtoneUri?.let { runCatching { android.net.Uri.parse(it) }.getOrNull() }
-            ?: RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getValidRingtoneUri(this)
-        if (toneUri == null) {
-            NativeLogger.warn("alarmRinging.noToneAvailable")
-            return
-        }
-        mediaPlayer = MediaPlayer().apply {
-            setAudioAttributes(attributes)
-            isLooping = true
-            // `prepare()` is a blocking call — decoding the tone header on
-            // this service's Dispatchers.Main scope would stall the main
-            // thread (frame drops if the app is foregrounded, ANR risk in
-            // the worst case). `prepareAsync()` + listeners keeps the actual
-            // decode off the main thread while `start()` still only ever
-            // runs once preparation genuinely finished.
-            setOnPreparedListener { player ->
-                // Guards against `stopTone()` (or a later `playTone()` call)
-                // having already released/replaced this player between
-                // `prepareAsync()` being issued and this callback firing —
-                // calling `start()` on an already-released MediaPlayer
-                // throws IllegalStateException.
-                if (mediaPlayer === player) player.start()
+        val sources = listOfNotNull(
+            customRingtoneUri?.let { runCatching { Uri.parse(it) }.getOrNull() },
+            RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_ALARM),
+            Uri.parse("android.resource://$packageName/${R.raw.nudgio_alarm}"),
+        ).distinct()
+        tonePlayback = AlarmToneFallback(sources) {
+            object : AlarmToneFallback.Player<Uri> {
+                private val player = MediaPlayer()
+                override fun prepare(source: Uri, ready: () -> Unit, failed: () -> Unit) {
+                    player.setAudioAttributes(attributes)
+                    player.isLooping = true
+                    player.setOnPreparedListener { ready() }
+                    player.setOnErrorListener { _, what, extra ->
+                        NativeLogger.warn("alarmRinging.toneFallback", mapOf("what" to what, "extra" to extra))
+                        failed()
+                        true
+                    }
+                    player.setDataSource(this@AlarmRingingService, source)
+                    player.prepareAsync()
+                }
+                override fun start() = player.start()
+                override fun release() = player.release()
             }
-            setOnErrorListener { player, what, extra ->
-                NativeLogger.error(
-                    "alarmRinging.toneFailed",
-                    mapOf("what" to what, "extra" to extra),
-                )
-                player.release()
-                if (mediaPlayer === player) mediaPlayer = null
-                true
-            }
-            try {
-                setDataSource(this@AlarmRingingService, toneUri)
-                prepareAsync()
-            } catch (error: Exception) {
-                NativeLogger.error("alarmRinging.toneFailed", cause = error)
-                release()
-                mediaPlayer = null
-            }
-        }
+        }.also { it.start() }
     }
 
     private fun stopTone() {
-        mediaPlayer?.let { player ->
-            runCatching { if (player.isPlaying) player.stop() }
-            player.release()
-        }
-        mediaPlayer = null
+        tonePlayback?.stop()
+        tonePlayback = null
         audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
         audioFocusRequest = null
     }

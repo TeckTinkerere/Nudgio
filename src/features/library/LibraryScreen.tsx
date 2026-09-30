@@ -16,7 +16,7 @@
  */
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {useCallback, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {LibraryGridBody} from './LibraryGridBody';
@@ -38,6 +38,7 @@ import {
   MediaCard,
   Screen,
   Stack,
+  Text,
   TextField,
   useFloatingAppBar,
   useResponsive,
@@ -54,6 +55,7 @@ import {
   type TranslationKey,
 } from '../../localization';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
+import {useAppContainer} from '../../app/di';
 import type {MediaKind, MediaQuery, MediaSummary, UUID} from '../../native-client/types';
 import {formatDurationAccessible, formatDurationCompact} from '../../utils';
 
@@ -93,6 +95,7 @@ export function LibraryScreen() {
   const {mediaGridColumns, navigation: navTreatment} = useResponsive();
   const appBar = useFloatingAppBar();
   const importMedia = useImportMedia();
+  const {client} = useAppContainer();
   const isTwoPane = navTreatment === 'rail';
 
   const [search, setSearch] = useState('');
@@ -100,6 +103,25 @@ export function LibraryScreen() {
   const [sort, setSort] = useState<NonNullable<MediaQuery['sort']>>('recent');
   const [previewItem, setPreviewItem] = useState<MediaSummary | null>(null);
   const [selectedMediaId, setSelectedMediaId] = useState<UUID | null>(null);
+  const [folderSearch, setFolderSearch] = useState('');
+  const [newFolderName, setNewFolderName] = useState('');
+  const [libraryState, setLibraryState] = useState<{folders: Array<{id: string; name: string; parentId?: string | null; pinned?: boolean; mediaIds?: string[]}>; revision: number; unsorted?: number}>({folders: [], revision: 0});
+  const refreshFolders = useCallback(async () => {
+    const result = await client.libraryCommand({action: 'list'});
+    if (result.ok && result.value && typeof result.value === 'object') {
+      const value = result.value as {folders?: typeof libraryState.folders; revision?: number; unsorted?: number};
+      setLibraryState({folders: value.folders ?? [], revision: value.revision ?? 0, unsorted: value.unsorted});
+    }
+  }, [client]);
+  useEffect(() => { void refreshFolders(); }, [refreshFolders]);
+  const createFolder = useCallback(async () => {
+    const name = newFolderName.trim();
+    if (!name) return;
+    const commandId = `00000000-0000-4000-8000-${Date.now().toString().slice(-12).padStart(12, '0')}`;
+    const result = await client.libraryCommand({action: 'create', name, revision: libraryState.revision, commandId});
+    if (result.ok) { setNewFolderName(''); await refreshFolders(); }
+  }, [client, libraryState.revision, newFolderName, refreshFolders]);
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const {
     selectionMode,
     selectedIds,
@@ -132,6 +154,14 @@ export function LibraryScreen() {
   );
 
   const media = useMediaList(query);
+  const activeFolder = libraryState.folders.find(folder => folder.id === activeFolderId);
+  const visibleMedia = useMemo(() => {
+    if (!activeFolderId) return media.data?.items ?? [];
+    const ids = new Set(activeFolder?.mediaIds ?? []);
+    const childIds = libraryState.folders.filter(folder => folder.parentId === activeFolderId).flatMap(folder => folder.mediaIds ?? []);
+    childIds.forEach(id => ids.add(id));
+    return (media.data?.items ?? []).filter(item => ids.has(item.id));
+  }, [activeFolder, activeFolderId, libraryState.folders, media.data?.items]);
 
   /**
    * An empty result set has two causes and the user can only act on one of
@@ -200,6 +230,18 @@ export function LibraryScreen() {
       Export/Delete) rather than a title row — its `title` is unused on that
       branch. */}
       <Stack gap="xs" paddingHorizontal="md" paddingVertical="sm">
+        <Stack gap="xxs">
+          <TextField label="Search folders" value={folderSearch} onChangeText={setFolderSearch} />
+          <ChipRow>
+            {libraryState.folders.filter(folder => folder.name.toLowerCase().includes(folderSearch.toLowerCase())).map(folder => (
+              <Chip key={folder.id} label={`${folder.parentId ? '↳ ' : ''}${folder.name}`} selected={activeFolderId === folder.id} onPress={() => setActiveFolderId(folder.id)} />
+            ))}
+          </ChipRow>
+          <Stack direction="row" gap="xs" align="center">
+            <TextField label="New folder" value={newFolderName} onChangeText={setNewFolderName} />
+            <Button label="Create" variant="tonal" onPress={() => void createFolder()} />
+          </Stack>
+        </Stack>
         {selectionMode ? (
           <LibrarySelectionHeader
             title={t('library.title')}
@@ -261,8 +303,11 @@ export function LibraryScreen() {
         ) : null}
       </Stack>
 
+      <Stack gap="xs">
+        {activeFolderId ? <Button label="Library" variant="text" onPress={() => setActiveFolderId(null)} /> : null}
+      {activeFolder ? <Text variant="titleMedium">{activeFolder.name}</Text> : null}
       <LibraryGridBody
-        media={media}
+        media={{...media, data: media.data ? {...media.data, items: visibleMedia, total: visibleMedia.length, hasMore: false} : undefined} as ReturnType<typeof useMediaList>}
         importMedia={importMedia}
         mediaGridColumns={mediaGridColumns}
         renderCard={renderCard}
@@ -270,6 +315,7 @@ export function LibraryScreen() {
         onClearFilters={clearFilters}
         onScroll={appBar.onScroll}
       />
+      </Stack>
     </>
   );
 

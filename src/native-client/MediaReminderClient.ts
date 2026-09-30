@@ -78,6 +78,7 @@ export interface MediaReminderClient {
   setPreferences(patch: PreferencePatch): Promise<Result<PreferencesSnapshot, AppError>>;
   getDynamicColorScheme(): Promise<Result<unknown | null, AppError>>;
   listMedia(query: MediaQuery): Promise<Result<Page<MediaSummary>, AppError>>;
+  libraryCommand(request: Record<string, unknown>): Promise<Result<unknown, AppError>>;
   getMedia(id: UUID): Promise<Result<MediaDetail, AppError>>;
   listProfiles(): Promise<Result<readonly ReminderProfile[], AppError>>;
 
@@ -234,6 +235,9 @@ export const createMediaReminderClient = (
       call('getDynamicColorScheme', native => native.getDynamicColorScheme()),
 
     listMedia: query => call('listMedia', native => native.listMedia(query)),
+
+    libraryCommand: request =>
+      call('libraryCommand', async native => JSON.parse(await native.libraryCommand(JSON.stringify(request)))),
 
     getMedia: id => call('getMedia', native => native.getMedia(id)),
 

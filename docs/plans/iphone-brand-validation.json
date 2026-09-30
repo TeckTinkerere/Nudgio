@@ -1,0 +1,220 @@
+{
+  "date": "2026-09-27",
+  "scope": "Static planning assets only",
+  "tokenValuesMatched": 40,
+  "contrastPairsPassed": 34,
+  "minimumTextContrast": 4.75,
+  "phoneMockups": 6,
+  "plannedRequirements": 28,
+  "screenSpecifications": 9,
+  "workPackages": 10,
+  "localLinksChecked": 12,
+  "browserRenderedReview": false,
+  "deviceTestsRun": false,
+  "contrast": [
+    {
+      "theme": "light",
+      "pair": "text/background",
+      "ratio": 13.71,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "pair": "text/surface",
+      "ratio": 14.91,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "pair": "textSecondary/background",
+      "ratio": 5.25,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "pair": "textSecondary/surface",
+      "ratio": 5.71,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "pair": "textSecondary/surfaceMuted",
+      "ratio": 4.75,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "pair": "primary/background",
+      "ratio": 6.73,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "pair": "primary/surface",
+      "ratio": 7.33,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "pair": "onPrimary/primary",
+      "ratio": 7.39,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "pair": "onPrimary/primaryPressed",
+      "ratio": 9.99,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "pair": "onPrimaryContainer/primaryContainer",
+      "ratio": 6.26,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "pair": "onAccent/accent",
+      "ratio": 6.14,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "pair": "onAccentContainer/accentContainer",
+      "ratio": 7.24,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "pair": "onWarningContainer/warningContainer",
+      "ratio": 5.72,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "pair": "onErrorContainer/errorContainer",
+      "ratio": 5.53,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "pair": "controlOutline/background",
+      "ratio": 3.71,
+      "minimum": 3
+    },
+    {
+      "theme": "light",
+      "pair": "controlOutline/surface",
+      "ratio": 4.03,
+      "minimum": 3
+    },
+    {
+      "theme": "light",
+      "pair": "primary/surface",
+      "ratio": 7.33,
+      "minimum": 3
+    },
+    {
+      "theme": "dark",
+      "pair": "text/background",
+      "ratio": 16.3,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "pair": "text/surface",
+      "ratio": 14.05,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "pair": "textSecondary/background",
+      "ratio": 10.31,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "pair": "textSecondary/surface",
+      "ratio": 8.89,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "pair": "textSecondary/surfaceMuted",
+      "ratio": 7.17,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "pair": "primary/background",
+      "ratio": 11.21,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "pair": "primary/surface",
+      "ratio": 9.66,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "pair": "onPrimary/primary",
+      "ratio": 8.87,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "pair": "onPrimary/primaryPressed",
+      "ratio": 7.46,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "pair": "onPrimaryContainer/primaryContainer",
+      "ratio": 7.84,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "pair": "onAccent/accent",
+      "ratio": 6.72,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "pair": "onAccentContainer/accentContainer",
+      "ratio": 9.88,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "pair": "onWarningContainer/warningContainer",
+      "ratio": 10.79,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "pair": "onErrorContainer/errorContainer",
+      "ratio": 8.64,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "pair": "controlOutline/background",
+      "ratio": 5.67,
+      "minimum": 3
+    },
+    {
+      "theme": "dark",
+      "pair": "controlOutline/surface",
+      "ratio": 4.89,
+      "minimum": 3
+    },
+    {
+      "theme": "dark",
+      "pair": "primary/surface",
+      "ratio": 9.66,
+      "minimum": 3
+    }
+  ]
+}

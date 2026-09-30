@@ -265,6 +265,7 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
       }
       return paginate(items, offset, limit);
     },
+    libraryCommand: async () => JSON.stringify({revision: 0, total: 0, unsorted: 0, canUndo: false, folders: []}),
 
     getMedia: async id => {
       const found = media.get(id as UUID);

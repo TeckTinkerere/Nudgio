@@ -28,6 +28,7 @@ import {
   useTheme,
 } from '../../design-system';
 import type {IconName} from '../../design-system';
+import {BrandLogo} from '../../design-system/components/BrandLogo';
 import {useStartupSnapshot} from '../../hooks';
 import {useTranslation} from '../../localization';
 
@@ -38,15 +39,6 @@ export function AboutScreen({navigation}: Props) {
   const theme = useTheme();
   const startup = useStartupSnapshot();
   const appBar = useFloatingAppBar();
-
-  const heroStyles = StyleSheet.create({
-    circle: {
-      width: 64,
-      height: 64,
-      borderRadius: theme.radius.full,
-      backgroundColor: theme.color.primaryContainer,
-    },
-  });
 
   return (
     <Screen
@@ -65,11 +57,7 @@ export function AboutScreen({navigation}: Props) {
         />
       }>
       <Stack gap="lg" paddingVertical="md" align="center">
-        <Stack style={heroStyles.circle} align="center" justify="center">
-          <Text variant="headlineMedium" isHeading style={{color: theme.color.onPrimaryContainer}}>
-            N
-          </Text>
-        </Stack>
+        <BrandLogo />
         <Stack gap={2} align="center">
           <Text variant="headlineMedium" isHeading align="center">
             Nudgio

@@ -1,0 +1,68 @@
+{
+  "name": "Ink & Apricot",
+  "version": "1.0.0",
+  "status": "Approved shared branding; applied to Android source and iPhone design artifacts, not yet released",
+  "primitives": {
+    "inkBlue": "#2D4DB5",
+    "inkBluePressed": "#233C8D",
+    "ivory": "#F7F4EE",
+    "paper": "#FFFEFA",
+    "apricot": "#E9B58E",
+    "midnight": "#11141D",
+    "moonBlue": "#BAC8FF"
+  },
+  "themes": {
+    "light": {
+      "background": "#F7F4EE",
+      "surface": "#FFFEFA",
+      "surfaceMuted": "#ECE9E2",
+      "text": "#202638",
+      "textSecondary": "#5F6675",
+      "primary": "#2D4DB5",
+      "primaryPressed": "#233C8D",
+      "onPrimary": "#FFFFFF",
+      "primaryContainer": "#E7ECFB",
+      "onPrimaryContainer": "#2D4DB5",
+      "accent": "#E9B58E",
+      "onAccent": "#56321C",
+      "accentContainer": "#F8E9DC",
+      "onAccentContainer": "#70401F",
+      "borderSubtle": "#DEDDE5",
+      "controlOutline": "#767E90",
+      "warningContainer": "#FFF0CA",
+      "onWarningContainer": "#805600",
+      "errorContainer": "#FCE8E9",
+      "onErrorContainer": "#B42332"
+    },
+    "dark": {
+      "background": "#11141D",
+      "surface": "#1D2230",
+      "surfaceMuted": "#2C3242",
+      "text": "#F3F1EC",
+      "textSecondary": "#BCC2D0",
+      "primary": "#BAC8FF",
+      "primaryPressed": "#A7B8F0",
+      "onPrimary": "#172654",
+      "primaryContainer": "#26314E",
+      "onPrimaryContainer": "#BAC8FF",
+      "accent": "#F1BE98",
+      "onAccent": "#56321C",
+      "accentContainer": "#392A21",
+      "onAccentContainer": "#FFD2AF",
+      "borderSubtle": "#394052",
+      "controlOutline": "#858FA5",
+      "warningContainer": "#382B12",
+      "onWarningContainer": "#FFE0A0",
+      "errorContainer": "#421F29",
+      "onErrorContainer": "#FFB5BE"
+    }
+  },
+  "components": {
+    "primaryButton": {"background": "primary", "foreground": "onPrimary", "pressedBackground": "primaryPressed"},
+    "snoozeButton": {"background": "accentContainer", "foreground": "onAccentContainer"},
+    "scheduledStatus": {"background": "primaryContainer", "foreground": "onPrimaryContainer", "requiresIconAndText": true},
+    "focusRing": {"color": "primary", "widthPt": 2},
+    "inputBoundary": {"color": "controlOutline"},
+    "decorativeDivider": {"color": "borderSubtle", "neverSoleControlBoundary": true}
+  }
+}

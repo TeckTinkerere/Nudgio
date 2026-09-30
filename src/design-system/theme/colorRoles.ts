@@ -2,10 +2,10 @@
  * Semantic color roles.
  *
  * This is the contract every surface in the app codes against. A screen asks
- * for `theme.color.onSurfaceVariant`, never for teal. Because the role set is
+ * for `theme.color.onSurfaceVariant`, never for a literal brand hue. Because the role set is
  * fixed, the brand scheme and a Material You scheme are interchangeable.
  *
- * MR-04 names thirteen roles explicitly; the rest are derived in `schemes.ts`
+ * MR-04 names the brand roles explicitly; the rest are derived in `schemes.ts`
  * with the derivation documented next to each one.
  */
 export interface ColorRoles {
@@ -16,7 +16,7 @@ export interface ColorRoles {
   readonly primaryContainer: string;
   readonly onPrimaryContainer: string;
 
-  /** Snooze, warm attention, due-soon indicator. Never used for errors. */
+  /** Apricot fill for Snooze and warm accents; not a warning or text color. */
   readonly secondary: string;
   readonly onSecondary: string;
   readonly secondaryContainer: string;
@@ -45,6 +45,11 @@ export interface ColorRoles {
   readonly onError: string;
   readonly errorContainer: string;
   readonly onErrorContainer: string;
+
+  /** Capability limitations and caution; separate from the decorative accent. */
+  readonly warning: string;
+  readonly warningContainer: string;
+  readonly onWarningContainer: string;
 
   /** Completed/healthy state. MR-13 ACC-004: always paired with icon and text. */
   readonly success: string;

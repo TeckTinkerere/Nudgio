@@ -1,0 +1,80 @@
+{
+  "name": "NudgioFeasibility",
+  "options": {
+    "minimumXcodeGenVersion": "2.44.0",
+    "deploymentTarget": {"iOS": "26.0"},
+    "developmentLanguage": "en"
+  },
+  "settings": {
+    "base": {
+      "SWIFT_VERSION": "5.0",
+      "TARGETED_DEVICE_FAMILY": "1",
+      "CODE_SIGN_STYLE": "Automatic",
+      "MARKETING_VERSION": "0.1.0",
+      "CURRENT_PROJECT_VERSION": "1",
+      "ENABLE_USER_SCRIPT_SANDBOXING": "YES"
+    }
+  },
+  "targets": {
+    "NudgioFeasibility": {
+      "type": "application",
+      "platform": "iOS",
+      "sources": ["Feasibility", "Shared"],
+      "info": {
+        "path": "Configuration/App-Info.plist",
+        "properties": {
+          "CFBundleDisplayName": "Nudgio Test",
+          "NSAlarmKitUsageDescription": "Nudgio schedules test alarms you choose to check reminders on this iPhone.",
+          "NSSupportsLiveActivities": true,
+          "UIApplicationSceneManifest": {"UIApplicationSupportsMultipleScenes": false},
+          "UILaunchScreen": {},
+          "UISupportedInterfaceOrientations": ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"]
+        }
+      },
+      "settings": {
+        "base": {
+          "PRODUCT_BUNDLE_IDENTIFIER": "com.aslam.nudgio.ios.proof",
+          "PRODUCT_MODULE_NAME": "NudgioFeasibility"
+        }
+      },
+      "dependencies": [{"target": "NudgioCountdown", "embed": true}]
+    },
+    "NudgioCountdown": {
+      "type": "app-extension",
+      "platform": "iOS",
+      "sources": ["Countdown", "Shared"],
+      "info": {
+        "path": "Configuration/Widget-Info.plist",
+        "properties": {
+          "CFBundleDisplayName": "Nudgio Countdown",
+          "NSExtension": {"NSExtensionPointIdentifier": "com.apple.widgetkit-extension"}
+        }
+      },
+      "settings": {
+        "base": {
+          "PRODUCT_BUNDLE_IDENTIFIER": "com.aslam.nudgio.ios.proof.countdown",
+          "APPLICATION_EXTENSION_API_ONLY": "YES",
+          "SKIP_INSTALL": "YES"
+        }
+      }
+    },
+    "NudgioFeasibilityTests": {
+      "type": "bundle.unit-test",
+      "platform": "iOS",
+      "sources": ["Tests"],
+      "dependencies": [{"target": "NudgioFeasibility"}],
+      "settings": {
+        "base": {
+          "PRODUCT_BUNDLE_IDENTIFIER": "com.aslam.nudgio.ios.proof.tests",
+          "GENERATE_INFOPLIST_FILE": "YES"
+        }
+      }
+    }
+  },
+  "schemes": {
+    "NudgioFeasibility": {
+      "build": {"targets": {"NudgioFeasibility": "all", "NudgioCountdown": "all"}},
+      "test": {"targets": ["NudgioFeasibilityTests"], "gatherCoverageData": true}
+    }
+  }
+}

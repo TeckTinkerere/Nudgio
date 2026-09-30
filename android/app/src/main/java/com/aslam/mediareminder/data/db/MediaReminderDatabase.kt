@@ -5,6 +5,10 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.aslam.mediareminder.data.db.dao.LibraryDao
+import com.aslam.mediareminder.data.db.entity.LibraryFolderEntity
+import com.aslam.mediareminder.data.db.entity.LibraryMembershipEntity
+import com.aslam.mediareminder.data.db.entity.LibraryStateEntity
 import com.aslam.mediareminder.data.db.dao.ActiveAlarmSessionDao
 import com.aslam.mediareminder.data.db.dao.IdempotencyDao
 import com.aslam.mediareminder.data.db.dao.MediaDao
@@ -57,8 +61,11 @@ import kotlinx.coroutines.launch
         ActiveAlarmSessionEntity::class,
         OperationJournalEntity::class,
         MediaAssetEntity::class,
+        LibraryFolderEntity::class,
+        LibraryMembershipEntity::class,
+        LibraryStateEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class MediaReminderDatabase : RoomDatabase() {
@@ -71,6 +78,7 @@ abstract class MediaReminderDatabase : RoomDatabase() {
     abstract fun activeAlarmSessionDao(): ActiveAlarmSessionDao
     abstract fun operationJournalDao(): OperationJournalDao
     abstract fun mediaDao(): MediaDao
+    abstract fun libraryDao(): LibraryDao
 
     companion object {
         /**
@@ -80,7 +88,7 @@ abstract class MediaReminderDatabase : RoomDatabase() {
          * engine's manifest `sourceSchemaVersion` field, which needs the
          * value at runtime, not just at annotation-processing time.
          */
-        const val SCHEMA_VERSION = 5
+        const val SCHEMA_VERSION = 6
 
         private const val DATABASE_NAME = "media_reminder.db"
 
@@ -106,7 +114,7 @@ abstract class MediaReminderDatabase : RoomDatabase() {
             database = Room
                 .databaseBuilder(context, MediaReminderDatabase::class.java, DATABASE_NAME)
                 .addCallback(callback)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
             return database
         }

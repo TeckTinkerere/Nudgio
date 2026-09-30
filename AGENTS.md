@@ -4,7 +4,7 @@ Read `specs/Markdown/00_Document_Map_and_Executive_Summary.md`, `specs/Markdown/
 
 ## Hard rules
 
-- Android-only v1, package `com.aslam.mediareminder`.
+- Android v1 uses package `com.aslam.mediareminder`. Separately authorized iPhone development follows ADR-022, `docs/ios/ADR-IOS-001.md` and the approved iPhone plan. Android-specific rules below continue to apply to Android; iPhone work must pass G1 before the full product build.
 - React Native handles normal UI; Kotlin owns alarms, actions, Room, scheduling, ringing, boot recovery and resilient due playback.
 - No backend, account, analytics, ads or production Internet permission.
 - No overlay, broad gallery permission, battery-exemption request, idle service, clock polling, repeating alarm or WorkManager due delivery.

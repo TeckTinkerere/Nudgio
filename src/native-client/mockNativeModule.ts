@@ -160,6 +160,7 @@ export const createMockNativeModule = (
     getDynamicColorScheme: async () => options.dynamicColor ?? null,
 
     listMedia: async () => ({items: [], total: 0, offset: 0, hasMore: false}),
+    libraryCommand: async () => JSON.stringify({revision: 0, total: 0, unsorted: 0, canUndo: false, folders: []}),
     listReminders: async () => ({items: [], total: 0, offset: 0, hasMore: false}),
     listProfiles: async () => mockProfiles,
 

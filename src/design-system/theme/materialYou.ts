@@ -12,13 +12,14 @@
  * platform uses, so the app matches the system's idea of the wallpaper palette
  * exactly instead of approximating it.
  *
- * Two roles are deliberately NOT derived from the wallpaper:
+ * Status roles are deliberately NOT derived from the wallpaper:
  *
  *  - `error`, because MR-04 reserves red for destructive action and blocking
  *    fault. A green-tinted "error" would break that contract.
  *  - `success`, for the same reason in reverse.
+ *  - `warning`, so a capability limitation remains distinct from an accent.
  *
- * Both stay on the brand values so status meaning survives any wallpaper.
+ * These stay on the brand values so status meaning survives any wallpaper.
  */
 
 import type {ColorRoles} from './colorRoles';
@@ -124,6 +125,7 @@ export const schemeFromDynamicColor = (
 
   const errorContainer = blend(surface, fallback.error, isDark ? 0.24 : 0.12);
   const successContainer = blend(surface, fallback.success, isDark ? 0.24 : 0.12);
+  const warningContainer = blend(surface, fallback.warning, isDark ? 0.24 : 0.12);
 
   return {
     primary,
@@ -154,6 +156,10 @@ export const schemeFromDynamicColor = (
     onError: fallback.onError,
     errorContainer,
     onErrorContainer: preferAccessible(errorContainer, fallback.error, onSurface),
+
+    warning: fallback.warning,
+    warningContainer,
+    onWarningContainer: preferAccessible(warningContainer, fallback.warning, onSurface),
 
     success: fallback.success,
     onSuccess: fallback.onSuccess,

@@ -88,12 +88,12 @@ export function AppTabBar({state, navigation}: BottomTabBarProps) {
               paddingVertical: theme.spacing.xxs,
               borderRadius: theme.radius.chip,
               backgroundColor: isFocused
-                ? theme.color.secondaryContainer
+                ? theme.color.primaryContainer
                 : transparent,
             }}>
             <Icon
               name={ICON_FOR[route.name] ?? 'today'}
-              color={isFocused ? theme.color.onSecondaryContainer : theme.color.onSurfaceVariant}
+              color={isFocused ? theme.color.onPrimaryContainer : theme.color.onSurfaceVariant}
             />
             {/*
               MR-13: labels remain visible except at extreme scale, where they
@@ -105,7 +105,7 @@ export function AppTabBar({state, navigation}: BottomTabBarProps) {
                 variant="labelMedium"
                 style={{
                   color: isFocused
-                    ? theme.color.onSecondaryContainer
+                    ? theme.color.onPrimaryContainer
                     : theme.color.onSurfaceVariant,
                 }}>
                 {label}

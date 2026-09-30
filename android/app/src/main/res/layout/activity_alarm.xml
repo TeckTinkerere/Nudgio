@@ -76,6 +76,7 @@
                 android:text="@string/alarm_silence_sound"
                 android:textColor="@color/brand_dark_on_surface"
                 android:textSize="13sp"
+                app:backgroundTint="@color/brand_dark_surface_container_high"
                 app:cornerRadius="24dp"
                 app:icon="@drawable/ic_alarm_volume_off"
                 app:iconSize="18dp"

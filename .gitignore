@@ -61,3 +61,15 @@ Thumbs.db
 fixtures/private/
 *.mediareminder.zip
 /diagnostics/
+
+# iPhone feasibility target: generated projects and local build/signing output
+ios/*.xcodeproj/
+ios/*.xcworkspace/
+ios/Configuration/
+ios/DerivedData/
+ios/build/
+ios/Pods/
+*.xcuserstate
+xcuserdata/
+*.ipa
+*.mobileprovision

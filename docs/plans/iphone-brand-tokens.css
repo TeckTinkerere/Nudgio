@@ -1,0 +1,46 @@
+/* Ink & Apricot — mirrors iphone-brand-tokens.json.
+   Planning artifacts only; does not change the production application. */
+:root {
+  --brand-background: #F7F4EE;
+  --brand-surface: #FFFEFA;
+  --brand-surface-muted: #ECE9E2;
+  --brand-text: #202638;
+  --brand-text-secondary: #5F6675;
+  --brand-primary: #2D4DB5;
+  --brand-primary-pressed: #233C8D;
+  --brand-on-primary: #FFFFFF;
+  --brand-primary-container: #E7ECFB;
+  --brand-on-primary-container: #2D4DB5;
+  --brand-accent: #E9B58E;
+  --brand-on-accent: #56321C;
+  --brand-accent-container: #F8E9DC;
+  --brand-on-accent-container: #70401F;
+  --brand-border-subtle: #DEDDE5;
+  --brand-control-outline: #767E90;
+  --brand-warning-container: #FFF0CA;
+  --brand-on-warning-container: #805600;
+  --brand-error-container: #FCE8E9;
+  --brand-on-error-container: #B42332;
+}
+[data-brand-theme="dark"], .dark-display {
+  --brand-background: #11141D;
+  --brand-surface: #1D2230;
+  --brand-surface-muted: #2C3242;
+  --brand-text: #F3F1EC;
+  --brand-text-secondary: #BCC2D0;
+  --brand-primary: #BAC8FF;
+  --brand-primary-pressed: #A7B8F0;
+  --brand-on-primary: #172654;
+  --brand-primary-container: #26314E;
+  --brand-on-primary-container: #BAC8FF;
+  --brand-accent: #F1BE98;
+  --brand-on-accent: #56321C;
+  --brand-accent-container: #392A21;
+  --brand-on-accent-container: #FFD2AF;
+  --brand-border-subtle: #394052;
+  --brand-control-outline: #858FA5;
+  --brand-warning-container: #382B12;
+  --brand-on-warning-container: #FFE0A0;
+  --brand-error-container: #421F29;
+  --brand-on-error-container: #FFB5BE;
+}
