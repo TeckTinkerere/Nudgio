@@ -30,6 +30,8 @@ object MediaQuerySql {
 
     data class Criteria(
         val search: String? = null,
+        val location: String = "all",
+        val folderId: String? = null,
         val kinds: List<String> = emptyList(),
         val categoryId: String? = null,
         val onlyMissing: Boolean = false,
@@ -81,6 +83,17 @@ object MediaQuerySql {
     fun where(criteria: Criteria): Sql {
         val clauses = mutableListOf<String>()
         val args = mutableListOf<Any?>()
+
+        when (criteria.location) {
+            "all" -> Unit
+            "unsorted" -> clauses += "id NOT IN (SELECT media_id FROM library_memberships)"
+            "folder" -> {
+                require(!criteria.folderId.isNullOrBlank()) { "Folder ID is required." }
+                clauses += "id IN (SELECT media_id FROM library_memberships WHERE folder_id = ?)"
+                args += criteria.folderId
+            }
+            else -> throw IllegalArgumentException("Unsupported library location: ${criteria.location}")
+        }
 
         criteria.search
             ?.trim()

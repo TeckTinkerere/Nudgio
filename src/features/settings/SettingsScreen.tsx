@@ -43,6 +43,7 @@ import {
 import type {IconName, ThemePreference} from '../../design-system';
 import {
   useAppMutation,
+  useCapabilitySnapshot,
   useHaptics,
   usePreferences,
   useProfiles,
@@ -53,6 +54,7 @@ import {isBuiltInProfileNameKey} from '../../native-client/reminderProfileNameKe
 import type {ReminderProfile, UUID} from '../../native-client/types';
 import {PROFILE_DESCRIPTION_KEY, PROFILE_ICON} from '../reminders/profileDisplay';
 import {useScheduleTestReminder} from '../reminders/useScheduleTestReminder';
+import {statusKindFor, statusLabelKeyFor} from '../today/capabilityStatus';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
@@ -112,6 +114,8 @@ export function SettingsScreen() {
   const updatePreferences = useUpdatePreferences();
   const haptics = useHaptics();
   const profiles = useProfiles();
+  const capability = useCapabilitySnapshot();
+  const [profilesExpanded, setProfilesExpanded] = useState(false);
   const {showToast} = useToast();
   const testReminder = useScheduleTestReminder();
   const pickRingtone = useAppMutation({
@@ -287,6 +291,11 @@ export function SettingsScreen() {
             onPress={() => navigation.navigate(rootRoutes.health)}
             trailing={<Icon name="chevronRight" color={theme.color.onSurfaceVariant} />}
           />
+          {capability.data && <Stack gap="xxs">
+            <StatusPill kind={statusKindFor(capability.data.overall)} label={t(statusLabelKeyFor(capability.data.overall))} />
+            <Text variant="bodyMedium" tone="variant">{t(capability.data.overall === 'ok'
+              ? 'settings.alarmHealth.ready' : 'settings.alarmHealth.limited')}</Text>
+          </Stack>}
 
           <Stack gap="xxs" paddingVertical="xs">
             <Text variant="titleMedium">{t('settings.row.profiles')}</Text>
@@ -296,7 +305,9 @@ export function SettingsScreen() {
             <Text variant="labelMedium" tone="variant">
               {t('settings.alarmPreview.hint')}
             </Text>
-            {(profiles.data ?? []).map(profile => {
+            <Button label={t(profilesExpanded ? 'settings.profiles.hide' : 'settings.profiles.show')}
+              variant="tonal" onPress={() => setProfilesExpanded(value => !value)} />
+            {profilesExpanded && (profiles.data ?? []).map(profile => {
               const profileName = isBuiltInProfileNameKey(profile.nameKey)
                 ? t(profile.nameKey)
                 : profile.nameKey;
@@ -385,8 +396,8 @@ export function SettingsScreen() {
               t('settings.defaults.alarmRingtone.helper')
             }
             leading={<SettingsRowIcon name="notification" />}
-            trailing={
-              <Stack direction="row" align="center" gap="xxs">
+          />
+              <Stack direction="row" align="center" gap="xxs" wrap justify="flex-end">
                 <IconButton
                   name={isPreviewingTone ? 'pause' : 'play'}
                   label={t(
@@ -412,8 +423,6 @@ export function SettingsScreen() {
                   }}
                 />
               </Stack>
-            }
-          />
 
           <Divider spacing="xs" />
 

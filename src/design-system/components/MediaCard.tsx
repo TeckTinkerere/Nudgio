@@ -67,6 +67,7 @@ export interface MediaCardProps {
   /** Localized "Missing" label, shown on the fallback tile and in the a11y name. */
   readonly missingLabel?: string;
   readonly onPress?: () => void;
+  readonly onLongPress?: () => void;
   /**
    * Shown as a standalone circular affordance over the thumbnail for
    * video/audio only — present whenever the caller can offer in-place
@@ -100,6 +101,7 @@ export const MediaCard = memo(function MediaCardImpl({
   isMissing = false,
   missingLabel,
   onPress,
+  onLongPress,
   onPlayPress,
   playLabel,
   selected = false,
@@ -153,6 +155,7 @@ export const MediaCard = memo(function MediaCardImpl({
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
       testID={testID}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={accessibilityLabel}

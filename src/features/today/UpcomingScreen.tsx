@@ -48,6 +48,7 @@ import {rootRoutes} from '../../constants/routes';
 import {
   AppBar,
   Banner,
+  Button,
   Card,
   Dialog,
   EmptyState,
@@ -80,6 +81,7 @@ import {formatLocalTime, useTranslation} from '../../localization';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import type {MediaKind, ReminderSummary} from '../../native-client/types';
 import {MediaPreviewPlayer} from '../library/MediaPreviewPlayer';
+import {useSetReminderEnabled} from '../reminders/useSetReminderEnabled';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
@@ -109,6 +111,8 @@ export function UpcomingScreen() {
   const importMedia = useImportMedia();
   const reminders = useReminderList();
   const preferences = usePreferences();
+  const setEnabled = useSetReminderEnabled();
+  const [pauseReminder, setPauseReminder] = useState<ReminderSummary | null>(null);
   const [previewReminder, setPreviewReminder] = useState<ReminderSummary | null>(null);
   const appBar = useFloatingAppBar();
 
@@ -334,7 +338,7 @@ export function UpcomingScreen() {
                 </Text>
               </Stack>
             </Stack>
-            <Stack direction="row" gap="xs" justify="flex-end" paddingVertical="xs">
+            <Stack direction="row" gap="xs" wrap justify="flex-end" paddingVertical="xs">
               <IconButton
                 name="play"
                 label={t('today.playPreview')}
@@ -359,6 +363,8 @@ export function UpcomingScreen() {
                   })
                 }
               />
+              <Button label={t('today.pause')} variant="tonal"
+                disabled={setEnabled.isPending} onPress={() => setPauseReminder(nextEntry.reminder)} />
             </Stack>
           </Card>
         </Stack>
@@ -408,6 +414,15 @@ export function UpcomingScreen() {
         onScroll={appBar.onScroll}
         scrollEventThrottle={16}
       />
+      <Dialog visible={pauseReminder !== null} title={t('today.pauseTitle')}
+        body={t('today.pauseBody', {label: pauseReminder?.label ?? ''})}
+        cancel={{label: t('action.cancel'), onPress: () => setPauseReminder(null)}}
+        confirm={{label: t('today.pause'), onPress: () => {
+          if (!pauseReminder || setEnabled.isPending) {return;}
+          setEnabled.mutate({id: pauseReminder.id, enabled: false}, {
+            onSuccess: () => setPauseReminder(null),
+          });
+        }}} />
       {importMedia.error ? (
         <Dialog
           visible

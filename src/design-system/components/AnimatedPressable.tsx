@@ -31,6 +31,7 @@ const ReanimatedPressable = Animated.createAnimatedComponent(Pressable);
 export interface AnimatedPressableProps {
   readonly children: ReactNode;
   readonly onPress?: (event: GestureResponderEvent) => void;
+  readonly onLongPress?: (event: GestureResponderEvent) => void;
   /** Composed with the internal scale-down trigger, not a replacement for it. */
   readonly onPressIn?: (event: GestureResponderEvent) => void;
   /** Composed with the internal spring-release trigger, not a replacement for it. */
@@ -47,6 +48,7 @@ export interface AnimatedPressableProps {
 export function AnimatedPressable({
   children,
   onPress,
+  onLongPress,
   onPressIn,
   onPressOut,
   style,
@@ -68,6 +70,7 @@ export function AnimatedPressable({
   return (
     <ReanimatedPressable
       onPress={onPress}
+      onLongPress={onLongPress}
       disabled={disabled}
       accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel}

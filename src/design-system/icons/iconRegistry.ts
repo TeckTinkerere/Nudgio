@@ -28,6 +28,7 @@ export interface IconDefinition {
 }
 
 export const iconRegistry = {
+  folder: {paths: ['M3 5h7l2 2h9v12H3z']},
   // --- Primary alarm actions (MR-04 "Iconography") ---------------------------
   /** Filled play arrow. Never mirrored: it is a transport control. */
   play: {paths: ['M8 5.14v13.72a1 1 0 0 0 1.54.84l10.3-6.86a1 1 0 0 0 0-1.68L9.54 4.3A1 1 0 0 0 8 5.14z']},

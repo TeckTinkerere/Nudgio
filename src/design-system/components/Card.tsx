@@ -15,6 +15,7 @@ import {resolveSpace, type ElevationToken, type SpacingToken} from '../tokens';
 export interface CardProps {
   readonly children: React.ReactNode;
   readonly onPress?: () => void;
+  readonly onLongPress?: () => void;
   readonly padding?: SpacingToken | number;
   readonly elevation?: ElevationToken;
   /** Low-emphasis selected state uses the primary container role (MR-04). */
@@ -31,6 +32,7 @@ export interface CardProps {
 export function Card({
   children,
   onPress,
+  onLongPress,
   padding = 'md',
   elevation = 'level1',
   selected = false,
@@ -64,6 +66,7 @@ export function Card({
   return (
     <AnimatedPressable
       onPress={onPress}
+      onLongPress={onLongPress}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
       accessibilityRole="button"

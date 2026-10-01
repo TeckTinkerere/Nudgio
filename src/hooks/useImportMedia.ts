@@ -197,6 +197,7 @@ export const useImportMedia = () => {
 
   return {
     importMedia: mutation.mutate,
+    importMediaAsync: mutation.mutateAsync,
     isImporting: mutation.isPending,
     progress,
     cancel,

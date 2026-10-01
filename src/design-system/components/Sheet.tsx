@@ -27,6 +27,8 @@ export interface SheetProps {
   readonly closeLabel: string;
   readonly children: React.ReactNode;
   readonly testID?: string;
+  /** Lists own scrolling; never nest a virtualized list in the sheet ScrollView. */
+  readonly scrollable?: boolean;
 }
 
 export function Sheet({
@@ -36,6 +38,7 @@ export function Sheet({
   closeLabel,
   children,
   testID,
+  scrollable = true,
 }: SheetProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -69,6 +72,7 @@ export function Sheet({
             borderColor: theme.color.outlineVariant,
             paddingBottom: insets.bottom,
             maxHeight: isExtraLargeFontScale ? '100%' : '80%',
+            height: !scrollable ? (isExtraLargeFontScale ? '100%' : '80%') : undefined,
             flex: isExtraLargeFontScale ? 1 : undefined,
           }}>
           <View
@@ -85,14 +89,17 @@ export function Sheet({
             <IconButton name="close" label={closeLabel} onPress={onDismiss} />
           </View>
 
-          <ScrollView
+          {scrollable ? <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             contentContainerStyle={{
               paddingHorizontal: theme.layout.dialogPadding,
               paddingBottom: theme.spacing.xl,
               gap: theme.spacing.sm,
             }}>
             {children}
-          </ScrollView>
+          </ScrollView> : <View style={{flex: 1, paddingHorizontal: theme.layout.dialogPadding,
+            paddingBottom: theme.spacing.md, gap: theme.spacing.sm}}>{children}</View>}
         </View>
       </View>
     </Modal>

@@ -8,11 +8,12 @@ import type {MediaDetail, UUID} from '../../native-client/types';
  * `findMockMedia`, which could never resolve a real imported item's UUID —
  * every real import shows "not found" until a screen reads from here instead.
  */
-export const useMediaDetail = (id: UUID): AppQueryResult<MediaDetail> => {
+export const useMediaDetail = (id: UUID | undefined): AppQueryResult<MediaDetail> => {
   const {repositories} = useAppContainer();
 
   return useAppQuery({
-    queryKey: queryKeys.media.detail(id),
-    queryFn: () => unwrapResult(() => repositories.media.get(id)),
+    queryKey: id ? queryKeys.media.detail(id) : [...queryKeys.media.all(), 'detail', null],
+    enabled: Boolean(id),
+    queryFn: () => unwrapResult(() => repositories.media.get(id!)),
   });
 };

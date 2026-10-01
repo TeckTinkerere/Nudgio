@@ -32,6 +32,15 @@ export interface LibraryGridBodyProps {
   readonly onClearFilters: () => void;
   /** Forwarded to the grid list, so a floating `AppBar` above it can track scroll position. */
   readonly onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  readonly onLoadMore?: () => void;
+  readonly loadingMore?: boolean;
+  readonly header?: React.ReactElement;
+  readonly locationKey?: string;
+  readonly restoredOffset?: number;
+  readonly folders?: readonly {id: string; content: React.ReactNode}[];
+  readonly onImport?: () => void;
+  readonly emptyTitle?: string;
+  readonly emptyBody?: string;
 }
 
 const chunk = <T,>(items: readonly T[], size: number): T[][] => {
@@ -50,6 +59,15 @@ export function LibraryGridBody({
   isFiltered,
   onClearFilters,
   onScroll,
+  onLoadMore,
+  loadingMore = false,
+  header,
+  locationKey = 'library',
+  restoredOffset = 0,
+  folders = [],
+  onImport,
+  emptyTitle,
+  emptyBody,
 }: LibraryGridBodyProps) {
   const t = useTranslation();
 
@@ -57,7 +75,7 @@ export function LibraryGridBody({
   if (media.isPending) {
     return <LoadingState label={t('loading.startingUp')} />;
   }
-  if (media.isError) {
+  if (media.isError && !media.data) {
     return (
       <ErrorState
         title={t('error.unexpected.title')}
@@ -67,15 +85,8 @@ export function LibraryGridBody({
       />
     );
   }
-  if (importMedia.isImporting) {
-    return (
-      <ProgressBar
-        progress={importProgressFraction(importMedia.progress)}
-        label={t(importPhaseLabelKey(importMedia.progress?.phase) ?? 'library.import.copying')}
-      />
-    );
-  }
-  if (media.data.items.length === 0) {
+  if (!media.data) {return <LoadingState label={t('loading.startingUp')} />;}
+  if (media.data.items.length === 0 && folders.length === 0 && !header && !importMedia.isImporting) {
     /*
      * An empty result set has two distinct causes: a genuinely empty
      * library (first-run — the real fix is to import something) versus a
@@ -94,24 +105,42 @@ export function LibraryGridBody({
       <EmptyState
         testID={testIds.library.emptyState}
         icon="library"
-        title={t('library.empty.title')}
-        body={t('library.empty.body')}
-        action={{label: t('today.empty.importMedia'), onPress: () => importMedia.importMedia()}}
+        title={emptyTitle ?? t('library.empty.title')}
+        body={emptyBody ?? t('library.empty.body')}
+        action={{label: t('today.empty.importMedia'), onPress: onImport ?? (() => importMedia.importMedia())}}
       />
     );
   }
 
   const rows = chunk(media.data.items, mediaGridColumns);
+  const entries: Array<{key: string; folder?: React.ReactNode; media?: MediaSummary[]}> = [
+    ...folders.map(folder => ({key: `folder:${folder.id}`, folder: folder.content})),
+    ...rows.map(row => ({key: row.map(item => item.id).join(':'), media: row})),
+  ];
 
   return (
     <VirtualizedList
-      key={mediaGridColumns}
+      key={`${locationKey}:${mediaGridColumns}`}
+      contentOffset={{x: 0, y: restoredOffset}}
       testID={testIds.library.grid}
-      data={rows}
-      keyExtractor={row => row.map(item => item.id).join(':')}
-      renderItem={({item: row}) => (
+      data={entries}
+      ListHeaderComponent={<View>
+        {importMedia.isImporting && <ProgressBar
+          progress={importProgressFraction(importMedia.progress)}
+          label={t(importPhaseLabelKey(importMedia.progress?.phase) ?? 'library.import.copying')}
+        />}
+        {header}
+      </View>}
+      ListFooterComponent={media.isError ? <ErrorState
+        title={t('error.unexpected.title')}
+        effect={t('error.unexpected.effect')}
+        recoveryAction={{label: t('action.retry'), onPress: () => media.refetch()}}
+        diagnosticCode={media.error?.correlationId}
+      /> : loadingMore ? <LoadingState label={t('loading.startingUp')} /> : null}
+      keyExtractor={entry => entry.key}
+      renderItem={({item: entry}) => entry.folder ? <View style={styles.folder}>{entry.folder}</View> : (
         <View style={styles.row}>
-          {row.map(item => (
+          {entry.media?.map(item => (
             <View key={item.id} style={styles.cell}>
               {renderCard(item)}
             </View>
@@ -119,6 +148,8 @@ export function LibraryGridBody({
         </View>
       )}
       onScroll={onScroll}
+      onEndReached={media.data.hasMore && !loadingMore ? onLoadMore : undefined}
+      onEndReachedThreshold={0.4}
       scrollEventThrottle={16}
       showSeparators={false}
       // `md`, matching `layout.screenPaddingHorizontal` and the title row
@@ -135,6 +166,7 @@ export function LibraryGridBody({
 }
 
 const styles = StyleSheet.create({
+  folder: {marginBottom: 8},
   row: {flexDirection: 'row', gap: 8, marginBottom: 8},
   cell: {flex: 1},
 });
