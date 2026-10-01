@@ -1,6 +1,6 @@
 # Android Library redesign — familiar file explorer
 
-**Status:** Revised interaction plan, 1 October 2026; implementation is in progress and must be validated separately.  
+**Status:** Revised interaction plan, 1 October 2026; implementation is in progress and must be validated separately.
 **Scope:** Android Library browsing, organisation, and the reminder media picker. Local-only; one main-folder and one subfolder level; one folder home per asset. Backup repair and cross-device sync remain separate work.
 
 ## What is wrong today
