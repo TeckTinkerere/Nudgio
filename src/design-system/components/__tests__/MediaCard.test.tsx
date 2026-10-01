@@ -48,4 +48,17 @@ describe('MediaCard', () => {
     fireEvent.press(screen.getByRole('button'));
     expect(onPress).toHaveBeenCalledTimes(1);
   });
+
+  it('offers long press as a selection shortcut without activating the item', () => {
+    const onPress = jest.fn();
+    const onLongPress = jest.fn();
+    renderWithProviders(
+      <MediaCard title="Notebook" kind="text" kindLabel="Text"
+        onPress={onPress} onLongPress={onLongPress} />,
+    );
+
+    fireEvent(screen.getByRole('button'), 'longPress');
+    expect(onLongPress).toHaveBeenCalledTimes(1);
+    expect(onPress).not.toHaveBeenCalled();
+  });
 });

@@ -19,6 +19,28 @@ import org.junit.Test
 class MediaQuerySqlTest {
 
     @Test
+    fun `folder scope binds membership and never widens search`() {
+        val sql = MediaQuerySql.where(MediaQuerySql.Criteria(location = "folder", folderId = "folder-1", search = "note"))
+        assertTrue(sql.sql.contains("library_memberships WHERE folder_id = ?"))
+        assertTrue(sql.sql.contains(" AND "))
+        assertEquals(listOf<Any?>("folder-1", "%note%", "%note%"), sql.args)
+    }
+
+    @Test
+    fun `unsorted scope excludes assigned media`() {
+        val sql = MediaQuerySql.where(MediaQuerySql.Criteria(location = "unsorted"))
+        assertTrue(sql.sql.contains("NOT IN (SELECT media_id FROM library_memberships)"))
+        assertTrue(sql.args.isEmpty())
+    }
+
+    @Test
+    fun `folder scope rejects missing ID`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            MediaQuerySql.where(MediaQuerySql.Criteria(location = "folder"))
+        }
+    }
+
+    @Test
     fun `no criteria emits no WHERE clause`() {
         val sql = MediaQuerySql.page(MediaQuerySql.Criteria())
 

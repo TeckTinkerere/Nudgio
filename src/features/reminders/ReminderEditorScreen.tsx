@@ -54,7 +54,6 @@ import type {IconName} from '../../design-system';
 import {useTheme} from '../../design-system/theme/useTheme';
 import {
   useCapabilitySnapshot,
-  useMediaList,
   useOpenCapabilitySettings,
   usePreferences,
   useProfiles,
@@ -74,6 +73,8 @@ import type {
   UUID,
   ZoneId,
 } from '../../native-client/types';
+import {useMediaDetail} from '../library/useMediaDetail';
+import {statusKindFor, statusLabelKeyFor} from '../today/capabilityStatus';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ReminderEditor'>;
 
@@ -235,6 +236,7 @@ export function ReminderEditorScreen({navigation, route}: Props) {
       prefillMediaId={route.params.mediaId}
       profiles={profiles.data}
       defaultSnoozeMinutes={preferences.data?.defaultSnoozeMinutes ?? appConfig.snooze.presetMinutes[1]!}
+      use24HourTime={preferences.data?.use24HourTime ?? null}
     />
   );
 }
@@ -246,6 +248,7 @@ interface ReminderEditorFormProps {
   readonly profiles: readonly ReminderProfile[];
   /** Settings' "Default snooze duration" — the seed for a *new* reminder. */
   readonly defaultSnoozeMinutes: number;
+  readonly use24HourTime: boolean | null;
 }
 
 function ReminderEditorForm({
@@ -254,6 +257,7 @@ function ReminderEditorForm({
   prefillMediaId,
   profiles,
   defaultSnoozeMinutes,
+  use24HourTime,
 }: ReminderEditorFormProps) {
   const t = useTranslation();
   const isNew = existing === undefined;
@@ -274,12 +278,8 @@ function ReminderEditorForm({
       setMediaId(prefillMediaId);
     }
   }, [prefillMediaId]);
-  // MR-09 anticipates a large library; this unpaginated lookup (used only to
-  // resolve `mediaId` into the full `MediaSummary` the "What" card renders)
-  // is a known v1 scale limit shared with `mockMedia`'s previous placeholder
-  // — 200 covers real usage today. `SelectMediaScreen` runs its own,
-  // separately-filtered `useMediaList` query for actual browsing.
-  const mediaList = useMediaList({sort: 'recent', limit: 200});
+  // Resolve the selected item directly, even beyond the first library page.
+  const mediaDetail = useMediaDetail(mediaId);
   const [label, setLabel] = useState(existing?.label ?? '');
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [repeatType, setRepeatType] = useState<RepeatType>(existing?.schedule.type ?? 'daily');
@@ -313,6 +313,7 @@ function ReminderEditorForm({
   );
   const [historyEnabled, setHistoryEnabled] = useState(existing?.historyEnabled ?? true);
   const [labelTouched, setLabelTouched] = useState(false);
+  const [optionsExpanded, setOptionsExpanded] = useState(false);
   const appBar = useFloatingAppBar();
 
   // Every Save while notifications are blocked shows this nag (not just
@@ -334,9 +335,7 @@ function ReminderEditorForm({
     item => item.kind === 'exact_alarm' && item.status !== 'ready',
   ) ?? false;
 
-  const selectedMedia = mediaId
-    ? mediaList.data?.items.find(item => item.id === mediaId)
-    : undefined;
+  const selectedMedia = mediaDetail.data;
 
   /**
    * The authoritative `ScheduleRuleDto` for the current form state. MR-08:
@@ -382,45 +381,17 @@ function ReminderEditorForm({
 
   const previewText = useMemo(() => {
     const {hour, minute} = to24Hour(time);
-    const next = new Date();
-    next.setHours(hour, minute, 0, 0);
-    if (next.getTime() <= Date.now()) {
-      next.setDate(next.getDate() + 1);
-    }
-    // Client-side approximation only (see `scheduleRule`'s doc comment): for
-    // weekly/monthly/yearly/custom this walks forward from "tomorrow at the
-    // chosen time" to the next date the rule actually matches, purely so the
-    // Preview card has something concrete to show before Save round-trips.
-    if (repeatType === 'weekdays' && weekdays.length > 0) {
-      const targetSet = new Set(weekdays);
-      for (let i = 0; i < 7; i += 1) {
-        const isoWeekday = ((next.getDay() + 6) % 7) + 1;
-        if (targetSet.has(isoWeekday)) {
-          break;
-        }
-        next.setDate(next.getDate() + 1);
-      }
-    } else if (repeatType === 'monthly') {
-      next.setDate(1);
-      next.setMonth(next.getMonth() + (next.getDate() > dayOfMonth ? 1 : 0));
-      const daysInMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
-      next.setDate(Math.min(dayOfMonth, daysInMonth));
-    } else if (repeatType === 'yearly') {
-      const daysInMonth = new Date(next.getFullYear(), month, 0).getDate();
-      next.setMonth(month - 1, Math.min(dayOfMonth, daysInMonth));
-      if (next.getTime() <= Date.now()) {
-        next.setFullYear(next.getFullYear() + 1);
-      }
-    } else if (repeatType === 'custom') {
-      // Approximation: next multiple of `intervalDays` from today.
-      next.setDate(next.getDate());
-    }
-    const date = new Intl.DateTimeFormat(undefined, {weekday: 'long', day: 'numeric', month: 'long'}).format(next);
-    const timeLabel = new Intl.DateTimeFormat(undefined, {hour: 'numeric', minute: '2-digit'}).format(next);
-    return t('reminders.editor.previewNext', {date, time: timeLabel});
-  }, [t, time, repeatType, weekdays, dayOfMonth, month]);
+    const clock = new Date();
+    clock.setHours(hour, minute, 0, 0);
+    const timeLabel = new Intl.DateTimeFormat(undefined, {hour: 'numeric', minute: '2-digit',
+      ...(use24HourTime === null ? {} : {hour12: !use24HourTime})}).format(clock);
+    const repeat = repeatType === 'custom'
+      ? t('reminders.editor.intervalDaysValue', {days: intervalDays}) : t(REPEAT_LABEL_KEY[repeatType]);
+    return t('reminders.editor.scheduleSummary', {repeat, time: timeLabel});
+  }, [t, time, repeatType, intervalDays, use24HourTime]);
 
-  const isValid = label.trim().length > 0 && selectedMedia !== undefined;
+  const isValid = label.trim().length > 0 && selectedMedia !== undefined
+    && Boolean(profileId) && (repeatType !== 'weekdays' || weekdays.length > 0);
 
   const performSave = () => {
     if (!selectedMedia || !profileId) {
@@ -503,6 +474,17 @@ function ReminderEditorForm({
               onPress={() => navigation.navigate(rootRoutes.selectMedia, {selectedMediaId: mediaId})}
             />
           )}
+          {mediaId && mediaDetail.isPending && <LoadingState label={t('loading.startingUp')} />}
+          {mediaDetail.isError && <Button label={t('action.retry')} variant="tonal"
+            onPress={() => mediaDetail.refetch()} />}
+          <TextField
+            label={t('reminders.editor.label')}
+            placeholder={t('reminders.editor.labelPlaceholder')}
+            value={label}
+            onChangeText={value => {setLabel(value); setLabelTouched(true);}}
+            required
+            error={labelTouched && !label.trim() ? t('reminders.editor.validationLabelRequired') : undefined}
+          />
         </Stack>
 
         {/* When */}
@@ -529,11 +511,12 @@ function ReminderEditorForm({
                 selected={weekdays}
                 onChange={setWeekdays}
               />
+              {weekdays.length === 0 && <Text variant="bodyMedium" tone="error">{t('reminders.editor.validationWeekdaysRequired')}</Text>}
             </Stack>
           ) : null}
 
           {repeatType === 'monthly' || repeatType === 'yearly' ? (
-            <Stack direction="row" gap="lg">
+            <Stack direction="row" gap="lg" wrap>
               {repeatType === 'yearly' ? (
                 <Stack gap="xxs" align="center">
                   <Text variant="labelLarge" tone="variant">
@@ -605,6 +588,7 @@ function ReminderEditorForm({
         <Stack gap="xs">
           <Text variant="titleLarge">{t('reminders.editor.alertStyle')}</Text>
           <Stack gap="xs" accessibilityLabel={t('reminders.editor.alertStyle')}>
+            {profiles.length === 0 && <Text variant="bodyMedium" tone="error">{t('reminders.editor.validationProfileRequired')}</Text>}
             {profiles.map(profile => (
               <RadioCard
                 key={profile.id}
@@ -623,6 +607,9 @@ function ReminderEditorForm({
           </Stack>
         </Stack>
 
+        <Button label={t(optionsExpanded ? 'reminders.editor.hideOptions' : 'reminders.editor.moreOptions')}
+          variant="tonal" onPress={() => setOptionsExpanded(value => !value)} />
+        {optionsExpanded && <Stack gap="lg">
         {/* Snooze */}
         <Stack gap="xs">
           <Text variant="titleLarge">{t('reminders.editor.snooze')}</Text>
@@ -641,17 +628,6 @@ function ReminderEditorForm({
         {/* Options */}
         <Stack gap="sm">
           <Text variant="titleLarge">{t('reminders.editor.options')}</Text>
-          <TextField
-            label={t('reminders.editor.label')}
-            placeholder={t('reminders.editor.labelPlaceholder')}
-            value={label}
-            onChangeText={value => {
-              setLabel(value);
-              setLabelTouched(true);
-            }}
-            required
-            error={labelTouched && label.trim().length === 0 ? t('reminders.editor.validationLabelRequired') : undefined}
-          />
           <TextField
             label={t('library.detail.notes')}
             placeholder={t('reminders.editor.notesPlaceholder')}
@@ -674,12 +650,23 @@ function ReminderEditorForm({
           </Stack>
         </Stack>
 
+        </Stack>}
         {/* Preview */}
         <Stack gap="xs">
           <Text variant="titleLarge">{t('reminders.editor.preview')}</Text>
           <Card>
+            <Text variant="titleMedium">{label.trim() || t('reminders.editor.labelPlaceholder')}</Text>
+            {selectedMedia && <Text variant="bodyMedium" tone="variant">{selectedMedia.title}</Text>}
             <Text variant="titleMedium">{previewText}</Text>
-            <StatusPill kind="ready" label={t('today.status.ready')} />
+            {repeatType === 'weekdays' && <Text variant="bodyMedium" tone="variant">
+              {weekdayOptions(t).filter(option => weekdays.includes(option.isoWeekday)).map(option => option.label).join(', ')}
+            </Text>}
+            {(repeatType === 'monthly' || repeatType === 'yearly') && <Text variant="bodyMedium" tone="variant">
+              {t('reminders.editor.monthDaySummary', {day: dayOfMonth, month: repeatType === 'yearly' ? monthName(month) : t(REPEAT_LABEL_KEY.monthly)})}
+            </Text>}
+            <Text variant="bodyMedium" tone="variant">{t('reminders.editor.previewEstimate')}</Text>
+            <StatusPill kind={capability.data ? statusKindFor(capability.data.overall) : 'neutral'}
+              label={t(capability.data ? statusLabelKeyFor(capability.data.overall) : 'reminders.editor.checkingAlertSettings')} />
           </Card>
         </Stack>
 
@@ -700,6 +687,8 @@ function ReminderEditorForm({
           disabledReason={
             !selectedMedia
               ? t('reminders.editor.validationMediaRequired')
+              : !profileId ? t('reminders.editor.validationProfileRequired')
+              : repeatType === 'weekdays' && weekdays.length === 0 ? t('reminders.editor.validationWeekdaysRequired')
               : t('reminders.editor.validationLabelRequired')
           }
           fullWidth

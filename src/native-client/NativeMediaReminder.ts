@@ -102,6 +102,8 @@ export interface MediaDetailWire {
 
 export interface MediaQueryWire {
   readonly search?: string;
+  readonly location?: 'all' | 'unsorted' | 'folder';
+  readonly folderId?: string;
   readonly kinds?: readonly string[];
   readonly categoryId?: string;
   readonly onlyMissing?: boolean;

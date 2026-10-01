@@ -44,6 +44,8 @@ class MediaLibraryService(private val database: MediaReminderDatabase, private v
 
         return MediaQuerySql.Criteria(
             search = query.takeIf { it.hasKey("search") }?.getString("search"),
+            location = query.takeIf { it.hasKey("location") }?.getString("location") ?: "all",
+            folderId = query.takeIf { it.hasKey("folderId") }?.getString("folderId"),
             kinds = kinds,
             categoryId = query.takeIf { it.hasKey("categoryId") }?.getString("categoryId"),
             onlyMissing = query.hasKey("onlyMissing") && query.getBoolean("onlyMissing"),

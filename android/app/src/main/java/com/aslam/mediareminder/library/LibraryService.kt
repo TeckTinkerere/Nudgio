@@ -28,13 +28,13 @@ class LibraryService(private val db: MediaReminderDatabase) {
                 var undo: String? = null
                 val folders = dao.folders()
                 when (action) {
-                    "create", "rename", "pin" -> {
+                    "create", "rename", "pin", "reparent" -> {
                         val old = if (action == "create") null else folders.find { it.id == request.getString("id") }
                             ?: error("Folder no longer exists.")
                         val folder = LibraryFolderEntity(
                             id = old?.id ?: UUID.randomUUID().toString(),
-                            parentId = old?.parentId ?: request.optionalString("parentId"),
-                            name = if (action == "pin") old!!.name else FolderRules.name(request.getString("name")),
+                            parentId = if (action == "reparent") request.optionalString("parentId") else old?.parentId ?: request.optionalString("parentId"),
+                            name = if (action == "pin" || action == "reparent") old!!.name else FolderRules.name(request.getString("name")),
                             pinned = if (action == "pin") request.getBoolean("pinned") else old?.pinned ?: false,
                         )
                         FolderRules.validate((folders.filter { it.id != folder.id } + folder).map { it.rule() })
@@ -97,7 +97,6 @@ class LibraryService(private val db: MediaReminderDatabase) {
         val dao = db.libraryDao()
         val folders = dao.folders()
         val counts = dao.counts().associate { it.folderId to it.count }
-        val memberships = dao.memberships().groupBy { it.folderId }
         val state = dao.state() ?: LibraryStateEntity()
         val total = db.mediaDao().count()
         return JSONObject().put("revision", state.revision).put("total", total)
@@ -106,7 +105,6 @@ class LibraryService(private val db: MediaReminderDatabase) {
             .put("folders", JSONArray(folders.map { f ->
                 JSONObject().put("id", f.id).put("parentId", f.parentId ?: JSONObject.NULL).put("name", f.name).put("pinned", f.pinned)
                     .put("directCount", counts[f.id] ?: 0)
-                    .put("mediaIds", JSONArray(memberships[f.id].orEmpty().map { it.mediaId }))
                     .put("count", (counts[f.id] ?: 0) + folders.filter { it.parentId == f.id }.sumOf { counts[it.id] ?: 0 })
             }))
     }

@@ -47,7 +47,7 @@ export function useLibrarySelection() {
   const runDelete = useCallback(
     async (ids: readonly UUID[]) => {
       const results = await Promise.allSettled(
-        ids.map(id => deleteMedia.mutateAsync({id, cascadeDeleteReminders: true})),
+        ids.map(id => deleteMedia.mutateAsync({id, cascadeDeleteReminders: false})),
       );
       if (results.some(result => result.status === 'rejected')) {
         throw new Error('One or more selected assets failed to delete');
@@ -65,12 +65,11 @@ export function useLibrarySelection() {
           tone: 'info',
           haptic: 'warning',
         });
-        return;
+        return Promise.resolve(false);
       }
 
       const run = action === 'export' ? exportMedia.mutateAsync(ids) : runDelete(ids);
-      // eslint-disable-next-line no-void -- fire-and-forget: UI feedback is toast-driven, not awaited by the caller.
-      void run
+      return run
         .then(() => {
           showToast({
             message: t(
@@ -80,6 +79,7 @@ export function useLibrarySelection() {
             tone: 'success',
           });
           exitSelection();
+          return true;
         })
         .catch(() => {
           // Selection stays intact on failure so the user can retry without reselecting.
@@ -89,6 +89,7 @@ export function useLibrarySelection() {
             ),
             tone: 'error',
           });
+          return false;
         });
     },
     [exitSelection, exportMedia, runDelete, selectedIds, showToast, t],

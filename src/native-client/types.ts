@@ -110,6 +110,9 @@ export interface MediaDetail extends MediaSummary {
 
 export interface MediaQuery {
   readonly search?: string;
+  /** Folder views are database-scoped; omitted means every asset. */
+  readonly location?: 'all' | 'unsorted' | 'folder';
+  readonly folderId?: UUID;
   readonly kinds?: readonly MediaKind[];
   readonly categoryId?: UUID;
   readonly onlyMissing?: boolean;

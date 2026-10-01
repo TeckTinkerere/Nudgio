@@ -63,6 +63,8 @@ export function VirtualizedList<T>({
       // MR-13 ACC-003: content must stay reachable at large font scale, which
       // means real rows, not a fixed-height virtualization estimate.
       showsVerticalScrollIndicator
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
       // Android-specific perf win: detached rows release their native view.
       removeClippedSubviews
       testID={testID}
