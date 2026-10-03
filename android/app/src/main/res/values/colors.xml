@@ -45,6 +45,22 @@
     <color name="brand_dark_artwork_scrim_end">#FF11141D</color>
     <color name="brand_dark_hero_outline">#33BAC8FF</color>
 
+    <!--
+      Launcher icon. Deliberately bound to the brand_light_* tokens rather
+      than the day/night brand_* ones: a launcher icon is drawn once by the
+      system and must not follow the app's theme. The Android 13+ themed
+      variant is what adapts, and it is tinted from the wallpaper, so its own
+      colour only has to be opaque.
+
+      Flipping the plate and the mark here is all it takes to invert the icon
+      to cream-on-cobalt; cobalt-on-cream was chosen to match the logo and the
+      website header.
+    -->
+    <color name="ic_launcher_plate">@color/brand_light_surface</color>
+    <color name="ic_launcher_mark">@color/brand_light_primary</color>
+    <color name="ic_launcher_accent">@color/brand_light_secondary</color>
+    <color name="ic_launcher_mono">#FFFFFF</color>
+
     <color name="brand_primary">@color/brand_light_primary</color>
     <color name="brand_on_primary">@color/brand_light_on_primary</color>
     <color name="brand_primary_container">@color/brand_light_primary_container</color>
