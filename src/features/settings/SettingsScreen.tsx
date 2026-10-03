@@ -14,6 +14,7 @@ import {useCallback, useRef, useState} from 'react';
 import {StyleSheet} from 'react-native';
 
 import {useAppearanceSettings} from './useAppearanceSettings';
+import {useMediaStorageUsage} from './useMediaStorageUsage';
 import {useAppContainer} from '../../app/di';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {useToast} from '../../app/toast/ToastProvider';
@@ -49,12 +50,12 @@ import {
   useProfiles,
   useUpdatePreferences,
 } from '../../hooks';
-import {useTranslation, type TranslationKey} from '../../localization';
+import {formatStorageSize, useTranslation, type TranslationKey} from '../../localization';
 import {isBuiltInProfileNameKey} from '../../native-client/reminderProfileNameKeys';
 import type {ReminderProfile, UUID} from '../../native-client/types';
+import {statusKindFor, statusLabelKeyFor} from '../home/capabilityStatus';
 import {PROFILE_DESCRIPTION_KEY, PROFILE_ICON} from '../reminders/profileDisplay';
 import {useScheduleTestReminder} from '../reminders/useScheduleTestReminder';
-import {statusKindFor, statusLabelKeyFor} from '../today/capabilityStatus';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
@@ -69,10 +70,17 @@ const THEME_OPTIONS: readonly {
   {value: 'dark', labelKey: 'settings.appearance.theme.dark'},
 ];
 
+/**
+ * The same quiet uppercase label Home and the reminder editor use. It was
+ * `titleMedium`, which is exactly what several *rows* on this screen used
+ * for their own titles — so "Alert profiles" (a row) and "Reminders and
+ * alerts" (the section containing it) carried identical weight and the page
+ * read as a flat list of headings.
+ */
 function SectionHeader({label}: {readonly label: string}) {
   return (
-    <Text variant="titleMedium" tone="variant">
-      {label}
+    <Text variant="labelLarge" tone="variant" isHeading>
+      {label.toUpperCase()}
     </Text>
   );
 }
@@ -115,6 +123,31 @@ export function SettingsScreen() {
   const haptics = useHaptics();
   const profiles = useProfiles();
   const capability = useCapabilitySnapshot();
+  const storageUsage = useMediaStorageUsage();
+  // `undefined` while the first read is in flight, so the row shows its
+  // title and explainer with no subtitle rather than flashing "Nothing
+  // imported yet" at a user who has a full library.
+  const storageSubtitle = ((): string | undefined => {
+    const usage = storageUsage.data;
+    if (!usage) {
+      return undefined;
+    }
+    if (usage.itemCount === 0) {
+      return t('settings.row.storage.empty');
+    }
+    const items = `${usage.itemCount} ${t(
+      usage.itemCount === 1 ? 'settings.row.storage.item' : 'settings.row.storage.items',
+    )}`;
+    const base = t('settings.row.storage.subtitle', {
+      items,
+      size: formatStorageSize(usage.totalBytes),
+    });
+    // Appended rather than replacing the total: the user needs both "how
+    // much is Nudgio holding" and "how much of it is broken".
+    return usage.unavailableCount > 0
+      ? `${base} · ${t('settings.row.storage.unavailable', {count: usage.unavailableCount})}`
+      : base;
+  })();
   const [profilesExpanded, setProfilesExpanded] = useState(false);
   const {showToast} = useToast();
   const testReminder = useScheduleTestReminder();
@@ -255,14 +288,16 @@ export function SettingsScreen() {
             />
           </Stack>
 
-          <Divider spacing="xs" />
-
           {/*
             MR-04: Material You is opt-in; the toggle is only offered where the
             platform can supply a palette (API 31+, see DL-002 in
-            docs/decision-log.md).
+            docs/decision-log.md). The divider is inside the condition: left
+            outside it, a device without dynamic color drew two rules with
+            nothing between them.
           */}
           {appearance.dynamicColorSupported ? (
+            <>
+            <Divider spacing="xs" />
             <ListRow
               title={t('settings.appearance.materialYou')}
               subtitle={t('settings.appearance.materialYou.helper')}
@@ -275,6 +310,7 @@ export function SettingsScreen() {
                 />
               }
             />
+            </>
           ) : null}
         </Stack>
 
@@ -297,16 +333,29 @@ export function SettingsScreen() {
               ? 'settings.alarmHealth.ready' : 'settings.alarmHealth.limited')}</Text>
           </Stack>}
 
-          <Stack gap="xxs" paddingVertical="xs">
-            <Text variant="titleMedium">{t('settings.row.profiles')}</Text>
-            <Text variant="bodyMedium" tone="variant">
-              {t('settings.row.profiles.subtitle')}
-            </Text>
-            <Text variant="labelMedium" tone="variant">
-              {t('settings.alarmPreview.hint')}
-            </Text>
-            <Button label={t(profilesExpanded ? 'settings.profiles.hide' : 'settings.profiles.show')}
-              variant="tonal" onPress={() => setProfilesExpanded(value => !value)} />
+          {/*
+            A row that expands, not a heading with a paragraph and a tonal
+            button under it. The three-sentence caveat about what a preview
+            does and does not cover only appears once the list is open —
+            before that it explains a control the reader cannot see.
+          */}
+          <ListRow
+            title={t('settings.row.profiles')}
+            subtitle={t('settings.row.profiles.subtitle')}
+            onPress={() => setProfilesExpanded(value => !value)}
+            trailing={
+              <Icon
+                name={profilesExpanded ? 'chevronUp' : 'chevronDown'}
+                color={theme.color.onSurfaceVariant}
+              />
+            }
+          />
+          <Stack gap="xxs">
+            {profilesExpanded ? (
+              <Text variant="labelMedium" tone="variant">
+                {t('settings.alarmPreview.hint')}
+              </Text>
+            ) : null}
             {profilesExpanded && (profiles.data ?? []).map(profile => {
               const profileName = isBuiltInProfileNameKey(profile.nameKey)
                 ? t(profile.nameKey)
@@ -343,11 +392,11 @@ export function SettingsScreen() {
 
           <Divider spacing="xs" />
 
+          {/* No "Reminder defaults" heading: it sat *inside* "Reminders and
+              alerts" at the same weight as that section, and the field's own
+              label already says what this is. */}
           <Stack gap="xxs">
-            <Text variant="titleMedium">{t('settings.row.defaults')}</Text>
-            <Text variant="labelLarge" tone="variant">
-              {t('settings.defaults.snoozeLabel')}
-            </Text>
+            <Text variant="labelLarge">{t('settings.defaults.snoozeLabel')}</Text>
             <ChipRow>
               {appConfig.snooze.presetMinutes.map(minutes => (
                 <Chip
@@ -364,65 +413,84 @@ export function SettingsScreen() {
 
           <Divider spacing="xs" />
 
-          <ListRow
-            title={t('settings.defaults.deviceTimeFormat')}
-            trailing={
-              <Toggle
-                value={(preferences.data?.use24HourTime ?? null) === null}
-                onValueChange={next => updatePreferences.mutate({use24HourTime: next ? null : false})}
-                label={t('settings.defaults.deviceTimeFormat')}
-              />
-            }
-          />
-          <ListRow
-            title={t('settings.defaults.use24HourTime')}
-            subtitle={t('settings.defaults.use24HourTime.helper')}
-            trailing={
-              <Toggle
-                value={preferences.data?.use24HourTime ?? false}
-                disabled={(preferences.data?.use24HourTime ?? null) === null}
-                onValueChange={next => updatePreferences.mutate({use24HourTime: next})}
-                label={t('settings.defaults.use24HourTime')}
-              />
-            }
-          />
+          {/*
+            One control for one choice. This was two switches — "Use device
+            time format", and a "24-hour time" switch that the first one
+            disabled — so the setting had an unreachable state you had to
+            discover by toggling something else, and a disabled switch sat
+            there explaining itself in two lines. Device/12-hour/24-hour is a
+            single mutually-exclusive value, which is what `SegmentedControl`
+            already expresses directly above this for Theme.
+          */}
+          <Stack gap="xxs">
+            <Text variant="labelLarge">{t('settings.defaults.timeFormat')}</Text>
+            <SegmentedControl
+              accessibilityLabel={t('settings.defaults.timeFormat')}
+              value={
+                (preferences.data?.use24HourTime ?? null) === null
+                  ? 'device'
+                  : preferences.data?.use24HourTime
+                    ? 'h24'
+                    : 'h12'
+              }
+              onChange={next =>
+                updatePreferences.mutate({
+                  use24HourTime: next === 'device' ? null : next === 'h24',
+                })
+              }
+              options={[
+                {value: 'device', label: t('settings.defaults.timeFormat.device')},
+                {value: 'h12', label: t('settings.defaults.timeFormat.h12')},
+                {value: 'h24', label: t('settings.defaults.timeFormat.h24')},
+              ]}
+            />
+          </Stack>
 
           <Divider spacing="xs" />
 
+          {/*
+            One row, like every other: tap it to change the tone, with the
+            only other control — audition what is set — in the trailing slot.
+            The "Change" text button used to float *outside* the row,
+            right-aligned under it beside a second icon button, which is why
+            this one entry needed its own three-line layout.
+          */}
           <ListRow
             title={t('settings.defaults.alarmRingtone')}
             subtitle={
               preferences.data?.alarmRingtoneTitle ??
               t('settings.defaults.alarmRingtone.helper')
             }
-            leading={<SettingsRowIcon name="notification" />}
+            onPress={() => {
+              stopTonePreview();
+              pickRingtone.mutate(preferences.data?.alarmRingtoneUri ?? null);
+            }}
+            disabled={pickRingtone.isPending || updatePreferences.isPending}
+            accessibilityLabel={[
+              t('settings.defaults.alarmRingtone'),
+              preferences.data?.alarmRingtoneTitle ?? '',
+              t('settings.defaults.alarmRingtone.change'),
+            ]
+              .filter(Boolean)
+              .join('. ')}
+            trailing={
+              <IconButton
+                name={isPreviewingTone ? 'pause' : 'play'}
+                label={t(
+                  isPreviewingTone
+                    ? 'settings.defaults.alarmRingtone.stopPreview'
+                    : 'settings.defaults.alarmRingtone.preview',
+                )}
+                tone="primary"
+                selected={isPreviewingTone}
+                onPress={() =>
+                  isPreviewingTone
+                    ? stopTonePreview()
+                    : startTonePreview(preferences.data?.alarmRingtoneUri ?? null)
+                }
+              />
+            }
           />
-              <Stack direction="row" align="center" gap="xxs" wrap justify="flex-end">
-                <IconButton
-                  name={isPreviewingTone ? 'pause' : 'play'}
-                  label={t(
-                    isPreviewingTone
-                      ? 'settings.defaults.alarmRingtone.stopPreview'
-                      : 'settings.defaults.alarmRingtone.preview',
-                  )}
-                  tone="primary"
-                  selected={isPreviewingTone}
-                  onPress={() =>
-                    isPreviewingTone
-                      ? stopTonePreview()
-                      : startTonePreview(preferences.data?.alarmRingtoneUri ?? null)
-                  }
-                />
-                <Button
-                  label={t('settings.defaults.alarmRingtone.change')}
-                  variant="text"
-                  loading={pickRingtone.isPending || updatePreferences.isPending}
-                  onPress={() => {
-                    stopTonePreview();
-                    pickRingtone.mutate(preferences.data?.alarmRingtoneUri ?? null);
-                  }}
-                />
-              </Stack>
 
           <Divider spacing="xs" />
 
@@ -440,6 +508,23 @@ export function SettingsScreen() {
         {/* Data and privacy */}
         <Stack gap="xxs">
           <SectionHeader label={t('settings.section.dataAndPrivacy')} />
+
+          {/* Copying media means Nudgio holds real storage, and nothing in
+              the product ever said so. Informational rather than a link:
+              the Library already *is* the place media is managed, so a
+              "Manage storage" row would only be a second door to it. */}
+          <ListRow
+            title={t('settings.row.storage')}
+            subtitle={storageSubtitle}
+            leading={<SettingsRowIcon name="image" />}
+          />
+          <Stack paddingHorizontal="md">
+            <Text variant="bodyMedium" tone="variant">
+              {t('settings.storage.explainer')}
+            </Text>
+          </Stack>
+
+          <Divider spacing="xs" />
 
           <ListRow
             title={t('settings.row.backup')}
@@ -459,7 +544,7 @@ export function SettingsScreen() {
           <Divider spacing="xs" />
 
           <Stack gap="xxs">
-            <Text variant="titleMedium">{t('settings.row.privacy')}</Text>
+            <Text variant="labelLarge">{t('settings.row.privacy')}</Text>
             <Text variant="bodyMedium" tone="variant">
               {t('settings.privacy.body')}
             </Text>
@@ -471,11 +556,10 @@ export function SettingsScreen() {
         {/* Accessibility */}
         <Stack gap="xxs">
           <SectionHeader label={t('settings.row.accessibility')} />
-          <Stack gap="xxs">
-            <Stack direction="row" align="center" justify="space-between">
-              <Text variant="bodyLarge">
-                {t('settings.accessibility.reduceMotion')}
-              </Text>
+          <ListRow
+            title={t('settings.accessibility.reduceMotion')}
+            subtitle={t('settings.accessibility.reduceMotion.helper')}
+            trailing={
               <StatusPill
                 kind={theme.a11y.reduceMotion ? 'ready' : 'neutral'}
                 label={
@@ -484,14 +568,11 @@ export function SettingsScreen() {
                     : t('settings.accessibility.off')
                 }
               />
-            </Stack>
-            <Text variant="labelMedium" tone="variant">
-              {t('settings.accessibility.reduceMotion.helper')}
-            </Text>
-            <Text variant="labelMedium" tone="variant">
-              {t('settings.accessibility.fontScale')}
-            </Text>
-          </Stack>
+            }
+          />
+          <Text variant="labelMedium" tone="variant">
+            {t('settings.accessibility.fontScale')}
+          </Text>
 
           <Divider spacing="xs" />
 

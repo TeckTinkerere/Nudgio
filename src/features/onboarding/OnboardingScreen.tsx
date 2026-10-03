@@ -26,7 +26,7 @@
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useState} from 'react';
-import {Linking, StyleSheet, View} from 'react-native';
+import {Linking, ScrollView, StyleSheet, View} from 'react-native';
 import Animated, {FadeIn} from 'react-native-reanimated';
 
 import type {RootStackParamList} from '../../app/navigation/types';
@@ -97,7 +97,7 @@ function PermissionsPage() {
   const fullScreenIntent = items.find(item => item.kind === 'full_screen_intent');
 
   return (
-    <Stack style={styles.flexFill} justify="center" gap="lg" paddingHorizontal="lg">
+    <ScrollView contentContainerStyle={[styles.scrollFill, {padding: theme.spacing.lg, gap: theme.spacing.lg}]}>
       <Stack gap="xs" align="center">
         <Icon name="lock" size="xl" color={theme.color.onSurfaceVariant} />
         <Text variant="titleLarge" align="center" isHeading>
@@ -113,7 +113,7 @@ function PermissionsPage() {
         {exactAlarm ? <CapabilityRow item={exactAlarm} /> : null}
         {fullScreenIntent ? <CapabilityRow item={fullScreenIntent} /> : null}
       </Stack>
-    </Stack>
+    </ScrollView>
   );
 }
 
@@ -132,18 +132,26 @@ export function OnboardingScreen() {
   // fails (a transient bridge error, a cold-start race, anything). Both
   // outcomes navigate; a failed write only costs re-seeing Onboarding once
   // on the next launch, which is a far smaller problem than "no way out."
-  const handleStart = () => {
+  const finish = (createFirstReminder: boolean) => {
+    const leave = () => {
+      navigation.replace(rootRoutes.tabs);
+      if (createFirstReminder) {
+        navigation.navigate(rootRoutes.reminderEditor, {reminderId: undefined});
+      }
+    };
     updatePreferences.mutate(
       {hasCompletedOnboarding: true},
       {
-        onSuccess: () => navigation.replace(rootRoutes.tabs),
+        onSuccess: leave,
         onError: () => {
           showToast({message: t('error.unexpected.effect'), tone: 'error'});
-          navigation.replace(rootRoutes.tabs);
+          leave();
         },
       },
     );
   };
+  const handleStart = () => finish(true);
+  const handleSkip = () => finish(false);
 
   const goNext = () => {
     haptics.trigger('confirm');
@@ -183,14 +191,12 @@ export function OnboardingScreen() {
     <Screen testID={testIds.onboarding.screen}>
       <Stack style={styles.flexFill} justify="space-between">
         <Stack direction="row" justify="flex-end" paddingHorizontal="sm" paddingVertical="xs">
-          {isLastPage ? null : (
-            <Button
-              testID={testIds.onboarding.skipButton}
-              label={t('onboarding.skip')}
-              variant="text"
-              onPress={handleStart}
-            />
-          )}
+          <Button
+            testID={testIds.onboarding.skipButton}
+            label={isLastPage ? t('onboarding.exploreFirst') : t('onboarding.skip')}
+            variant="text"
+            onPress={handleSkip}
+          />
         </Stack>
 
         {theme.a11y.reduceMotion ? (
@@ -229,6 +235,7 @@ export function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   flexFill: {flex: 1},
+  scrollFill: {flexGrow: 1, justifyContent: 'center'},
   dot: {
     height: 8,
     borderRadius: 4,

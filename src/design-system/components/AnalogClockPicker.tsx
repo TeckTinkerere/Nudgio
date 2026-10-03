@@ -39,6 +39,14 @@ export interface AnalogClockPickerProps {
   /** 1-12 in `hour` mode, 0-59 in `minute` mode. */
   readonly value: number;
   readonly onChange: (next: number) => void;
+  /**
+   * The gesture that was setting the value has ended (finger lifted), as
+   * opposed to `onChange`, which fires continuously while a drag sweeps
+   * past values. Lets a caller advance to the next field the way the
+   * platform's own time picker moves from hour to minute — without
+   * advancing mid-drag the moment the hand crosses the first number.
+   */
+  readonly onCommit?: () => void;
   readonly onDismiss: () => void;
   readonly title: string;
   readonly doneLabel: string;
@@ -71,6 +79,7 @@ export function AnalogClockPicker({
   mode,
   value,
   onChange,
+  onCommit,
   onDismiss,
   title,
   doneLabel,
@@ -103,16 +112,22 @@ export function AnalogClockPicker({
     [onChange, value],
   );
 
+  const commit = useCallback(() => onCommit?.(), [onCommit]);
+
   const pan = Gesture.Pan()
     .onBegin(event => {
       runOnJS(apply)(valueFromPoint(event.x, event.y, radius, mode));
     })
     .onUpdate(event => {
       runOnJS(apply)(valueFromPoint(event.x, event.y, radius, mode));
+    })
+    .onEnd(() => {
+      runOnJS(commit)();
     });
 
   const tap = Gesture.Tap().onEnd(event => {
     runOnJS(apply)(valueFromPoint(event.x, event.y, radius, mode));
+    runOnJS(commit)();
   });
 
   // `Race`, not `Exclusive`: whichever recogniser wins wins outright, so a

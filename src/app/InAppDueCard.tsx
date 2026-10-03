@@ -21,6 +21,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {useSessionStore, type InAppDueBanner} from '../core/state/sessionStore';
 import {Button} from '../design-system/components/Button';
@@ -48,6 +49,7 @@ const flexOneStyle: ViewStyle = {flex: 1};
 export function InAppDueCard() {
   const theme = useTheme();
   const surface = useSurfaceStyle('level3');
+  const insets = useSafeAreaInsets();
   const {height: windowHeight} = useWindowDimensions();
   const container = useAppContainer();
   const {showToast} = useToast();
@@ -59,6 +61,7 @@ export function InAppDueCard() {
   const showDueBanner = useSessionStore(state => state.showDueBanner);
   const collapseDueBanner = useSessionStore(state => state.collapseDueBanner);
   const dismissDueBanner = useSessionStore(state => state.dismissDueBanner);
+  const openMoment = useSessionStore(state => state.openMoment);
 
   // Kept mounted through the exit animation — `banner` itself may already
   // be null by the time the fade-out finishes.
@@ -117,7 +120,9 @@ export function InAppDueCard() {
 
   // MR-04/MR-03: `min(144dp, 20% of usable viewport)` — a cap the card sizes
   // up to, not a fixed height MR-03 explicitly forbids promising.
-  const maxCardHeight = inAppStripMaxHeight(windowHeight);
+  // Plus the status bar: the strip is drawn edge-to-edge from the very top,
+  // and its content must start below the clock, not under it.
+  const maxCardHeight = inAppStripMaxHeight(windowHeight) + insets.top;
 
   const translateY = progress.interpolate({
     inputRange: [0, 1],
@@ -140,7 +145,10 @@ export function InAppDueCard() {
     borderBottomColor: surface.borderColor,
     borderBottomLeftRadius: theme.radius.card,
     borderBottomRightRadius: theme.radius.card,
-    paddingTop: theme.spacing.xl,
+    // `insets.top`: without it the title and the collapsed chip sat under
+    // the status bar, where the system takes the touches — the chip could
+    // not be tapped back open at all (seen on-device, DL-080 pass).
+    paddingTop: insets.top + theme.spacing.md,
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
     justifyContent: 'space-between',
@@ -168,6 +176,7 @@ export function InAppDueCard() {
   const runAction = (
     pattern: 'light' | 'confirm',
     action: (b: InAppDueBanner) => Promise<{ok: boolean}>,
+    onResolved?: (b: InAppDueBanner) => void,
   ) => {
     const current = rendered;
     haptics.trigger(pattern);
@@ -177,7 +186,9 @@ export function InAppDueCard() {
         if (!result.ok) {
           container.logger.warn('inAppDueCard.actionFailed', {sessionId: current.sessionId});
           showToast({message: t('error.unexpected.effect'), tone: 'error'});
+          return;
         }
+        onResolved?.(current);
       })
       .catch(() => {
         container.logger.warn('inAppDueCard.actionThrew', {sessionId: current.sessionId});
@@ -185,8 +196,14 @@ export function InAppDueCard() {
       });
   };
 
+  // Play opens the reminder's moment (DL-080) — before this, accepting from
+  // the in-app strip resolved the session and then showed nothing at all.
   const handleAccept = () =>
-    runAction('confirm', b => container.repositories.reminders.play(b.sessionId, b.nonce));
+    runAction(
+      'confirm',
+      b => container.repositories.reminders.play(b.sessionId, b.nonce),
+      b => openMoment({reminderId: b.occurrence.reminderId, mediaId: null}),
+    );
   const handleSnooze = () =>
     runAction('light', b =>
       container.repositories.reminders.snooze(b.sessionId, b.defaultSnoozeMinutes, b.nonce),
@@ -202,6 +219,7 @@ export function InAppDueCard() {
             banner={rendered}
             onExpand={() => showDueBanner(rendered)}
             onDismiss={() => dismissDueBanner()}
+            topInset={insets.top}
           />
         ) : (
           <View
@@ -232,7 +250,7 @@ export function InAppDueCard() {
                 <Button label={t('action.snooze')} variant="outlined" onPress={handleSnooze} fullWidth />
               </View>
               <View style={flexOneStyle}>
-                <Button label={t('action.accept')} variant="filled" onPress={handleAccept} fullWidth />
+                <Button label={t('action.open')} variant="filled" onPress={handleAccept} fullWidth />
               </View>
             </View>
           </View>
@@ -246,16 +264,17 @@ interface CollapsedChipProps {
   readonly banner: InAppDueBanner;
   readonly onExpand: () => void;
   readonly onDismiss: () => void;
+  readonly topInset: number;
 }
 
 const chipWrapStyle: ViewStyle = {alignItems: 'center'};
 const chipTextStyle: TextStyle = {maxWidth: 220};
 
-function CollapsedChip({banner, onExpand, onDismiss}: CollapsedChipProps) {
+function CollapsedChip({banner, onExpand, onDismiss, topInset}: CollapsedChipProps) {
   const theme = useTheme();
   const surface = useSurfaceStyle('level2');
 
-  const wrapStyle: ViewStyle = {...chipWrapStyle, paddingTop: theme.spacing.sm};
+  const wrapStyle: ViewStyle = {...chipWrapStyle, paddingTop: topInset + theme.spacing.xs};
   const pillStyle: ViewStyle = {
     flexDirection: 'row',
     alignItems: 'center',

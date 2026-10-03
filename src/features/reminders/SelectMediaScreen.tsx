@@ -1,24 +1,27 @@
 /**
- * Dedicated full-screen media picker for the reminder editor's "What"
- * section (spec: "replace the media-selection dropdown with a dedicated
- * Media Library page... browse assets visually through thumbnails and
- * preview or play all supported media types before making a selection").
+ * Full-screen media picker for the reminder editor's media stage: browse
+ * what has already been imported, preview it, choose it.
  *
- * Reuses Library's own thumbnail grid (`LibraryGridBody`/`MediaCard`) so
- * browsing here looks and behaves identically to Library itself — real
- * aspect-ratio-preserving thumbnails, the same loading/empty states, even
- * the same "Import media" empty-state affordance. The only differences from
- * Library proper: tapping a card opens `MediaSelectionPreviewModal` instead
- * of navigating to Media Detail (this is "a view-and-select experience
- * only," never an editing one), and confirming a selection from that
- * preview returns to the reminder editor automatically —
- * `navigation.navigate(..., {merge: true})` pops this screen and merges the
- * chosen id into `ReminderEditor`'s existing route params, which
- * `ReminderEditorForm` picks up via its own `prefillMediaId` effect — rather
- * than leaving the user to back out of a "Select" screen by hand.
+ * Renders the *same* square `MediaTile` gallery as the Library tab, at the
+ * same column count and gutter. It used to pass `MediaCard` to the shared
+ * `LibraryGridBody` instead — real-aspect-ratio cards in a ragged masonry —
+ * which was deliberate back when Library's own grid looked like that too.
+ * Library became a square album gallery and this screen did not follow, so
+ * the same media appeared in two different visual languages depending on how
+ * you arrived, and an audio file (no artwork, nothing to size) was stretched
+ * into a thousand-pixel empty box beside whatever tall photo happened to sit
+ * next to it. Shared grid, shared card, one language.
+ *
+ * Tapping a tile opens `MediaSelectionPreviewModal` rather than navigating to
+ * Media Detail — this is a view-and-select surface, never an editing one —
+ * and confirming there returns to the editor automatically:
+ * `navigation.popTo(..., {merge: true})` pops this screen and merges the
+ * chosen id into `ReminderEditor`'s existing route params, which the editor
+ * picks up via its own prefill effect.
  */
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useCallback, useMemo, useState} from 'react';
+import {StyleSheet, View} from 'react-native';
 
 import {MediaSelectionPreviewModal} from './MediaSelectionPreviewModal';
 import type {RootStackParamList} from '../../app/navigation/types';
@@ -28,7 +31,8 @@ import {
   AppBar,
   Chip,
   ChipRow,
-  MediaCard,
+  IconButton,
+  MediaTile,
   Screen,
   Stack,
   TextField,
@@ -58,6 +62,9 @@ const KIND_LABEL_KEY: Record<MediaKind, TranslationKey> = {
   text: 'library.kind.text',
 };
 
+/** Matches `LibraryScreen`'s gallery exactly — same gutter, same column bump. */
+const GALLERY_GAP = 3;
+
 export function SelectMediaScreen({navigation, route}: Props) {
   const t = useTranslation();
   const {mediaGridColumns} = useResponsive();
@@ -65,6 +72,9 @@ export function SelectMediaScreen({navigation, route}: Props) {
   const selectedMediaId = route.params?.selectedMediaId;
 
   const [search, setSearch] = useState('');
+  // Hidden until asked for, exactly as Library does it: a browse screen's
+  // top belongs to the media, not to a field most visits never use.
+  const [searchOpen, setSearchOpen] = useState(false);
   const [activeKind, setActiveKind] = useState<MediaKind | null>(null);
   const [previewItem, setPreviewItem] = useState<MediaSummary | null>(null);
   const appBar = useFloatingAppBar();
@@ -77,6 +87,11 @@ export function SelectMediaScreen({navigation, route}: Props) {
   const clearFilters = useCallback(() => {
     setSearch('');
     setActiveKind(null);
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setSearch('');
+    setSearchOpen(false);
   }, []);
 
   const query = useMemo<MediaQuery>(
@@ -92,36 +107,50 @@ export function SelectMediaScreen({navigation, route}: Props) {
 
   const media = useMediaList(query);
 
+  /**
+   * `popTo`, not `navigate`. React Navigation 7 changed `navigate` so that it
+   * pushes a new screen rather than returning to an existing one — `popTo` is
+   * now the API for "go back to that screen and merge these params". With
+   * `navigate` this screen stayed on the stack under a *second*, freshly
+   * mounted editor: Back from the editor landed on the picker instead of
+   * where the user started, that second editor was the one holding the
+   * media while the original underneath still showed none, and saving popped
+   * into the picker rather than Home.
+   */
   const confirmSelection = useCallback(
     (id: MediaSummary['id']) => {
       setPreviewItem(null);
-      navigation.navigate({
-        name: rootRoutes.reminderEditor,
-        params: {reminderId: undefined, mediaId: id},
-        merge: true,
-      });
+      navigation.popTo(rootRoutes.reminderEditor, {reminderId: undefined, mediaId: id}, {merge: true});
     },
     [navigation],
   );
 
   const renderCard = useCallback(
-    (item: MediaSummary) => (
-      <MediaCard
-        title={item.title}
-        kind={item.kind}
-        kindLabel={t(KIND_LABEL_KEY[item.kind])}
-        thumbnailUri={thumbnailImageSource(item.thumbnailToken)?.uri}
-        aspectRatio={item.widthPx && item.heightPx ? item.widthPx / item.heightPx : undefined}
-        durationLabel={item.durationMs ? formatDurationCompact(item.durationMs) : undefined}
-        durationAccessibleLabel={
-          item.durationMs ? formatDurationAccessible(item.durationMs, formatEnglishUnit) : undefined
-        }
-        isMissing={item.integrity === 'missing'}
-        missingLabel={t('library.integrity.missing')}
-        selected={item.id === selectedMediaId}
-        onPress={() => setPreviewItem(item)}
-      />
-    ),
+    (item: MediaSummary) => {
+      const spoken = [
+        t(KIND_LABEL_KEY[item.kind]),
+        item.title,
+        item.durationMs ? formatDurationAccessible(item.durationMs, formatEnglishUnit) : null,
+        item.integrity === 'missing' ? t('library.integrity.missing') : null,
+      ]
+        .filter(Boolean)
+        .join('. ');
+      return (
+        <MediaTile
+          title={item.title}
+          kind={item.kind}
+          thumbnailUri={thumbnailImageSource(item.thumbnailToken)?.uri}
+          durationLabel={item.durationMs ? formatDurationCompact(item.durationMs) : undefined}
+          isMissing={item.integrity === 'missing'}
+          // The already-attached item reads as checked, so returning here to
+          // swap media shows which one is currently in use.
+          selectionMode={item.id === selectedMediaId}
+          selected={item.id === selectedMediaId}
+          onPress={() => setPreviewItem(item)}
+          accessibilityLabel={spoken}
+        />
+      );
+    },
     [selectedMediaId, t],
   );
 
@@ -134,17 +163,33 @@ export function SelectMediaScreen({navigation, route}: Props) {
         <AppBar
           title={t('reminders.selectMedia.title')}
           back={{label: t('action.back'), onPress: () => navigation.goBack()}}
+          actions={[
+            {
+              icon: 'search',
+              label: t('library.explorer.searchLibrary'),
+              onPress: () => (searchOpen ? closeSearch() : setSearchOpen(true)),
+            },
+          ]}
           floating
           onHeightChange={appBar.onHeightChange}
         />
       }>
       <Stack gap="xs" paddingHorizontal="md" paddingVertical="sm" style={{paddingTop: appBar.barHeight}}>
-        <TextField
-          label={t('library.search.placeholder')}
-          value={search}
-          onChangeText={setSearch}
-          testID={testIds.reminders.selectMediaSearchField}
-        />
+        {searchOpen ? (
+          <Stack direction="row" align="center" gap="xxs">
+            <View style={styles.flex}>
+              <TextField
+                label={t('library.explorer.searchLibrary')}
+                placeholder={t('library.albums.searchPlaceholder')}
+                value={search}
+                onChangeText={setSearch}
+                returnKeyType="search"
+                testID={testIds.reminders.selectMediaSearchField}
+              />
+            </View>
+            <IconButton name="close" label={t('library.albums.closeSearch')} onPress={closeSearch} />
+          </Stack>
+        ) : null}
         <ChipRow>
           {KIND_FILTERS.map(filter => (
             <Chip
@@ -160,8 +205,10 @@ export function SelectMediaScreen({navigation, route}: Props) {
       <LibraryGridBody
         media={media}
         importMedia={importMedia}
-        mediaGridColumns={mediaGridColumns}
+        mediaGridColumns={mediaGridColumns + 1}
         renderCard={renderCard}
+        gap={GALLERY_GAP}
+        fillLastRow={false}
         isFiltered={isFiltered}
         onClearFilters={clearFilters}
       />
@@ -177,3 +224,7 @@ export function SelectMediaScreen({navigation, route}: Props) {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: {flex: 1},
+});

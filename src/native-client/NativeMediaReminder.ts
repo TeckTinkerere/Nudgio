@@ -189,6 +189,13 @@ export interface OccurrenceSummaryWire {
   readonly state: string;
 }
 
+/** `ReminderActionDto`, flattened for Codegen (no object unions). */
+export interface ReminderActionWire {
+  readonly type: string;
+  readonly uri: string;
+  readonly label?: string | null;
+}
+
 export interface ReminderSummaryWire {
   readonly id: string;
   readonly label: string;
@@ -197,12 +204,16 @@ export interface ReminderSummaryWire {
   readonly thumbnailToken?: string;
   /** Absent only when the joined media row itself is null (see `ReminderDtoWriter.kt`'s doc). */
   readonly sourceToken?: string;
+  /** See `ReminderSummary.mediaMissing`. Absent on builds older than the integrity sweep. */
+  readonly mediaMissing?: boolean;
   readonly profileId: string;
   readonly enabledIntent: boolean;
   readonly effectiveState: string;
   readonly nextOccurrence: OccurrenceSummaryWire | null;
   readonly repeatSummary: string;
+  readonly notes?: string;
   readonly schedule: ScheduleRuleWire;
+  readonly action?: ReminderActionWire | null;
 }
 
 export interface ReminderDetailWire {
@@ -223,6 +234,7 @@ export interface ReminderDetailWire {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly entityVersion: number;
+  readonly action?: ReminderActionWire | null;
 }
 
 export interface ReminderPageWire {
@@ -242,6 +254,8 @@ export interface SaveReminderRequestWire {
   readonly profileId: string;
   readonly snooze: SnoozePolicyWire;
   readonly enabledIntent: boolean;
+  readonly historyEnabled?: boolean;
+  readonly action?: ReminderActionWire | null;
 }
 
 export interface CapabilityEvaluationWire {
@@ -259,6 +273,23 @@ export interface SaveReminderResultWire {
 export interface EnableResultWire {
   readonly reminder: ReminderSummaryWire;
   readonly nextOccurrence: OccurrenceSummaryWire | null;
+}
+
+/** Wire shape of `ReplaceMediaSourceRequest`. `sizeBytes` is a decimal string, as everywhere else. */
+export interface ReplaceMediaSourceRequestWire {
+  readonly mediaId: string;
+  readonly sourceUri: string;
+  readonly displayName?: string;
+  readonly mimeType?: string;
+  readonly sizeBytes?: string;
+}
+
+/** Wire shape of `MediaStorageUsage`. `totalBytes` is a decimal string, like every other MR-08 byte count. */
+export interface MediaStorageUsageWire {
+  readonly itemCount: number;
+  readonly totalBytes: string;
+  /** Assets whose row exists but whose bytes are gone — see `MediaStorageUsage`. */
+  readonly unavailableCount: number;
 }
 
 export interface MutationResultWire {
@@ -545,6 +576,28 @@ export interface Spec extends TurboModule {
   exportMediaAssets(ids: readonly string[]): Promise<MutationResultWire>;
 
   /**
+   * Points an existing media record at newly picked bytes, keeping its id,
+   * so every reminder referencing it is repaired by one action.
+   *
+   * Same rejection codes as `beginMediaImport` — it runs the same copy,
+   * probe and thumbnail pipeline.
+   */
+  replaceMediaSource(request: ReplaceMediaSourceRequestWire): Promise<MediaDetailWire>;
+
+  /**
+   * Saves a copy of one managed asset into the device's own gallery, under
+   * `Pictures/Nudgio`, `Movies/Nudgio` or `Music/Nudgio` by kind.
+   *
+   * Resolves `{status: 'limited'}` rather than rejecting when the platform
+   * (below API 29) or the kind has no supported destination — a capability
+   * gap for the UI to explain, not an error the user caused.
+   */
+  saveMediaCopyToGallery(id: string): Promise<MutationResultWire>;
+
+  /** Managed-media storage totals for the Settings storage row. */
+  getMediaStorageUsage(): Promise<MediaStorageUsageWire>;
+
+  /**
    * Triggers the real OS runtime-permission dialog for `POST_NOTIFICATIONS`
    * (MR-06 `notifications` capability's `request_runtime` action) — resolves
    * `{granted: true}` immediately pre-API-33, where the permission does not
@@ -558,7 +611,7 @@ export interface Spec extends TurboModule {
   resetBuiltInProfile(id: string): Promise<ReminderProfileWire>;
 
   openCapabilitySettings(kind: string): Promise<Object>;
-  /** `{mediaId: string | null}` — see `PendingMediaOpen` on the native side. */
+  /** `{reminderId: string | null, mediaId: string | null}` — see `PendingMediaOpen` on the native side. */
   takePendingMediaOpen(): Promise<Object>;
   /** `StatisticsSummary` — real aggregation over `occurrences`. */
   getStatistics(rangeDays: number): Promise<Object>;

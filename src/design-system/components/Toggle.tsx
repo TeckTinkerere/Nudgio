@@ -50,12 +50,23 @@ export function Toggle({
         accessibilityState={{checked: value, disabled}}
         accessibilityHint={hint}
         testID={testID}
+        /*
+         * The off track is `outlineVariant`, not a surface role. It used to
+         * be `surfaceContainerHigh`, which sits a hair away from the page
+         * behind it — so an *off* switch showed no track at all, just its
+         * thumb floating as a lone grey circle that read as a rendering
+         * fault rather than a control. (Material draws the unselected track
+         * with a 2 dp outline border for exactly this reason; React Native's
+         * `Switch` has no border, so the track itself has to carry the
+         * definition.) The thumb then takes a surface role so it stays
+         * legible against that darker track.
+         */
         trackColor={{
-          false: theme.color.surfaceContainerHigh,
+          false: theme.color.outlineVariant,
           true: theme.color.primaryContainer,
         }}
-        thumbColor={value ? theme.color.primary : theme.color.outline}
-        ios_backgroundColor={theme.color.surfaceContainerHigh}
+        thumbColor={value ? theme.color.primary : theme.color.surface}
+        ios_backgroundColor={theme.color.outlineVariant}
       />
     </View>
   );

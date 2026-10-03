@@ -11,6 +11,13 @@
  * dragged. The analog dial owns its gesture outright (it lives in a modal,
  * with nothing above it competing) and gives every one of the 60 minutes.
  *
+ * Setting the hour advances to the minute automatically, on the gesture's
+ * end rather than on each value change — the platform's own picker does the
+ * same, and without it "set a time" was two separate modals the user had to
+ * know to open, with nothing to stop them setting the hour and walking away
+ * with yesterday's minute still in place. Tapping the minute field on its
+ * own still edits only the minute.
+ *
  * AM/PM stays inline as a segmented control rather than a third overlay:
  * it is a binary choice, and making it a two-tap flow to change one bit
  * would be worse than the wheel it replaced.
@@ -56,6 +63,10 @@ export function TimePicker({
 }: TimePickerProps) {
   const theme = useTheme();
   const [editing, setEditing] = useState<ClockMode | null>(null);
+  // Only an hour opened *as the start of setting a time* advances to the
+  // minute. Re-opening the hour by itself to correct it does not, which is
+  // why this is a separate flag rather than `editing === 'hour'`.
+  const [advanceAfterHour, setAdvanceAfterHour] = useState(false);
 
   const fieldStyle = (active: boolean) => [
     styles.field,
@@ -71,7 +82,10 @@ export function TimePicker({
     <Stack testID={testID} gap="sm" align="center">
       <Stack direction="row" align="center" justify="center" gap="xs">
         <AnimatedPressable
-          onPress={() => setEditing('hour')}
+          onPress={() => {
+            setAdvanceAfterHour(true);
+            setEditing('hour');
+          }}
           accessibilityRole="button"
           accessibilityLabel={`${hourLabel}: ${value.hour}`}
           style={fieldStyle(editing === 'hour')}>
@@ -83,7 +97,10 @@ export function TimePicker({
         <Text variant="displaySmall">:</Text>
 
         <AnimatedPressable
-          onPress={() => setEditing('minute')}
+          onPress={() => {
+            setAdvanceAfterHour(false);
+            setEditing('minute');
+          }}
           accessibilityRole="button"
           accessibilityLabel={`${minuteLabel}: ${pad2(value.minute)}`}
           style={fieldStyle(editing === 'minute')}>
@@ -110,7 +127,16 @@ export function TimePicker({
         onChange={next =>
           onChange(editing === 'minute' ? {...value, minute: next} : {...value, hour: next})
         }
-        onDismiss={() => setEditing(null)}
+        onCommit={() => {
+          if (editing === 'hour' && advanceAfterHour) {
+            setAdvanceAfterHour(false);
+            setEditing('minute');
+          }
+        }}
+        onDismiss={() => {
+          setAdvanceAfterHour(false);
+          setEditing(null);
+        }}
         title={editing === 'minute' ? minuteLabel : hourLabel}
         doneLabel={doneLabel}
       />

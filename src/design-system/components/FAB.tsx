@@ -16,6 +16,7 @@
  */
 import {Pressable, StyleSheet} from 'react-native';
 
+import {Text} from './Text';
 import {Icon, type IconName} from '../icons';
 import {useRippleConfig, useTheme} from '../theme/useTheme';
 
@@ -26,13 +27,19 @@ export interface FABProps {
   readonly onPress: () => void;
   /** Distance from the screen's bottom edge, e.g. clearing a tab bar. Defaults to a plain safe-area-free margin. */
   readonly bottomOffset?: number;
+  /**
+   * M3 extended FAB: shows `label` beside the icon. Use it for the screen's
+   * one primary action ("New reminder"), where a bare "+" leaves people
+   * guessing what it adds.
+   */
+  readonly extended?: boolean;
   readonly testID?: string;
 }
 
 const SIZE = 56;
 const DEFAULT_MARGIN = 16;
 
-export function FAB({icon, label, onPress, bottomOffset = DEFAULT_MARGIN, testID}: FABProps) {
+export function FAB({icon, label, onPress, bottomOffset = DEFAULT_MARGIN, extended = false, testID}: FABProps) {
   const theme = useTheme();
   const ripple = useRippleConfig();
 
@@ -45,6 +52,7 @@ export function FAB({icon, label, onPress, bottomOffset = DEFAULT_MARGIN, testID
       android_ripple={ripple}
       style={({pressed}) => [
         styles.base,
+        extended ? {width: undefined, paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm} : null,
         {
           right: theme.spacing.md,
           bottom: bottomOffset,
@@ -55,6 +63,11 @@ export function FAB({icon, label, onPress, bottomOffset = DEFAULT_MARGIN, testID
         },
       ]}>
       <Icon name={icon} color={theme.color.onPrimaryContainer} />
+      {extended ? (
+        <Text variant="labelLarge" style={{color: theme.color.onPrimaryContainer}}>
+          {label}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -63,7 +76,8 @@ const styles = StyleSheet.create({
   base: {
     position: 'absolute',
     width: SIZE,
-    height: SIZE,
+    minHeight: SIZE,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },

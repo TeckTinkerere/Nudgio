@@ -48,6 +48,7 @@ import com.aslam.mediareminder.media.MediaImporter
 import com.aslam.mediareminder.media.MediaLibraryService
 import com.aslam.mediareminder.media.MediaPicker
 import com.aslam.mediareminder.media.MediaStorage
+import com.aslam.mediareminder.media.MediaStoreExporter
 import com.aslam.mediareminder.library.LibraryService
 import com.aslam.mediareminder.notifications.NotificationCoordinator
 import com.aslam.mediareminder.reminders.ActionResultWriter
@@ -89,8 +90,12 @@ class MediaReminderModule(
     private val preferences = PreferencesRepository(reactContext)
     private val database = MediaReminderDatabase.getInstance(reactContext)
     private val reminderMutations = ReminderMutationService(reactContext, database)
-    private val mediaLibrary = MediaLibraryService(database, MediaStorage(reactContext))
-    private val libraryService = LibraryService(database)
+    /** Hoisted so the library service and the startup partial-file sweep share one instance. */
+    private val mediaStorage = MediaStorage(reactContext)
+    private val mediaLibrary = MediaLibraryService(database, mediaStorage)
+    private val libraryService = MediaStorage(reactContext).let { storage ->
+        LibraryService(database) { media -> com.aslam.mediareminder.media.MediaThumbnailUri.resolveThumbnail(media, storage) }
+    }
 
     /**
      * [pickDocument]'s in-flight promises, keyed by the `startActivityForResult`
@@ -165,6 +170,44 @@ class MediaReminderModule(
             runCatching { mediaLibrary.backfillMissingThumbnails() }
                 .onFailure { NativeLogger.error("media.thumbnailBackfillFailed", cause = it) }
         }
+
+        // Reconciles managed media against the filesystem and stops the
+        // reminders whose bytes have gone (`MediaLibraryService.sweepIntegrity`).
+        //
+        // The reminder side is done here rather than inside the sweep for the
+        // same reason `deleteMedia` below composes the two: disabling a
+        // reminder is `ReminderMutationService`'s job, including the alarm
+        // rescheduling that follows, and `media/` must not reach into
+        // `reminders/`. Disable, never delete — the user's reminder is still
+        // a thing they asked for, and a replaceable asset should not take it
+        // down with it.
+        //
+        // Also sweeps `.part` files. `MediaStorage.sweepPartials`, whose own
+        // doc says "[sweepPartials] removes them", had no caller: the
+        // importer deletes its own partial on every failure it can catch, so
+        // what leaked was the case it cannot — process death mid-copy, which
+        // is precisely what a startup sweep is for.
+        moduleScope.launch {
+            runCatching {
+                val swept = mediaStorage.sweepPartials()
+                val outcome = mediaLibrary.sweepIntegrity()
+                for (mediaId in outcome.newlyMissing) {
+                    for (reminderId in mediaLibrary.attachedReminderIds(mediaId)) {
+                        reminderMutations.setEnabled(reminderId, false)
+                    }
+                }
+                if (swept > 0 || outcome.newlyMissing.isNotEmpty() || outcome.recovered.isNotEmpty()) {
+                    NativeLogger.debug(
+                        "media.integritySweep",
+                        mapOf(
+                            "partialsRemoved" to swept,
+                            "newlyMissing" to outcome.newlyMissing.size,
+                            "recovered" to outcome.recovered.size,
+                        ),
+                    )
+                }
+            }.onFailure { NativeLogger.error("media.integritySweepFailed", cause = it) }
+        }
     }
 
     override fun getName(): String = NAME
@@ -182,8 +225,11 @@ class MediaReminderModule(
             // pre-Room placeholder values from this module's very first
             // foundation slice and were never updated, which meant
             // `TodayScreen`'s `hasReminders` check (`activeReminderCount > 0`)
-            // could never be true on a real device. `mediaCount` genuinely
-            // stays 0 — no media table exists yet (DL-012).
+            // could never be true on a real device. `mediaCount` reads the
+            // real `media_assets` count — the note that once said it "stays
+            // 0, no media table exists yet" outlived the media slice by a
+            // long way, and the Backup screen's own preflight has been
+            // reading this number all along.
             val activeReminderCount = database.reminderDao().countEnabled()
             val nextOccurrence = database.occurrenceDao().getEarliestEligible()
             val snapshot: WritableMap = Arguments.createMap().apply {
@@ -677,6 +723,182 @@ class MediaReminderModule(
     }
 
     /**
+     * Points an existing media record at newly picked bytes, keeping its id
+     * (`MediaImporter.replaceSource`).
+     *
+     * The repair path for an asset whose file is gone. Because the id is
+     * preserved, every reminder referencing it is fixed by this one action —
+     * the reminders stay disabled, though: the integrity sweep stopped them
+     * without being asked, and re-arming someone's alarms unasked is not
+     * this method's call to make. Their rows simply become toggleable again.
+     */
+    @ReactMethod
+    fun replaceMediaSource(request: ReadableMap, promise: Promise) {
+        val mediaId = request.getString("mediaId")
+        val sourceUri = request.getString("sourceUri")
+        if (mediaId.isNullOrBlank() || sourceUri.isNullOrBlank()) {
+            NativeErrorEnvelope.reject(
+                promise, "MR_VALIDATION_FAILED", "error.validationFailed",
+                NativeErrorEnvelope.Category.VALIDATION,
+                field = if (mediaId.isNullOrBlank()) "mediaId" else "sourceUri",
+            )
+            return
+        }
+        val mimeType = if (request.hasKey("mimeType")) request.getString("mimeType") else null
+        val declaredSizeBytes = if (request.hasKey("sizeBytes")) {
+            request.getString("sizeBytes")?.toLongOrNull()
+        } else {
+            null
+        }
+
+        val operationId = UUID.randomUUID().toString()
+        OperationRegistry.register(operationId)
+        moduleScope.launch {
+            try {
+                val importer = MediaImporter(reactApplicationContext, database, mediaStorage)
+                val asset = importer.replaceSource(
+                    operationId = operationId,
+                    mediaId = mediaId,
+                    sourceUri = sourceUri,
+                    mimeType = mimeType,
+                    declaredSizeBytes = declaredSizeBytes,
+                    onProgress = { phase, completedBytes, totalBytes ->
+                        OperationProgressEmitter.emit(
+                            context = reactApplicationContext,
+                            operationId = operationId,
+                            kind = "import",
+                            phase = phase,
+                            cancellable = true,
+                            completedBytes = completedBytes,
+                            totalBytes = totalBytes,
+                        )
+                    },
+                    isCancelled = { OperationRegistry.isCancelled(operationId) },
+                )
+                val attached = mediaLibrary.attachedReminderIds(asset.id).size
+                promise.resolve(MediaDtoWriter.writeDetail(asset, activeReminderCount = attached, mediaStorage))
+            } catch (cancelled: MediaImportCancelledException) {
+                NativeErrorEnvelope.reject(
+                    promise, "MR_VALIDATION_FAILED", "error.unexpected",
+                    NativeErrorEnvelope.Category.INTERNAL, field = "cancelled",
+                )
+            } catch (mediaError: MediaImportException) {
+                val (code, category, messageKey) = mediaImportErrorEnvelope(mediaError.reasonCode)
+                NativeErrorEnvelope.reject(promise, code, messageKey, category, field = mediaError.reasonCode)
+            } catch (error: Exception) {
+                failSafe(promise, error, "replaceMediaSource")
+            } finally {
+                OperationRegistry.clear(operationId)
+                OperationProgressEmitter.clear(operationId)
+            }
+        }
+    }
+
+    /**
+     * Saves a copy of a managed asset into the device's own gallery
+     * (`MediaStoreExporter`), under `Pictures/Nudgio`, `Movies/Nudgio` or
+     * `Music/Nudgio` depending on kind.
+     *
+     * Deliberately user-initiated and per item. The managed copy stays the
+     * alarm's source of truth — see `MediaStoreExporter`'s doc for why
+     * mirroring every import into MediaStore would re-create the exact
+     * failure durable storage exists to prevent.
+     *
+     * Resolves `limited` rather than rejecting when the platform is below
+     * API 29, where this would need `WRITE_EXTERNAL_STORAGE`: that is a
+     * capability gap for the UI to explain, not an error the user caused.
+     */
+    @ReactMethod
+    fun saveMediaCopyToGallery(id: String, promise: Promise) {
+        moduleScope.launch {
+            runCatching {
+                val entity = database.mediaDao().getById(id)
+                    ?: return@runCatching GallerySaveOutcome.NOT_FOUND
+                if (!MediaStoreExporter.isSupported()) {
+                    return@runCatching GallerySaveOutcome.UNSUPPORTED_PLATFORM
+                }
+                if (MediaStoreExporter.collectionFor(entity.kind) == null) {
+                    return@runCatching GallerySaveOutcome.UNSUPPORTED_KIND
+                }
+                val file = mediaStorage.fileFor(entity.storageKey)
+                if (!file.exists()) {
+                    return@runCatching GallerySaveOutcome.MEDIA_MISSING
+                }
+                if (MediaStoreExporter.saveCopy(reactApplicationContext, entity, file) != null) {
+                    GallerySaveOutcome.SAVED
+                } else {
+                    GallerySaveOutcome.FAILED
+                }
+            }
+                .onSuccess { outcome ->
+                    when (outcome) {
+                        GallerySaveOutcome.SAVED -> promise.resolve(
+                            Arguments.createMap().apply {
+                                putString("status", "ok")
+                                putInt("affectedCount", 1)
+                            },
+                        )
+                        GallerySaveOutcome.UNSUPPORTED_PLATFORM,
+                        GallerySaveOutcome.UNSUPPORTED_KIND,
+                        -> promise.resolve(
+                            Arguments.createMap().apply {
+                                putString("status", "limited")
+                                putInt("affectedCount", 0)
+                            },
+                        )
+                        GallerySaveOutcome.NOT_FOUND,
+                        GallerySaveOutcome.MEDIA_MISSING,
+                        -> NativeErrorEnvelope.reject(
+                            promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
+                            NativeErrorEnvelope.Category.MEDIA, field = "id",
+                        )
+                        GallerySaveOutcome.FAILED -> NativeErrorEnvelope.reject(
+                            promise, "MR_STORAGE_WRITE_FAILED", "error.storageWriteFailed",
+                            NativeErrorEnvelope.Category.STORAGE,
+                        )
+                    }
+                }
+                .onFailure { failSafe(promise, it, "saveMediaCopyToGallery") }
+        }
+    }
+
+    /** Outcomes of [saveMediaCopyToGallery], kept local to the one method that reports them. */
+    private enum class GallerySaveOutcome {
+        SAVED, FAILED, NOT_FOUND, MEDIA_MISSING, UNSUPPORTED_PLATFORM, UNSUPPORTED_KIND,
+    }
+
+    /**
+     * What Nudgio is holding, for the Settings storage row.
+     *
+     * Copying media means Nudgio consumes real storage and nothing in the app
+     * ever said so — a user with twenty photos and a few videos had no way to
+     * learn that from inside the product. Reports `unavailableCount`
+     * alongside, because a total that silently shrank when files vanished
+     * would hide exactly what the integrity sweep exists to surface.
+     */
+    @ReactMethod
+    fun getMediaStorageUsage(promise: Promise) {
+        moduleScope.launch {
+            runCatching { mediaLibrary.storageUsage() }
+                .onSuccess { usage ->
+                    promise.resolve(
+                        Arguments.createMap().apply {
+                            putInt("itemCount", usage.itemCount)
+                            // Decimal *string*, the same MR-08 byte-count
+                            // contract `MediaDtoWriter.sizeBytes` already
+                            // uses: the bridge has no 64-bit integer type,
+                            // and a string carries the exact value instead of
+                            // relying on a double staying under 2^53.
+                            putString("totalBytes", usage.totalBytes.toString())
+                            putInt("unavailableCount", usage.unavailableCount)
+                        },
+                    )
+                }
+                .onFailure { failSafe(promise, it, "getMediaStorageUsage") }
+        }
+    }
+
+    /**
      * Library "Export selected" — see `MediaLibraryService.buildExportIntent`'s
      * doc for why this opens the OS share sheet rather than writing an
      * archive. Needs `currentActivity` the same way `pickDocument` does, but
@@ -889,13 +1111,6 @@ class MediaReminderModule(
     }
 
     /**
-     * Drains the one-slot [com.aslam.mediareminder.alarm.PendingMediaOpen]
-     * handoff: returns `{mediaId}` when Accept on a full-screen alarm asked
-     * for that reminder's media to be opened, `{mediaId: null}` otherwise.
-     * JS calls this on mount and on every foreground resume, since a cold
-     * launch from the lock screen can mount long after Accept was tapped.
-     */
-    /**
      * Real Statistics (MR-04 "Charts and history"). `rangeDays` is clamped to
      * the retention window MR-09 defines — asking for more than is retained
      * would silently return a partial range that looks like real data.
@@ -940,11 +1155,60 @@ class MediaReminderModule(
         }
     }
 
+    /**
+     * Drains the one-slot [com.aslam.mediareminder.alarm.PendingMediaOpen]
+     * handoff: `{reminderId, mediaId}` when Play on an alarm asked for that
+     * reminder to be opened, both `null` otherwise. JS calls this on mount
+     * and on every foreground resume, since a cold launch from the lock
+     * screen can mount long after Play was tapped.
+     */
+    /**
+     * DL-082 "Missed": the most recent moments the user never saw, newest
+     * first, each with enough of its reminder (label, media kind, thumbnail)
+     * to show it and reopen it. Bounded to [hours] back and a handful of
+     * rows — after weeks away the app summarizes, it does not flood.
+     */
+    @ReactMethod
+    fun listRecentlyMissed(hours: Double, promise: Promise) {
+        moduleScope.launch {
+            runCatching {
+                val since = System.currentTimeMillis() - hours.toLong().coerceIn(1, 24 * 14) * 3_600_000L
+                val missed = database.occurrenceDao().recentlyMissed(since, MISSED_LIMIT)
+                val reminders = missed.map { it.reminderId }.distinct()
+                    .mapNotNull { database.reminderDao().getById(it) }.associateBy { it.id }
+                val media = database.mediaDao().getByIds(reminders.values.map { it.mediaId }.distinct()).associateBy { it.id }
+                val storage = com.aslam.mediareminder.media.MediaStorage(reactApplicationContext)
+                Arguments.createArray().apply {
+                    for (occurrence in missed) {
+                        val reminder = reminders[occurrence.reminderId] ?: continue
+                        val asset = media[reminder.mediaId]
+                        pushMap(
+                            Arguments.createMap().apply {
+                                putString("occurrenceId", occurrence.id)
+                                putString("reminderId", reminder.id)
+                                putString("scheduledAt", java.time.Instant.ofEpochMilli(occurrence.scheduledAt).toString())
+                                putString("state", occurrence.state)
+                                putString("label", reminder.label)
+                                putString("mediaKind", asset?.kind ?: "image")
+                                val thumb = asset?.let { com.aslam.mediareminder.media.MediaThumbnailUri.resolveThumbnail(it, storage) }
+                                if (thumb != null) putString("thumbnailToken", thumb) else putNull("thumbnailToken")
+                            },
+                        )
+                    }
+                }
+            }.onSuccess { promise.resolve(it) }
+                .onFailure { failSafe(promise, it, "listRecentlyMissed") }
+        }
+    }
+
     @ReactMethod
     fun takePendingMediaOpen(promise: Promise) {
         val result = Arguments.createMap()
         val pending = com.aslam.mediareminder.alarm.PendingMediaOpen.take()
-        if (pending == null) result.putNull("mediaId") else result.putString("mediaId", pending)
+        val reminderId = pending?.reminderId
+        val mediaId = pending?.mediaId
+        if (reminderId == null) result.putNull("reminderId") else result.putString("reminderId", reminderId)
+        if (mediaId == null) result.putNull("mediaId") else result.putString("mediaId", mediaId)
         promise.resolve(result)
     }
 
@@ -1341,6 +1605,7 @@ class MediaReminderModule(
         }
 
     companion object {
+        private const val MISSED_LIMIT = 20
         const val NAME = "MediaReminder"
 
         /** MR-09 "Data retention": occurrence history defaults to 90 days. */

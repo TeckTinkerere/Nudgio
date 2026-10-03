@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.RawQuery
+import androidx.room.Update
 import androidx.sqlite.db.SupportSQLiteQuery
 import com.aslam.mediareminder.data.db.entity.MediaAssetEntity
 
@@ -57,6 +58,38 @@ interface MediaDao {
     suspend fun count(): Int
 
     /**
+     * Every row, for the startup integrity sweep.
+     *
+     * Unfiltered on purpose: the sweep has to catch movement in *both*
+     * directions — an asset whose bytes have gone, and an asset previously
+     * marked `missing` whose bytes are back (a restored backup, a device that
+     * remounted storage late). Filtering to `integrity_state != 'missing'`
+     * would make the first case cheaper and the second impossible.
+     *
+     * Bounded by the library's own size, which is personal-scale (tens to
+     * low hundreds of assets) and read once at startup off the hot path, so
+     * this never competes with a list or detail query.
+     */
+    @Query("SELECT * FROM media_assets")
+    suspend fun getAll(): List<MediaAssetEntity>
+
+    /**
+     * Bytes and item count Nudgio is holding, for the Settings storage row.
+     *
+     * `SUM` over an empty table is SQL NULL, not 0, hence the nullable
+     * projection and the caller's `?: 0`. Reports the *recorded* sizes rather
+     * than stat-ing every file: the two agree except for assets whose bytes
+     * have gone, and those are exactly what the integrity sweep is for — a
+     * storage figure that silently shrank would hide that, where "24 items,
+     * 1 unavailable" tells the user something true.
+     */
+    @Query("SELECT COUNT(*) AS items, SUM(size_bytes) AS bytes FROM media_assets")
+    suspend fun storageTotals(): MediaStorageTotals
+
+    /** Projection row for [storageTotals]. */
+    data class MediaStorageTotals(val items: Int, val bytes: Long?)
+
+    /**
      * `activeReminderCount` for a whole page in one statement.
      *
      * Batched deliberately: asking per row would issue one query per list item
@@ -87,6 +120,17 @@ interface MediaDao {
 
     @Delete
     suspend fun delete(asset: MediaAssetEntity)
+
+    /**
+     * Whole-row replace, for "Replace media" (`MediaImporter.replaceSource`).
+     *
+     * Not expressible as one of the targeted `UPDATE`s above: a replacement
+     * changes the storage key, hash, size, mime type, probe results and
+     * integrity together, and they must land as one row write or a reader
+     * could see the new key beside the old hash.
+     */
+    @Update
+    suspend fun update(asset: MediaAssetEntity)
 
     /**
      * Marks an asset's bytes as no longer trustworthy. Used by integrity

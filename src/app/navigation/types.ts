@@ -11,9 +11,8 @@ import type {rootRoutes, tabRoutes} from '../../constants/routes';
 import type {UUID} from '../../native-client/types';
 
 export type TabParamList = {
-  [tabRoutes.today]: undefined;
+  [tabRoutes.home]: undefined;
   [tabRoutes.library]: undefined;
-  [tabRoutes.reminders]: undefined;
   [tabRoutes.settings]: undefined;
 };
 
@@ -35,6 +34,12 @@ export type RootStackParamList = {
      * existing reminder, which already has its own `mediaId`.
      */
     readonly mediaId?: UUID;
+    /**
+     * "Duplicate": seeds a *new* reminder from this one's media, message,
+     * schedule, action and alert style. Saving creates a separate reminder;
+     * the original is untouched.
+     */
+    readonly duplicateFromId?: UUID;
   };
   [rootRoutes.selectMedia]: {
     /** Highlights the already-chosen asset in the grid, if any. */

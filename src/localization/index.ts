@@ -1,5 +1,6 @@
 export {
   formatEnglishUnit,
+  formatStorageSize,
   formatLocalDate,
   formatLocalTime,
   interpolate,

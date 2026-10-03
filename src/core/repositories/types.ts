@@ -26,9 +26,12 @@ import type {
   ImportRequest,
   MediaDetail,
   MediaQuery,
+  MediaStorageUsage,
+  ReplaceMediaSourceRequest,
   MediaSummary,
   MutationResult,
   Page,
+  PendingReminderOpen,
   PickedDocument,
   PreferencePatch,
   PreferencesSnapshot,
@@ -65,6 +68,12 @@ export interface MediaRepository {
   remove(request: DeleteMediaRequest): Promise<Result<MutationResult, AppError>>;
   /** MR-10 "Export selected" — opens the OS share sheet for these assets' real files. */
   exportSelected(ids: readonly UUID[]): Promise<Result<MutationResult, AppError>>;
+  /** What Nudgio's managed copies cost on disk, for the Settings storage row. */
+  storageUsage(): Promise<Result<MediaStorageUsage, AppError>>;
+  /** Saves a copy into the device's own gallery under a Nudgio folder; `limited` when the platform has no supported destination. */
+  saveCopyToGallery(id: UUID): Promise<Result<MutationResult, AppError>>;
+  /** "Replace media" — new bytes behind the same media id, repairing every reminder that uses it. */
+  replaceSource(request: ReplaceMediaSourceRequest): Promise<Result<MediaDetail, AppError>>;
   /**
    * Cancels an in-flight `beginImport`. Not `BackupRepository`'s own method
    * reused across a domain boundary — `cancelOperation` is one generic
@@ -97,7 +106,7 @@ export interface CapabilityRepository {
   requestNotificationPermission(): Promise<Result<NotificationPermissionResult, AppError>>;
   openSettings(kind: CapabilityKind): Promise<Result<unknown, AppError>>;
   /** Drains the native "Accept asked to open this media" slot; `null` when nothing is pending. */
-  takePendingMediaOpen(): Promise<Result<UUID | null, AppError>>;
+  takePendingMediaOpen(): Promise<Result<PendingReminderOpen | null, AppError>>;
   getStatistics(rangeDays: number): Promise<Result<StatisticsSummary, AppError>>;
 }
 

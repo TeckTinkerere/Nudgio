@@ -21,6 +21,8 @@ export const ErrorCode = {
 
   // storage
   STORAGE_INSUFFICIENT: 'MR_STORAGE_INSUFFICIENT',
+  /** A write into shared storage failed for a reason other than space — e.g. a "save a copy to gallery" the media store refused. */
+  STORAGE_WRITE_FAILED: 'MR_STORAGE_WRITE_FAILED',
 
   // schedule
   SCHEDULE_NONEXISTENT_TIME: 'MR_SCHEDULE_NONEXISTENT_TIME',

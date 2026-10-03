@@ -6,7 +6,10 @@
          v1, matching RepeatSummaryFormatter/NotificationCoordinator's
          existing native-side precedent (MR-13 "V1 ships English").
          "Play" matches the notification's own action label. -->
-    <string name="alarm_accept">Play</string>
+    <string name="alarm_accept">Open</string>
+    <string name="alarm_accept_video">Watch</string>
+    <string name="alarm_accept_audio">Listen</string>
+    <string name="alarm_accept_image">View</string>
     <string name="alarm_snooze">Snooze</string>
     <string name="alarm_snooze_minutes">Snooze %1$d min</string>
     <string name="alarm_dismiss">Dismiss</string>

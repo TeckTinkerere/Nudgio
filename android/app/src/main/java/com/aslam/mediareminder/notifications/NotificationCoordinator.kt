@@ -128,6 +128,7 @@ class NotificationCoordinator(private val context: Context) {
         useAlarmChannel: Boolean,
         ongoing: Boolean,
         useFullScreenIntent: Boolean,
+        playLabel: String = context.getString(R.string.alarm_accept),
     ): Notification {
         // Bug fix: this is the real due-alarm path (AlarmDispatchReceiver,
         // AlarmRingingService), but unlike postGenericDueNotification/
@@ -146,6 +147,9 @@ class NotificationCoordinator(private val context: Context) {
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(reminderLabel)
             .setContentText(mediaTitle)
+            // A personal message can run to a few lines; collapsed it still
+            // shows the first line, expanded it shows all of it.
+            .setStyle(NotificationCompat.BigTextStyle().bigText(mediaTitle))
             .setCategory(category)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setOngoing(ongoing)
@@ -155,9 +159,9 @@ class NotificationCoordinator(private val context: Context) {
             // resolving it" — tapping the body brings the alarm UI forward,
             // it is not itself a Play/Snooze/Dismiss action.
             .setContentIntent(alarmActivityIntent(sessionId))
-            .addAction(actionFor("Play", AlarmIds.ACTION_PLAY, sessionId, nonce, notificationIdFor(sessionId)))
-            .addAction(actionFor("Snooze", AlarmIds.ACTION_SNOOZE, sessionId, nonce, notificationIdFor(sessionId)))
-            .addAction(actionFor("Dismiss", AlarmIds.ACTION_DISMISS, sessionId, nonce, notificationIdFor(sessionId)))
+            .addAction(playAction(sessionId, nonce, playLabel))
+            .addAction(actionFor(context.getString(R.string.alarm_snooze), AlarmIds.ACTION_SNOOZE, sessionId, nonce, notificationIdFor(sessionId)))
+            .addAction(actionFor(context.getString(R.string.alarm_dismiss), AlarmIds.ACTION_DISMISS, sessionId, nonce, notificationIdFor(sessionId)))
 
         if (useFullScreenIntent) {
             builder.setFullScreenIntent(alarmActivityIntent(sessionId), true)
@@ -174,10 +178,11 @@ class NotificationCoordinator(private val context: Context) {
         useAlarmChannel: Boolean,
         ongoing: Boolean,
         useFullScreenIntent: Boolean = false,
+        playLabel: String = context.getString(R.string.alarm_accept),
     ) {
         postNotification(
             notificationIdFor(sessionId),
-            buildDueNotification(sessionId, reminderLabel, mediaTitle, nonce, useAlarmChannel, ongoing, useFullScreenIntent),
+            buildDueNotification(sessionId, reminderLabel, mediaTitle, nonce, useAlarmChannel, ongoing, useFullScreenIntent, playLabel),
         )
     }
 
@@ -310,6 +315,27 @@ class NotificationCoordinator(private val context: Context) {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+    }
+
+    /**
+     * Play opens the reminder, so unlike Snooze/Dismiss it is an *activity*
+     * `PendingIntent` ([com.aslam.mediareminder.alarm.AlarmOpenActivity]):
+     * a broadcast receiver may not start UI from a notification action on
+     * Android 12+ (DL-080).
+     */
+    private fun playAction(sessionId: String, nonce: String, label: String): NotificationCompat.Action {
+        val intent = Intent(context, com.aslam.mediareminder.alarm.AlarmOpenActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION
+            putExtra(AlarmIds.EXTRA_SESSION_ID, sessionId)
+            putExtra(AlarmIds.EXTRA_NONCE, nonce)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            notificationIdFor(sessionId) + AlarmIds.ACTION_PLAY.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        return NotificationCompat.Action.Builder(0, label, pendingIntent).build()
     }
 
     private fun actionFor(

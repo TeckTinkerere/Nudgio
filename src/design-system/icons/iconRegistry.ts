@@ -177,6 +177,37 @@ export const iconRegistry = {
   arrowBack: {paths: ['M20 11H7.8l4.6-4.6L11 5l-7 7 7 7 1.4-1.4L7.8 13H20z'], mirrorInRtl: true},
   chevronDown: {paths: ['M5.7 9.3 12 15.6l6.3-6.3-1.4-1.4-4.9 4.9-4.9-4.9z']},
   chevronUp: {paths: ['M18.3 14.7 12 8.4l-6.3 6.3 1.4 1.4 4.9-4.9 4.9 4.9z']},
+
+  // --- Reminder actions (DL-080) ----------------------------------------------
+  /** Leaves the app: a box with an arrow out of its corner. Mirrors in RTL. */
+  openExternal: {
+    paths: ['M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3z'],
+    mirrorInRtl: true,
+  },
+  link: {
+    paths: ['M3.9 12a3.1 3.1 0 0 1 3.1-3.1h4V7H7a5 5 0 0 0 0 10h4v-1.9H7A3.1 3.1 0 0 1 3.9 12zM8 13h8v-2H8zm9-6h-4v1.9h4a3.1 3.1 0 0 1 0 6.2h-4V17h4a5 5 0 0 0 0-10z'],
+  },
+  phone: {
+    paths: ['M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24 11.36 11.36 0 0 0 3.57.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.36 11.36 0 0 0 .57 3.57 1 1 0 0 1-.25 1.02z'],
+  },
+  place: {
+    paths: ['M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 14.5 9 2.5 2.5 0 0 1 12 11.5z'],
+  },
+  mail: {
+    paths: ['M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4-8 5-8-5V6l8 5 8-5z'],
+  },
+  /** Pinned album marker. */
+  pin: {
+    paths: ['M16 9V4h1a1 1 0 0 0 0-2H7a1 1 0 0 0 0 2h1v5a3 3 0 0 1-3 3v2h5.97v7l1 1 1-1v-7H19v-2a3 3 0 0 1-3-3z'],
+  },
+  /** Album: stacked photos. */
+  album: {
+    paths: ['M4 6H2v14a2 2 0 0 0 2 2h14v-2H4zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H8V4h12zm-7.5-4.33 1.69 2.26 2.48-3.1L19 15H9z'],
+  },
+  /** Unsorted: an inbox tray. */
+  inbox: {
+    paths: ['M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 12h-4a3 3 0 0 1-6 0H5V5h14z'],
+  },
 } as const satisfies Record<string, IconDefinition>;
 
 export type IconName = keyof typeof iconRegistry;

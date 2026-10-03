@@ -9,15 +9,22 @@
  * `setReminderEnabled`/`deleteReminder` mutations too — both were previously
  * decorative (`useState` and "close the dialog, do nothing" respectively).
  */
+import {useFocusEffect} from '@react-navigation/native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {useState} from 'react';
-import {Image, StyleSheet} from 'react-native';
+import {useCallback, useState} from 'react';
+import {StyleSheet} from 'react-native';
 
+import {MediaHero} from './MediaHero';
+import {actionButtonLabel, actionTargetOf, ACTION_TARGET_ICON, displayHostOf} from './reminderActions';
+import {describeStatus} from './ReminderRow';
+import {reminderStatus} from './reminderStatus';
 import {useDeleteReminder} from './useDeleteReminder';
+import {useOpenReminderAction} from './useOpenReminderAction';
 import {useReminderDetail} from './useReminderDetail';
 import {useSetReminderEnabled} from './useSetReminderEnabled';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {rootRoutes} from '../../constants/routes';
+import {useSessionStore} from '../../core/state/sessionStore';
 import {
   AppBar,
   Banner,
@@ -34,20 +41,10 @@ import {
   Toggle,
   useFloatingAppBar,
 } from '../../design-system';
-import type {IconName} from '../../design-system';
 import {useTheme} from '../../design-system/theme/useTheme';
-import {useHaptics, useProfiles} from '../../hooks';
+import {useHaptics, usePreferences, useProfiles} from '../../hooks';
 import {useTranslation} from '../../localization';
-import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import {isBuiltInProfileNameKey} from '../../native-client/reminderProfileNameKeys';
-import type {MediaKind} from '../../native-client/types';
-
-const MEDIA_ICON: Record<MediaKind, IconName> = {
-  video: 'video',
-  audio: 'audio',
-  image: 'image',
-  text: 'text',
-};
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ReminderDetail'>;
 
@@ -61,6 +58,12 @@ export function ReminderDetailScreen({navigation, route}: Props) {
   const deleteReminder = useDeleteReminder();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const appBar = useFloatingAppBar();
+  const openMoment = useSessionStore(state => state.openMoment);
+  const openAction = useOpenReminderAction();
+  const preferences = usePreferences();
+  const use24Hour = preferences.data?.use24HourTime ?? null;
+  const [now, setNow] = useState(() => new Date());
+  useFocusEffect(useCallback(() => setNow(new Date()), []));
 
   if (reminderQuery.isPending) {
     return (
@@ -104,19 +107,8 @@ export function ReminderDetailScreen({navigation, route}: Props) {
 
   const reminder = reminderQuery.data;
   const profile = profiles.data?.find(item => item.id === reminder.profileId);
-  const thumbnail = thumbnailImageSource(reminder.thumbnailToken);
-
-  const avatarStyle = StyleSheet.create({
-    box: {
-      width: theme.layout.reminderThumbnailSize,
-      height: theme.layout.reminderThumbnailSize,
-      borderRadius: theme.radius.card,
-      backgroundColor: theme.color.primaryContainer,
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
-    },
-  });
+  const status = reminderStatus(reminder, now);
+  const profileName = profile && isBuiltInProfileNameKey(profile.nameKey) ? t(profile.nameKey) : '';
 
   return (
     <Screen
@@ -127,7 +119,7 @@ export function ReminderDetailScreen({navigation, route}: Props) {
       contentContainerStyle={{paddingTop: appBar.barHeight}}
       appBarSlot={
         <AppBar
-          title={reminder.label}
+          title={t('reminders.detail.title')}
           back={{label: t('action.back'), onPress: () => navigation.goBack()}}
           actions={[
             {
@@ -145,13 +137,7 @@ export function ReminderDetailScreen({navigation, route}: Props) {
         />
       }>
       <Stack gap="lg" paddingVertical="md">
-        {reminder.effectiveState === 'disabled' ? (
-          <Banner
-            kind="neutral"
-            title={reminder.label}
-            effect={t('reminders.detail.disabledNotice')}
-          />
-        ) : reminder.effectiveState === 'needs_setup' ? (
+        {reminder.effectiveState === 'needs_setup' ? (
           <Banner
             kind="actionNeeded"
             title={reminder.label}
@@ -163,58 +149,75 @@ export function ReminderDetailScreen({navigation, route}: Props) {
           />
         ) : null}
 
-        <Card>
-          <Stack direction="row" align="center" gap="sm">
-            <Stack style={avatarStyle.box} align="center" justify="center">
-              {thumbnail ? (
-                <Image
-                  source={thumbnail}
-                  style={StyleSheet.absoluteFill}
-                  resizeMode="cover"
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
-                />
-              ) : (
-                <Icon
-                  name={MEDIA_ICON[reminder.mediaKind]}
-                  size="lg"
-                  color={theme.color.onPrimaryContainer}
-                />
-              )}
-            </Stack>
-            <Stack gap="xxs" style={styles.flexFill}>
-              <Text variant="labelLarge" tone="variant">
-                {t('reminders.editor.enabledToggle')}
-              </Text>
-              <Text variant="titleMedium">{reminder.label}</Text>
-            </Stack>
-            <Toggle
-              value={reminder.enabledIntent}
-              onValueChange={value =>
-                setEnabled.mutate({id: reminder.id, enabled: value})
-              }
-              label={reminder.label}
+        {/* The moment, as it will appear: media first, then the words. */}
+        <Card padding={0}>
+          <MediaHero thumbnailToken={reminder.thumbnailToken} kind={reminder.mediaKind} roundTopOnly />
+          <Stack gap="xs" style={{padding: theme.spacing.md}}>
+            <Text variant="headlineMedium" isHeading>{reminder.label}</Text>
+            {reminder.notes ? <Text variant="bodyLarge">{reminder.notes}</Text> : null}
+            <Button
+              label={t('reminders.detail.previewMoment')}
+              variant="tonal"
+              icon="play"
+              onPress={() => openMoment({reminderId: reminder.id, mediaId: reminder.mediaId})}
+              testID="reminder-preview-moment"
             />
           </Stack>
         </Card>
 
-        <Stack gap="xxs">
-          <Text variant="titleMedium">{t('reminders.detail.schedule')}</Text>
-          <Card>
-            <Stack direction="row" align="center" gap="sm">
-              <Icon name="repeat" color={theme.color.onSurfaceVariant} />
-              <Text variant="bodyLarge">{reminder.repeatSummary}</Text>
+        <Card>
+          <Stack direction="row" align="center" gap="sm">
+            <Icon name="clock" color={theme.color.onSurfaceVariant} />
+            <Stack gap={2} style={styles.flexFill}>
+              <Text variant="titleMedium" tone={status.kind === 'next' ? 'primary' : 'default'}>
+                {describeStatus(status, now, use24Hour, t)}
+              </Text>
+              <Text variant="bodyMedium" tone="variant">{reminder.repeatSummary}</Text>
             </Stack>
+            {status.kind === 'done' ? null : (
+              <Toggle
+                value={reminder.enabledIntent}
+                onValueChange={value => setEnabled.mutate({id: reminder.id, enabled: value})}
+                label={t('reminders.list.enableToggle', {label: reminder.label})}
+              />
+            )}
+          </Stack>
+        </Card>
+
+        <Stack gap="xxs">
+          <Text variant="titleMedium">{t('reminders.action.section')}</Text>
+          <Card>
+            {reminder.action ? (
+              <Stack direction="row" align="center" gap="sm">
+                <Icon name={ACTION_TARGET_ICON[actionTargetOf(reminder.action.uri)]} color={theme.color.primary} />
+                <Stack gap={2} style={styles.flexFill}>
+                  <Text variant="titleMedium">{actionButtonLabel(reminder.action, t)}</Text>
+                  <Text variant="bodyMedium" tone="variant" numberOfLines={1}>
+                    {displayHostOf(reminder.action.uri) ?? reminder.action.uri}
+                  </Text>
+                </Stack>
+                <Button
+                  label={t('reminders.action.test')}
+                  variant="text"
+                  onPress={() => {
+                    if (reminder.action) {
+                      // eslint-disable-next-line no-void
+                      void openAction(reminder.action);
+                    }
+                  }}
+                />
+              </Stack>
+            ) : (
+              <Text variant="bodyLarge" tone="variant">{t('reminders.detail.noAction')}</Text>
+            )}
           </Card>
         </Stack>
 
         <Stack gap="xxs">
           <Text variant="titleMedium">{t('reminders.detail.alertStyle')}</Text>
           <Card>
-            <Text variant="titleMedium">
-              {profile && isBuiltInProfileNameKey(profile.nameKey)
-                ? t(profile.nameKey)
-                : ''}
+            <Text variant="bodyLarge">
+              {t('reminders.editor.alertSummary', {profile: profileName, minutes: reminder.snooze.defaultMinutes})}
             </Text>
             {profile?.nameKey === 'profile.persistent.name' ? (
               <Text variant="labelMedium" tone="variant">
@@ -224,23 +227,24 @@ export function ReminderDetailScreen({navigation, route}: Props) {
           </Card>
         </Stack>
 
-        <Stack gap="xxs">
-          <Text variant="titleMedium">{t('reminders.detail.snooze')}</Text>
-          <Card>
-            <Text variant="bodyLarge">
-              {t('reminders.editor.snoozeMinutes', {
-                minutes: reminder.snooze.defaultMinutes,
-              })}
-            </Text>
-          </Card>
+        <Stack direction="row" gap="sm" wrap>
+          <Button
+            label={t('reminders.detail.duplicate')}
+            variant="outlined"
+            icon="add"
+            onPress={() =>
+              navigation.navigate(rootRoutes.reminderEditor, {reminderId: undefined, duplicateFromId: reminder.id})
+            }
+            style={styles.grow}
+          />
+          <Button
+            label={t('action.delete')}
+            variant="destructive"
+            icon="delete"
+            onPress={() => setDeleteDialogOpen(true)}
+            style={styles.grow}
+          />
         </Stack>
-
-        <Button
-          label={t('reminders.detail.delete')}
-          variant="destructive"
-          icon="delete"
-          onPress={() => setDeleteDialogOpen(true)}
-        />
       </Stack>
 
       <Dialog
@@ -273,4 +277,5 @@ export function ReminderDetailScreen({navigation, route}: Props) {
 
 const styles = StyleSheet.create({
   flexFill: {flex: 1},
+  grow: {flexGrow: 1, flexBasis: 140},
 });

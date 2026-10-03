@@ -1,6 +1,9 @@
 package com.aslam.mediareminder.data.media
 
 import com.aslam.mediareminder.data.db.entity.MediaAssetEntity
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /**
  * MIME type -> MR-09 media kind and storage extension.
@@ -97,20 +100,32 @@ object MediaKinds {
      * falls back to a kind-based label rather than an empty title, which would
      * render as an unreadable blank row in the Library.
      */
-    fun titleFrom(displayName: String?, kind: String): String {
+    /**
+     * A readable title from the picked file's display name.
+     *
+     * Android's Photo Picker deliberately reports a numeric media ID as the
+     * display name (`1000000033.jpg`) rather than the real file name, so
+     * every photo or video picked through it used to arrive titled
+     * "1000000033". A name with no letters in it says nothing to a person;
+     * those fall back to the kind plus the import date ("Video · 2 Oct 2026").
+     */
+    fun titleFrom(displayName: String?, kind: String, importedOn: LocalDate = LocalDate.now()): String {
         val base = displayName
             ?.substringBeforeLast('.')
             ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: defaultTitleFor(kind)
+            ?.takeIf { name -> name.any { it.isLetter() } }
+            ?: defaultTitleFor(kind, importedOn)
         return base.take(MediaAssetEntity.MAX_TITLE_LENGTH)
     }
 
-    private fun defaultTitleFor(kind: String): String = when (kind) {
-        MediaAssetEntity.KIND_VIDEO -> "Imported video"
-        MediaAssetEntity.KIND_AUDIO -> "Imported audio"
-        MediaAssetEntity.KIND_IMAGE -> "Imported image"
-        MediaAssetEntity.KIND_TEXT -> "Imported text"
-        else -> "Imported item"
+    private fun defaultTitleFor(kind: String, importedOn: LocalDate): String {
+        val noun = when (kind) {
+            MediaAssetEntity.KIND_VIDEO -> "Video"
+            MediaAssetEntity.KIND_AUDIO -> "Audio"
+            MediaAssetEntity.KIND_IMAGE -> "Photo"
+            MediaAssetEntity.KIND_TEXT -> "Note"
+            else -> "Item"
+        }
+        return "$noun · ${importedOn.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))}"
     }
 }

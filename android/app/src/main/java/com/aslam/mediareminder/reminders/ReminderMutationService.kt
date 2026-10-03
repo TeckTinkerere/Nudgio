@@ -97,7 +97,23 @@ class ReminderMutationService(
         }
 
         val enabledIntent = if (request.hasKey("enabledIntent")) request.getBoolean("enabledIntent") else true
-        val notes = if (request.hasKey("notes")) request.getString("notes") else null
+        val notes = if (request.hasKey("notes")) request.getString("notes")?.trim()?.takeIf { it.isNotEmpty() } else null
+        if (notes != null && notes.length > MAX_MESSAGE_LENGTH) return SaveOutcome.Invalid("notes")
+        val requestedHistory = if (request.hasKey("historyEnabled")) request.getBoolean("historyEnabled") else null
+
+        // Absent or null `action` means "no action" — the editor always sends
+        // the whole reminder, so this is also how an action is removed.
+        val actionMap = if (request.hasKey("action") && !request.isNull("action")) request.getMap("action") else null
+        val action = when (
+            val resolved = ReminderActionRules.validate(
+                type = actionMap?.takeIf { it.hasKey("type") }?.getString("type"),
+                uri = actionMap?.takeIf { it.hasKey("uri") }?.getString("uri"),
+                label = actionMap?.takeIf { it.hasKey("label") && !it.isNull("label") }?.getString("label"),
+            )
+        ) {
+            is ReminderActionRules.Result.Invalid -> return SaveOutcome.Invalid(resolved.field)
+            is ReminderActionRules.Result.Ok -> resolved.action
+        }
         val requestedId = if (request.hasKey("id")) request.getString("id") else null
         val requestedVersion = if (request.hasKey("entityVersion")) request.getDouble("entityVersion").toInt() else null
 
@@ -124,10 +140,13 @@ class ReminderMutationService(
             snoozeAllowCustom = if (snoozeMap.hasKey("allowCustom")) snoozeMap.getBoolean("allowCustom") else true,
             snoozeMinimumMinutes = snoozeMap.getInt("minimumMinutes"),
             snoozeMaximumMinutes = snoozeMap.getInt("maximumMinutes"),
-            historyEnabled = existing?.historyEnabled ?: true,
+            historyEnabled = requestedHistory ?: existing?.historyEnabled ?: true,
             createdAt = existing?.createdAt ?: now,
             updatedAt = now,
             entityVersion = (existing?.entityVersion ?: 0) + 1,
+            actionType = action?.type,
+            actionUri = action?.uri,
+            actionLabel = action?.label,
         )
 
         var conflicted = false
@@ -148,6 +167,9 @@ class ReminderMutationService(
                     snoozeMinimumMinutes = entity.snoozeMinimumMinutes,
                     snoozeMaximumMinutes = entity.snoozeMaximumMinutes,
                     historyEnabled = entity.historyEnabled,
+                    actionType = entity.actionType,
+                    actionUri = entity.actionUri,
+                    actionLabel = entity.actionLabel,
                     updatedAt = entity.updatedAt,
                     expectedVersion = existing.entityVersion,
                 )
@@ -252,5 +274,8 @@ class ReminderMutationService(
 
     private companion object {
         const val TEST_DELAY_MS = 15_000L
+
+        /** Same 4000-character cap MR-09 already sets for media notes. */
+        const val MAX_MESSAGE_LENGTH = 4000
     }
 }

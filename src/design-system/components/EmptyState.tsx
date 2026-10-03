@@ -60,7 +60,10 @@ export function EmptyState({
         <Button
           label={action.label}
           onPress={action.onPress}
-          style={{marginTop: theme.spacing.xs}}
+          // `Button` sizes itself with `alignSelf: 'flex-start'`, which
+          // beats the parent's `alignItems: 'center'` — every empty state's
+          // action sat on the left under centered text.
+          style={{marginTop: theme.spacing.xs, alignSelf: 'center'}}
         />
       ) : null}
       {secondaryAction ? (
@@ -68,6 +71,7 @@ export function EmptyState({
           label={secondaryAction.label}
           onPress={secondaryAction.onPress}
           variant="text"
+          style={{alignSelf: 'center'}}
         />
       ) : null}
     </View>

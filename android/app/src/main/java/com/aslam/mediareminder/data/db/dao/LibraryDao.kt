@@ -19,5 +19,13 @@ interface LibraryDao {
     @Query("SELECT * FROM library_state WHERE id = 1") suspend fun state(): LibraryStateEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun setState(state: LibraryStateEntity)
     @Query("SELECT folder_id AS folderId, COUNT(*) AS count FROM library_memberships GROUP BY folder_id") suspend fun counts(): List<FolderCount>
+
+    /** Album covers: the newest items filed in any of [folderIds] (a folder plus its subfolders). */
+    @Query("SELECT m.* FROM media_assets m JOIN library_memberships lm ON lm.media_id = m.id WHERE lm.folder_id IN (:folderIds) ORDER BY m.created_at DESC LIMIT :limit")
+    suspend fun newestIn(folderIds: List<String>, limit: Int): List<MediaAssetEntity>
+
+    /** Cover for the virtual Unsorted album. */
+    @Query("SELECT * FROM media_assets WHERE id NOT IN (SELECT media_id FROM library_memberships) ORDER BY created_at DESC LIMIT :limit")
+    suspend fun newestUnsorted(limit: Int): List<MediaAssetEntity>
     data class FolderCount(val folderId: String, val count: Int)
 }

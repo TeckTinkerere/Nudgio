@@ -76,6 +76,36 @@ interface OccurrenceDao {
     )
     suspend fun getEarliestEligible(): OccurrenceEntity?
 
+    /**
+     * Occurrences stuck in `claimed` with no `alerting` session left to
+     * resolve them — the alarm was claimed, then the process died or
+     * `startForegroundService` was refused before anything could accept,
+     * snooze or dismiss it.
+     *
+     * These are poison: `getReminderIdsWithPendingOccurrence` counts
+     * `claimed`, so the reminder is skipped when new occurrences are
+     * computed, while `getEarliestEligible` only looks at `pending`, so it
+     * is never scheduled either. Left alone, that reminder goes silent
+     * permanently and even editing its time cannot revive it
+     * (`deleteUnclaimedPendingForReminder` deliberately spares `claimed`
+     * rows so it can never cancel a genuinely ringing alarm).
+     * [com.aslam.mediareminder.alarm.SchedulerCoordinator] sweeps them on
+     * every reconcile.
+     */
+    @Query(
+        """
+        SELECT o.* FROM occurrences o
+        WHERE o.state = 'claimed'
+          AND o.triggered_at IS NOT NULL
+          AND o.triggered_at < :olderThanEpochMs
+          AND NOT EXISTS (
+            SELECT 1 FROM active_alarm_session s
+            WHERE s.occurrence_id = o.id AND s.state = 'alerting'
+          )
+        """,
+    )
+    suspend fun getAbandonedClaimed(olderThanEpochMs: Long): List<OccurrenceEntity>
+
     /** All currently-alerting sessions' occurrences, earliest-claimed first — used to recover [com.aslam.mediareminder.alarm.AlarmRingingService]'s queue after process death. */
     @Query(
         """
@@ -158,6 +188,22 @@ interface OccurrenceDao {
         """,
     )
     suspend fun resolvedBetween(fromEpochMs: Long, toEpochMs: Long): List<ResolvedOccurrenceRow>
+
+    /**
+     * Moments the user never saw (MR-03 "older occurrences appear as Missed
+     * in Today"): `missed` (unanswered after every retry) and `failed_safe`
+     * (could not alert at all, e.g. notifications off). `timed_out` is left
+     * out on purpose — a retry follows it, so it is not final yet.
+     */
+    @Query(
+        """
+        SELECT * FROM occurrences
+        WHERE state IN ('missed', 'failed_safe') AND scheduled_at >= :sinceEpochMs
+        ORDER BY scheduled_at DESC
+        LIMIT :limit
+        """,
+    )
+    suspend fun recentlyMissed(sinceEpochMs: Long, limit: Int): List<OccurrenceEntity>
 }
 
 /** Projection for [OccurrenceDao.resolvedBetween] — not an entity. */
