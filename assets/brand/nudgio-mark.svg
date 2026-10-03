@@ -16,25 +16,30 @@
       sphere      bbox (1299,597)-(1445,744) -> centre (1372,671) r 73
       arcs        uniform 49 wide, round caps
 
+    Path data is comma-separated so scripts/build-brand-assets.py can assert,
+    byte for byte, that the geometry it emits — the web SVG, the PNGs and the
+    Android launcher vectors — is this file's. That build fails loudly if they
+    ever disagree, so "keep these in sync" is checked rather than hoped for.
+
     Flat by intent. The JPEG is a soft-3D render; a master is the canonical
     form behind it, which is what stays legible at 16px and prints. Colours are
     the Ink & Apricot tokens the app ships, not the render's shaded blues.
   -->
   <g fill="none" stroke="#2D4DB5" stroke-width="242" stroke-linecap="round">
     <!-- stem -->
-    <path d="M715 788 V1358" />
+    <path d="M715,788 L715,1358" />
   </g>
   <g fill="none" stroke="#2D4DB5" stroke-width="224" stroke-linecap="round" stroke-linejoin="round">
     <!-- Shoulder: rises out of the stem, leans right over the apex, drops into
          the right leg. Control points are least-squares fitted to centreline
          samples read off the raster (left limb rmse 8.9px, right 16.7px, on a
          2048 canvas) rather than eyeballed. -->
-    <path d="M718 1350 C718 1050 720 772 1037 772 C1250 772 1241 850 1241 1350" />
+    <path d="M718,1350 C718,1050 720,772 1037,772 C1250,772 1241,850 1241,1350" />
   </g>
   <g fill="none" stroke="#2D4DB5" stroke-width="49" stroke-linecap="round">
     <!-- the two chime strokes -->
-    <path d="M1026 536 C1120 536 1215 560 1259 598" />
-    <path d="M1412 799 C1448 860 1456 930 1452 998" />
+    <path d="M1026,536 C1120,536 1215,560 1259,598" />
+    <path d="M1412,799 C1448,860 1456,930 1452,998" />
   </g>
   <circle cx="1372" cy="671" r="73" fill="#E9B58E" />
 </svg>

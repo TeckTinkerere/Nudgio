@@ -2923,3 +2923,51 @@ its caches, so a restore that had just put a missing file back still listed
 its reminders as "Media unavailable" until the app was killed and relaunched —
 a successful restore that looked like a failed one. It now invalidates media,
 reminders and the startup snapshot on commit.
+
+## DL-104 — The launcher icon was a 1.5 MB JPEG, and the brand had no second copy of it
+
+**Date:** 2026-10-04
+**Context:** `ic_launcher_foreground.xml` was a `<bitmap>` wrapping
+`drawable-nodpi/nudgio_logo.jpg`, and that file's own comment listed "SVG
+master" as outstanding work. Two costs followed. The APK carried the artwork
+twice — once for the launcher, once as the React Native asset
+`BrandLogo` requires — for about 3 MB of a 35 MB download. And a JPEG scaled
+to a 48dp launcher grid is soft, with no themed-icon variant possible at all,
+because Android 13's monochrome layer needs a shape, not a photograph.
+**Decision:** The adaptive icon is now drawn from `assets/brand/nudgio-mark.svg`,
+the vector master built in the previous change.
+- **Placement is arithmetic, not eyeballing.** The master's 968-unit mark box
+  sits on the central 54dp of the 108dp canvas. Choosing a 1936-unit viewport
+  makes one 968-unit box exactly half the canvas, so the only transform is a
+  translate (`-67`, `-28`) carrying the master's origin to the inset. There is
+  no scale factor, which is why every stroke width and control point in the
+  drawable is still the master's own number and can be checked against it.
+- **54dp, not larger.** The furthest ink is the stem's bottom-left round cap,
+  604 units from centre. At 54dp that lands inside a 67dp circle, within the
+  72dp a launcher mask reveals. A 60dp mark measured 74dp across and would
+  have been clipped on circular masks.
+- **Cobalt on cream, not inverted.** Contrast said the apricot sphere reaches
+  only 1.67:1 on the cream plate against 4.04:1 on a cobalt one, which argued
+  for inverting. Rendering both at 192/96/48px through circle and squircle
+  masks showed the number was pessimistic: the sphere sits in the notch framed
+  by the shoulder and the upper chime, so it reads against cobalt ink rather
+  than against open ground. Cream keeps the icon identical to the logo and to
+  the website header, and the 2.1.0 icon was already effectively
+  cobalt-on-white, so this is continuity rather than a redesign. Inverting is
+  a two-line change in `values/colors.xml` if that judgement turns out wrong.
+- **The generator is the single source.** `scripts/build-brand-assets.py` now
+  emits the foreground and monochrome drawables alongside the web rasters, and
+  refuses to run unless the master contains the exact path data it is about to
+  emit. The master's path data was rewritten comma-separated so that check can
+  be a byte comparison rather than a tolerance. Nudging `SPHERE` from r73 to
+  r74 makes the script exit 1 naming the mismatch, so the guard is not
+  vacuous.
+- **`drawable-nodpi/nudgio_logo.jpg` is deleted.** `BrandLogo` still renders
+  the approved JPEG on the About and onboarding screens through the JS asset
+  pipeline — its "never tint it" instruction stands — so only the launcher's
+  duplicate copy went.
+**Consequence:** The icon is resolution-independent and gains a themed variant
+on Android 13+. Writing `--` inside an XML comment, which is illegal, cost a
+13-minute release build before aapt reported it; the generator now parses
+every drawable it writes before saving, so that class of error cannot reach a
+build again.
