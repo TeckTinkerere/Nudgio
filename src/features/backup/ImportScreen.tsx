@@ -22,6 +22,7 @@ import {StyleSheet} from 'react-native';
 import {ImportPreview, type ImportMode} from './ImportPreview';
 import {useAppContainer} from '../../app/di/useAppContainer';
 import type {RootStackParamList} from '../../app/navigation/types';
+import {queryKeys} from '../../core/state';
 import {
   AppBar,
   Banner,
@@ -36,7 +37,7 @@ import {
   useFloatingAppBar,
   useTheme,
 } from '../../design-system';
-import {useHaptics} from '../../hooks';
+import {useAppQueryClient, useHaptics} from '../../hooks';
 import {useTranslation} from '../../localization';
 import type {BackupInspection} from '../../native-client/types';
 
@@ -73,6 +74,7 @@ export function ImportScreen({navigation}: Props) {
   const t = useTranslation();
   const haptics = useHaptics();
   const container = useAppContainer();
+  const queryClient = useAppQueryClient();
   const [phase, setPhase] = useState<ImportPhase>('idle');
   const [mode, setMode] = useState<ImportMode>('merge');
   const [inspection, setInspection] = useState<BackupInspection | null>(null);
@@ -112,6 +114,17 @@ export function ImportScreen({navigation}: Props) {
       mode: commitMode,
     });
     if (outcome.ok) {
+      // A restore rewrites reminders, media and their files underneath every
+      // cached query. Without this the app kept showing what it had read
+      // before the import: a restore that had just put a missing file back
+      // still listed its reminders as "Media unavailable" until the app was
+      // killed and relaunched, which reads as the restore having failed.
+      // eslint-disable-next-line no-void
+      void queryClient.invalidateQueries({queryKey: queryKeys.media.all()});
+      // eslint-disable-next-line no-void
+      void queryClient.invalidateQueries({queryKey: queryKeys.reminders.all()});
+      // eslint-disable-next-line no-void
+      void queryClient.invalidateQueries({queryKey: queryKeys.startup()});
       setPhase('done');
     } else {
       container.logger.warn('importScreen.commitFailed', {code: outcome.error.code});
@@ -177,6 +190,9 @@ export function ImportScreen({navigation}: Props) {
               {t('backup.import.successTitle')}
             </Text>
             <Text variant="bodyLarge" tone="variant" align="center">
+              {/* `mediaCount` is what the archive will actually restore —
+                  the validator drops records whose bytes are absent — not
+                  the manifest's claim. */}
               {t('backup.import.successBody', {
                 mediaCount: inspection.mediaCount,
                 reminderCount: inspection.reminderCount,
