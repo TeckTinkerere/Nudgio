@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="551 512 968 968" role="img" aria-label="Nudgio">
+  <title>Nudgio</title>
+  <!--
+    Vector master of the Nudgio mark.
+
+    Reconstructed from assets/brand/nudgio-logo.jpg, which until now was the
+    only artwork that existed — ic_launcher_foreground.xml simply wraps that
+    JPEG, and its own comment listed "SVG master" as outstanding. Geometry is
+    measured from that render rather than drawn by eye: the coordinate space
+    here IS the JPEG's 2048px space, so every number below can be checked
+    against the source pixel for pixel.
+
+      stem        x 594-836  -> centre 715, width 242
+      right leg   x 1129-1353 -> centre 1241, width 224
+      arch apex   outer top y 660 -> centreline 772
+      sphere      bbox (1299,597)-(1445,744) -> centre (1372,671) r 73
+      arcs        uniform 49 wide, round caps
+
+    Flat by intent. The JPEG is a soft-3D render; a master is the canonical
+    form behind it, which is what stays legible at 16px and prints. Colours are
+    the Ink & Apricot tokens the app ships, not the render's shaded blues.
+  -->
+  <g fill="none" stroke="#2D4DB5" stroke-width="242" stroke-linecap="round">
+    <!-- stem -->
+    <path d="M715 788 V1358" />
+  </g>
+  <g fill="none" stroke="#2D4DB5" stroke-width="224" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Shoulder: rises out of the stem, leans right over the apex, drops into
+         the right leg. Control points are least-squares fitted to centreline
+         samples read off the raster (left limb rmse 8.9px, right 16.7px, on a
+         2048 canvas) rather than eyeballed. -->
+    <path d="M718 1350 C718 1050 720 772 1037 772 C1250 772 1241 850 1241 1350" />
+  </g>
+  <g fill="none" stroke="#2D4DB5" stroke-width="49" stroke-linecap="round">
+    <!-- the two chime strokes -->
+    <path d="M1026 536 C1120 536 1215 560 1259 598" />
+    <path d="M1412 799 C1448 860 1456 930 1452 998" />
+  </g>
+  <circle cx="1372" cy="671" r="73" fill="#E9B58E" />
+</svg>
