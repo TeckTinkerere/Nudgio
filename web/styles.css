@@ -564,6 +564,45 @@ main {
   color: var(--primary);
 }
 
+/* ---------- screenshots ---------- */
+
+.shots__lead {
+  margin: -14px 0 26px;
+  color: var(--on-surface-variant);
+}
+
+.shots {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: clamp(18px, 3vw, 32px);
+}
+
+.shot {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* The device frame is the border and radius themselves — no fake phone
+   render around a real screenshot. `height: auto` with the intrinsic
+   width/height on the <img> reserves the right box before it loads, so
+   the page does not jump. */
+.shot img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--outline-variant);
+  border-radius: 18px;
+  background: var(--surface-container);
+}
+
+.shot figcaption {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--on-surface-variant);
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 860px) {
