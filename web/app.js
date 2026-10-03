@@ -249,15 +249,38 @@
       return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
     }
 
-    var rootStyles = getComputedStyle(document.documentElement);
+    // Reading the custom property directly stopped working once the tokens
+    // became light-dark(): getPropertyValue on an unregistered custom
+    // property hands back the unresolved `light-dark(#2D4DB5, #BAC8FF)`
+    // token stream, not a colour. Assigning it to a real `color` and reading
+    // that back makes the browser resolve it — which also covers whatever
+    // colour syntax the tokens use next.
+    var probe = document.createElement('span');
+    probe.setAttribute('aria-hidden', 'true');
+    probe.style.display = 'none';
+    document.documentElement.appendChild(probe);
+
     function readColor(name, fallback) {
-      var v = rootStyles.getPropertyValue(name).trim();
-      return hexToRgb(v || fallback);
+      probe.style.color = '';
+      probe.style.color = 'var(' + name + ', ' + fallback + ')';
+      var parts = getComputedStyle(probe).color.match(/[\d.]+/g);
+      if (!parts || parts.length < 3) return hexToRgb(fallback);
+      return [parseInt(parts[0], 10), parseInt(parts[1], 10), parseInt(parts[2], 10)];
     }
+
     // Fallbacks are the Ink & Apricot light values, used only if the custom
-    // properties cannot be read; they were still the pre-brand mint and amber.
+    // properties cannot be read.
     var c1 = readColor('--primary', '#2D4DB5');
     var c2 = readColor('--accent', '#E9B58E');
+
+    // The pulse caches its two colours, so a theme change has to invalidate
+    // them — otherwise the ring keeps drawing in the palette the page was
+    // loaded with. theme.js fires this on every switch, including the OS
+    // flipping underneath a "system" choice.
+    document.addEventListener('nudgio:theme', function () {
+      c1 = readColor('--primary', '#2D4DB5');
+      c2 = readColor('--accent', '#E9B58E');
+    });
 
     var BARS = 40;
     var amp = new Float32Array(BARS);
