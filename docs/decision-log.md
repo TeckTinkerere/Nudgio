@@ -2331,3 +2331,595 @@ from the start.
 **Decision:** Implement the approved Library, editor, Upcoming and Settings usability pass in the current Ink & Apricot theme. Use searchable virtualized Move destinations, explicit destination choice, depth checks, existing revision-bound native Undo, remembered folder navigation state, retained content during imports/errors, awaited deletion, meaningful empty states and wrapping controls. Resolve editor media directly by ID; progressively disclose optional fields and show the chosen rule rather than a guessed next occurrence. Add confirmed next-reminder Pause through the existing native repository. Collapse settings profile previews and explain Android-reported readiness beside Health.
 **Scope:** MR-03/04, UX-001/003/004/010, PRD-012/013, MR-09 and ACC-001/002/005/006/007/009. No migration, archive field, permission, Internet access, runtime dependency, background component, timer or scheduling path. Original media and logo are preserved. Backup repair and iPhone development remain deferred. Folder multi-actions are sequential revision-checked commands, not a newly promised atomic batch.
 **Evidence:** `npm run verify -- --runInBand` exited 0: typecheck, repository lint, 15 Jest suites/74 tests. npm did not pass the serial flag to Jest. Jest reported an existing forced worker shutdown; dependency parser diagnostics also appeared. Focused UI recovery/Pause tests passed 2 suites/6 tests with explicit serial/forceExit flags. Final typecheck, focused zero-warning lint and diff check passed after validation-copy refinements. Device visual, keyboard, scroll-restoration, TalkBack and alarm execution checks remain outstanding. No APK or release was produced. See `docs/plans/2026-10-01-device-friendly-ui.md` for behavior, compatibility and acceptance limits.
+
+## DL-080 — The reminder moment, personal messages and Reminder Actions
+
+**Date:** 2026-10-02
+**Decision:** Treat a reminder as a moment, not an alarm with an attachment. (1) Play from any entry point (full-screen alarm, notification, in-app strip) now opens `ReminderMoment`: the user's media first (image large over a blurred fill, video playing, audio with artwork and controls), then title, message and what to do next. It replaces the bare media viewer that dropped the title and message. (2) The reminder's existing `notes` becomes its user-facing **message**: first-class in the editor, shown on the full-screen alarm, in the notification body (`BigTextStyle`) and in the moment. (3) **Reminder Actions**: an optional follow-up stored as `reminders.action_type/action_uri/action_label` (`MIGRATION_6_7`, schema v7). One type today, `open_link`, an `ACTION_VIEW` of a validated URI, which covers web pages, YouTube/Spotify/Maps app links, `tel:`, `mailto:`, `geo:`, `sms:` and other apps' deep links. `ReminderActionRules.kt` is the single validator for both the save path and backup import; `javascript:`, `file:`, `content:`, `intent:`, `data:` and malformed URIs are refused. The editor mirrors the rules (`reminderActions.ts`) for instant feedback and recognizes common targets for labels ("Open YouTube"). (4) Notification Play is now an activity `PendingIntent` to a new invisible `AlarmOpenActivity`: Android 12+ blocks a notification-action broadcast receiver from starting UI, so `AlarmActionReceiver`'s `startActivity` silently did nothing and Play from the shade never opened the app. The receiver no longer tries; resolution still goes through the same receiver/processor path. `PendingMediaOpen` carries `{reminderId, mediaId}`. (5) The editor now reads title + message → media → when → after → alert style (collapsed), can import a photo, video or audio file directly from the phone, keeps Save in the app bar, and explains a blocked save instead of greying the button out. The "Record history" toggle is now actually persisted (`save()` previously ignored it).
+**Scope:** MR-03/05/06/08/09/10. New schema columns (nullable, additive migration, no backfill), one new optional archive field (`reminder.action`, omitted when absent, validated on import), one new non-exported foreground activity. No new permission: the target app does any networking, and `ACTION_VIEW` needs none. Bridge changes are additive (`action` on reminder DTOs/save request, `reminderId` on `takePendingMediaOpen`), so the contract version is unchanged. "Media starts only after Play" still holds: the moment only appears after Play.
+**Evidence:** See `docs/plans/2026-10-02-product-loop.md` cycle log.
+
+## DL-081 — The Library looks and behaves like albums
+
+**Date:** 2026-10-02
+**Decision:** Rebuild the Library UI around albums, as people know them from their phone's gallery, on top of the unchanged DL-078/079 folder storage (`library_folders`, one home per item, one nested level, revision-checked native commands). Root has two views behind a segmented control: **Albums**, a shelf of square cover tiles (Unsorted first when anything is unfiled, pinned albums next, a dashed "New album" tile last), and **All media**. A cover is the album's newest pictured item, or a 2×2 mosaic once it holds four or more, including sub-albums' items. Opening an album puts its name and "N items · M albums" in the app bar (back walks up), shows sub-albums as a row of smaller covers only when there are some, then the media. Media are square gallery tiles (`MediaTile`: duration, reminder-count and missing-file badges, title only when there is no picture) at one column denser than the old cards, replacing variable-height captioned cards. Album actions live in one ⋮ sheet (select, rename, pin, new album inside, move, delete). "Move to" is an album picker with covers and indented sub-albums. A move ends with an inline "Moved 2 items to Family · Undo". Import is offered per kind (photo/video via Photo Picker, audio via the document picker) and lands directly in the open album.
+**Engineering:** `LibraryScreen` no longer hand-parses the snapshot or builds command ids: `libraryAlbums.ts` decodes it at the boundary (MR-18) and generates real v4 command ids (six copies of a fixed-prefix pseudo-id removed), `useLibraryAlbums` owns refresh/commands and threads the revision across sequential commands. Native `libraryCommand list` additionally returns `covers` (up to four newest `{kind, thumbnailToken}`), `subfolderCount` and `unsortedCovers`. These are additive response fields, the thumbnail token is resolved by the existing `MediaThumbnailUri` through an injected function, and there is no schema change. Dead code removed: `AddActionSheet`, `LibrarySelectionHeader`, `SelectionCheckboxOverlay`, the Library FAB (the app bar already had Add), and 26 unused strings.
+**Scope:** MR-03/04/05, UX-001/003/004. No migration, permission, archive field or background component. Cover queries are bounded (4 rows per album) and run in the existing list transaction.
+
+## DL-082 — Home replaces Upcoming and Reminders
+
+**Date:** 2026-10-02
+**Context:** Walking the built app as a first-time user. The app opened on
+"Upcoming", a 5-day occurrence projection, which rendered "Nothing in the
+next few days" plus five "No alarms scheduled" filler rows — six ways of
+saying nothing — while the two reminders that actually existed sat one tab
+away under "Reminders". The landing screen was the emptier of two views of
+the same objects, and both offered their own "create" affordance, so the
+empty state's filled button and the FAB competed on the same screen.
+**Decision:** Merged both into one `Home` (`src/features/home/`), leaving
+three destinations: Home, Library, Settings. Home is `NEXT` — the soonest
+reminder rendered as its media, large (`NextMomentCard`) — followed by every
+other reminder in `sortByStatus` order. The FAB is the only create action and
+appears only once a list exists.
+**Consequence:** `features/today` is gone; `capabilityStatus` moved to
+`features/home`. One row per *reminder*, never per occurrence: a first cut
+kept the day-grouped projection under a "Later" heading and a single daily
+reminder immediately filled it with four identical rows. That also removed
+`projectUpcomingOccurrences` entirely, so every time Home shows now comes
+from the native scheduler's own `nextOccurrence` rather than a second,
+approximate copy of the recurrence rules living in the UI (MR-08).
+`ReminderSummary` gained `notes` so the hero and list can show the user's
+message without a detail fetch per row.
+
+## DL-083 — The full-screen alarm is built around the media
+
+**Date:** 2026-10-02
+**Context:** `AlarmActivity` opened with an 80 sp clock and gave the user's
+own photo or video a 136 dp rounded tile. On the screen whose entire purpose
+is bringing a personal moment back, the media was an accessory to a generic
+alarm clock — and in practice it was worse than that: the artwork never
+loaded at all. `MediaAssetEntity.thumbnailPath` stores only the file name
+(`MediaImporter` writes `thumbnailFile.name`), but `showArtwork` passed it to
+`File(...)` as though it were an absolute path, so the file never existed and
+the branded fallback tile always won. The full-screen alarm had never once
+shown a user's media.
+**Decision:** Resolve the thumbnail through `MediaStorage.thumbnailFileFor`,
+the way every DTO writer already does (`MediaThumbnailUri`). Rebuilt the
+layout around it: the media takes the content width and all the height the
+buttons and text leave it, `fitCenter` so a portrait photo is shown whole,
+over the dimmed full-bleed copy. The clock drops to one small line under the
+words. The repeat summary is gone — the recurrence rule is configuration, and
+nobody reads configuration while an alarm is ringing. The media-title
+fallback under the label is gone too: the notification still needs it (no
+picture there), but here the media is already on screen and naming the file
+only adds noise.
+**Consequence:** Verified on a locked device end to end — alarm fires,
+renders the photo and the user's message, "View" opens the in-app moment.
+
+## DL-084 — A stranded alarm session no longer silences a reminder forever
+
+**Date:** 2026-10-02
+**Context:** Found while testing DL-083. A reminder stopped firing
+permanently and no edit could revive it; every reconcile logged
+`scheduler.cleared`. An occurrence goes `claimed` when `AlarmDispatchReceiver`
+picks it up, with an `active_alarm_session` row written `alerting` beside it.
+When `startForegroundService` was refused, `AlarmRingingService` never
+started, and nothing ever resolved either row. That pair is poison:
+`getReminderIdsWithPendingOccurrence` counts `claimed`, so
+`ensurePendingOccurrencesExist` skips the reminder and never computes its
+next occurrence, while `getEarliestEligible` only considers `pending`, so the
+stuck row is never scheduled either. `deleteUnclaimedPendingForReminder`
+spares `claimed` rows on purpose — so that saving can never cancel an alarm
+that is ringing at that moment — which is why editing the time did not help.
+`SchedulerCoordinator` has documented "resolve stale sessions" as step 1
+since it was written, but never implemented it.
+**Decision:** Implemented it. `resolveAbandonedAlarms` resolves stranded
+sessions and marks their occurrences `missed` (not deleted — that is what
+actually happened to the user, and it keeps them in `recentlyMissed`), after
+which the reminder reschedules on the next line of `reconcileLocked`.
+**Consequence:** Two guards, and both are necessary. `AlarmRingingService`
+gained an `isRunning` flag — nothing in a service outlives its process, so
+while one is running it owns its sessions. That alone was not enough: a first
+version cancelled the very alarm it was dispatching, because the dispatch
+path writes the session, starts the service and reconciles in the same tick,
+so the reconcile landed before `onCreate` set the flag and a seconds-old live
+session looked stranded. So a session is only stranded once it is older than
+`AlarmRingingService.MAX_LIFETIME_SECONDS` plus five minutes — past the point
+the service would have stopped itself. Verified on device: a permanently
+silent reminder recovered (`abandonedAlarmsResolved sessions=1
+occurrences=1`, then `scheduler.applied` instead of `cleared`), and a live
+alarm afterwards rang and was dismissed normally with no sweep.
+
+**Not covered by a test.** The behaviour needs a real Room database and this
+project has no `androidTest` source set, so adding one is its own change.
+Verified empirically on device instead.
+
+## DL-085 — Setting an hour advances to the minute
+
+**Date:** 2026-10-02
+**Context:** `TimePicker` opened a separate modal dial for the hour and
+another for the minute, each needing its own field tap and its own Done, with
+nothing to stop someone setting the hour and walking away with the old
+minute.
+**Decision:** `AnalogClockPicker` gained `onCommit`, fired when the gesture
+ends rather than on each value change, so a drag sweeping past values does
+not advance mid-drag. `TimePicker` uses it to move hour → minute the way the
+platform's own picker does. Tapping the minute field alone still edits only
+the minute.
+
+**Correction to an earlier note:** a previous session recorded that the
+analog dial "ignored taps and was drag-only". It is not — it composes
+`Gesture.Tap` and works. The dial had been driven with `adb input tap`, whose
+events are mouse-source, which react-native-gesture-handler does not handle;
+`input touchscreen tap` works. No defect, and nothing was changed for it.
+
+## DL-086 — The reminder editor leads with the media
+
+**Date:** 2026-10-02
+**Context:** Creating a reminder opened with two boxed text fields; the media
+came below them as a `titleLarge` heading, an explanatory paragraph and three
+chunky equal buttons. So the first thing anyone met was a form, and the one
+thing that makes this app not a clock looked like an attachment row. Four
+`titleLarge` section headings ("Media", "When", "After the reminder", "Alert
+style") also competed with each other and with the app-bar title, so five
+short sections read as five pages stacked together.
+**Decision:** Media is now a stage, first: empty, a single large dashed frame
+with one line of copy and the three sources as compact chips; filled, the
+media itself at 240 dp with Preview and Change as pills *on* the image and a
+one-line caption under it, instead of two full-width buttons stacked below.
+The words sit under the thing they are about. `EditorSectionHeading` gives
+every section the same quiet uppercase label Home uses over NEXT and ALL
+REMINDERS.
+**Consequence:** Removed `reminders.editor.mediaHelper`,
+`messageHelper` and the per-block "What it says" heading — "Title" and
+"Message (optional)" already label themselves, and a third level of naming
+above them said nothing. Journey B (choose media, title it, save) is six
+interactions end to end, verified on device.
+
+## DL-087 — The media picker is the Library's own gallery
+
+**Date:** 2026-10-02
+**Context:** `SelectMediaScreen` passed `MediaCard` to the shared
+`LibraryGridBody` — real-aspect-ratio cards in a ragged masonry with a
+caption row under each. That matched Library when it was written; Library
+became a square album gallery (DL-081) and the picker did not follow. The
+same media then appeared in two different visual languages depending on how
+you arrived, and an audio file — no artwork, nothing to size — was stretched
+into a thousand-pixel empty box beside whatever tall photo sat next to it.
+Its search field also occupied the top of the screen permanently, where
+Library hides search behind an app-bar action.
+**Decision:** Same grid, same `MediaTile`, same column count and gutter, same
+app-bar search toggle. The already-attached item renders checked, so
+returning to swap media shows which one is in use.
+
+## DL-088 — Choosing media pops the picker (React Navigation 7)
+
+**Date:** 2026-10-02
+**Context:** Found while walking Journey B. `SelectMediaScreen` returned to
+the editor with `navigation.navigate({name, params, merge: true})`, which in
+React Navigation 6 popped back to the existing editor. Version 7 changed
+`navigate` to push rather than return, and moved that behaviour to `popTo`.
+Nothing failed loudly; the stack just grew. The picker stayed mounted beneath
+a *second*, freshly mounted editor — so the media lived on the new editor
+while the original underneath still showed none, Back from the editor landed
+on the picker instead of where the user started, and saving popped into the
+picker rather than Home. (That last one is what made an earlier test appear
+to "save onto a media picker".)
+**Decision:** `navigation.popTo(rootRoutes.reminderEditor, params, {merge:
+true})`.
+**Consequence:** Verified on device: choosing media returns to the one
+editor, Save lands on Home, and a single Back from the editor lands on Home.
+This was the only `merge: true` navigation in the app, so no other call site
+is affected — but `navigate` no longer returns to an existing screen anywhere
+in RNav 7, which is worth remembering before adding another.
+
+## DL-089 — The Library is one view: media, with its albums above it
+
+**Date:** 2026-10-03
+**Context:** The Library root was a full-screen album grid behind an
+"Albums / All media" segmented control, with DL-081's album work treated as
+settled. Using it said otherwise. The tab opened on a question nobody asked —
+"what folders do I have?" — rather than the one the Library exists to answer,
+"what have I saved to remind myself with". With five clips the opening screen
+was an `Unsorted` pseudo-album, one real album and a dashed New-album
+placeholder: two thirds of it not content. Switching to "All media" then
+spent three stacked rows — title, segmented control, six kind-filter chips —
+so media began a third of the way down a screen whose only job is showing
+media.
+**Decision:** One view everywhere. The media grid is the screen; albums are a
+96 dp horizontal shelf above it, the same row that already headed an open
+album's sub-albums. The segmented control, the second scroll position, the
+separate album empty state and `AlbumShelf` itself are gone (its
+`useAlbumDetail` moved to its own module). The shelf appears only once at
+least one album exists — the rule the sub-album row already followed, since
+someone who never files anything should not carry an empty shelf above their
+media; "New album" stays in Add. `Unsorted` leads the shelf only when
+something is unfiled *and* an album exists: before anything is filed,
+"unsorted" is a second word for the grid underneath.
+**Consequence:** Kind filters now appear only when a place holds 12+ items or
+a filter is already applied — below that they are chrome above five tiles,
+and keeping them while filtered means a filter can always be cleared. Album
+tiles dropped from 132 dp to 96 dp with `labelLarge`/`labelMedium` captions:
+at the old size three of them plus labels ate the top 420 px, which was the
+problem the restructure was meant to fix.
+
+## DL-090 — "Remind me with this"
+
+**Date:** 2026-10-03
+**Context:** The Library exists to support reminders, and media detail's
+primary button said "Add reminder" — accurate, but it does not say that *this
+item* is what the reminder will show.
+**Decision:** Renamed to "Remind me with this". Verified end to end: from the
+Library, tapping a clip and then this button opens the editor with the media
+already filling its stage (DL-086), so the only things left are a title and a
+time.
+
+## DL-091 — An off switch looks like a switch
+
+**Date:** 2026-10-03
+**Context:** `Toggle` drew its unselected track in `surfaceContainerHigh`,
+which sits a hair away from the page behind it. An *off* switch therefore
+showed no track at all — just its thumb, floating as a lone grey circle that
+read as a rendering fault rather than a control. Most visible on Settings'
+disabled "24-hour time" switch, but it affected every off switch in the app,
+including the enable/pause toggle on every reminder row.
+**Decision:** The off track is `outlineVariant`, and the off thumb a surface
+role so it stays legible against it. Material draws the unselected track with
+a 2 dp outline border for exactly this reason; React Native's `Switch` has no
+border, so the track itself has to carry the definition.
+
+## DL-092 — Settings has one row vocabulary
+
+**Date:** 2026-10-03
+**Context:** Walking the screen, five consecutive entries had five different
+layouts: a heading with a paragraph and a tonal button; a heading with a
+sub-label and a chip row; a title with a switch and nothing else; a title with
+a two-line description and a disabled switch; and a title with an avatar icon
+whose two controls floated *outside* the row, right-aligned underneath it.
+Section headings were `titleMedium` — the same weight several rows used for
+their own titles — so "Alert profiles" (a row) and "Reminders and alerts"
+(the section containing it) were indistinguishable, and the page read as a
+flat list of headings. A pair of dividers bracketed nothing on any device
+without dynamic colour, because the divider sat outside the condition that
+hid the Material You row.
+**Decision:** Section headers take the quiet uppercase label Home and the
+reminder editor already use. Every entry is a `ListRow`: alert profiles is a
+row that expands (with its three-sentence caveat about what a preview does
+*not* cover shown only once the list is open, rather than explaining a
+control the reader cannot see); reduce-motion is a row with its status in the
+trailing slot; the ringtone is a row you tap to change, with audition in the
+trailing slot. Leading icons now follow one rule — a row has an icon if and
+only if it navigates somewhere — which cost the ringtone row its icon. The
+divider moved inside the dynamic-colour condition. The nested "Reminder
+defaults" heading is gone; it sat inside "Reminders and alerts" at the same
+weight as that section while the field's own label already said what it was.
+
+## DL-093 — Time format is one control, not two switches
+
+**Date:** 2026-10-03
+**Context:** Two switches — "Use device time format", and a "24-hour time"
+switch that the first one disabled. So the setting had a state you could only
+reach by toggling something else first, and a permanently disabled switch sat
+on the screen explaining itself in two lines of helper text.
+**Decision:** One `SegmentedControl`: Device / 12-hour / 24-hour, mapping
+directly onto `use24HourTime`'s `null | false | true`. It is a single
+mutually-exclusive value, which is what the Theme control immediately above
+it already expresses the same way — so the two settings now look like what
+they are, the same kind of choice.
+**Consequence:** Dropped `settings.defaults.deviceTimeFormat`,
+`use24HourTime` and `use24HourTime.helper`. The existing regression test
+("lets a user return to the device time format after choosing 24-hour time")
+still covers the same behaviour, pressing "Device" instead of toggling a
+switch.
+
+## DL-094 — The navigation rail was drawn but never positioned
+
+**Date:** 2026-10-03
+**Context:** MR-04's responsive table calls for a navigation rail at
+medium/expanded widths, and `AppTabBar` has always *drawn* one — a vertical
+column, 96 dp wide, switched on by `useResponsive().navigation`. It was never
+positioned as one. `tabBar` is the bottom-tab navigator's bottom slot, so on
+a 768x1024 tablet the "rail" rendered as a small box wedged into the
+bottom-left corner with a grey band beside it and the two-pane layout
+collapsing around it. Nothing in the unit tests could see this; it only
+appears at a width no phone reaches.
+**Decision:** `tabBarPosition: 'left'` when the treatment is a rail (React
+Navigation 7 added the option for exactly this). The rail then also has to
+clear the system bars itself — a bottom bar only ever meets the gesture bar,
+but a rail spans the full height — so it takes `insets.top` and
+`insets.bottom`, and `TabScreenInsets` stops zeroing the screen's bottom
+inset in rail mode, where nothing covers the bottom any more. The FAB drops
+its bottom-bar offset there for the same reason.
+
+## DL-095 — Layouts that move with the window
+
+**Date:** 2026-10-03
+**Context:** A pass across the viewport sizes in the product brief — 320x568
+through 430x932, 768x1024, and landscape — plus font scale 1.5. Three things
+broke, all of them invisible at the 393x851 the work had been done at.
+**Decision:**
+- `NextMomentCard`'s media was a fixed 208 dp. On a 320x568 phone that is 37%
+  of the viewport, so the card's own title was pushed under the floating FAB
+  and the list below it started off-screen. It now scales with usable height,
+  clamped 140-240.
+- In landscape the same card gave the media a 5:1 letterbox slit — a portrait
+  photo reduced to a strip between two wide bands of its own blurred
+  backdrop. Above 600 dp wide and landscape it now lays out side by side,
+  media left and words right, which is the rule and the threshold
+  `ReminderMoment` already used.
+- The *extended* FAB is wide enough to cover a whole row's title. There is
+  room for that on a tall phone; there is not on a short one, and not at
+  large font scale, where the FAB grows and the rows grow with it. It keeps
+  its label only when `usableHeight >= 640` and the font scale is normal —
+  `isLargeFontScale` being the same signal `AppTabBar` already uses to drop
+  its own labels.
+**Consequence:** Verified on device at 320x568, 360x800, 430x932, 768x1024,
+800x360 landscape, and 360x800 at font scale 1.5. The sizes between 360 and
+430 are interpolations between two verified bounds of a fluid layout rather
+than separately checked.
+
+**Harness note:** `.artifacts/viewport.sh` drives these. Android has no "set
+me to 320x568 dp" control, so each profile is a pixel size plus a density
+chosen to land on that dp box (`dp = px * 160 / density`).
+
+## DL-096 — Nothing ever noticed that media had gone missing
+
+**Date:** 2026-10-03
+**Context:** Deleting a media file out from under four reminders changed
+nothing visible: the Library kept drawing its cached thumbnail and its
+"4 reminders" badge as though all were well, and the user would find out only
+when a reminder fired and played nothing. `MediaDao.updateIntegrityState`
+exists and is documented as "used by integrity checks" — and has no callers
+anywhere in the app. `integrity_state` was written once by `MediaImporter`
+and never revisited, which made `MediaTile`'s missing overlay, `MediaCard`'s
+missing treatment and Library's own "Missing" filter chip unreachable UI.
+**Decision:** `MediaDtoWriter` resolves `integrity` from the file on disk:
+the stored state unless the bytes are gone, in which case `missing` wins
+regardless of the column. One `exists()` next to the thumbnail check already
+happening on the same row, which makes the column a cache rather than the
+truth.
+**Consequence:** Deliberately not written back — this runs inside list reads,
+and a read should not fan out into writes. A future integrity sweep can
+persist it through the DAO method that has been waiting for a caller.
+Verified by deleting a file the emulator's reminders depended on: the item
+now renders as missing, with the reminder count still visible so the damage
+is legible.
+
+## DL-097 — The moment survives the user's own words
+
+**Date:** 2026-10-03
+**Context:** Stress-testing the content cases in the product brief. A
+124-character title and a 40-character custom action label — both inside the
+limits the editor itself enforces — broke the moment screen: the title ran to
+six lines and pushed the panel over half the screen, squeezing the media the
+screen exists to show, while the action label wrapped to four lines in its
+half of the button row. The optional action became a tall blue slab and
+"Done" shrank to a chip beside it, inverting the hierarchy on the one screen
+the product is built around.
+**Decision:** The title clamps to three lines and the message to four — the
+moment is a glance, and the full text is on the detail screen. The two
+actions stack full width instead of sharing a row, which keeps a 40-character
+label to one line and makes the order unambiguous *without* truncating text
+the user wrote (MR-04 forbids ambiguous truncation of action labels, which is
+why `Button` deliberately has no `numberOfLines` and why the fix belongs in
+this layout rather than in that component).
+
+**Also checked, no change needed:** a rejected link blocks Save with a plain
+inline message ("That doesn't look like a link Nudgio can open"); the action
+label field stops at exactly 40 characters, matching
+`ReminderActionRules.MAX_LABEL_LENGTH`, so the client and the native
+validator agree; Home's hero already clamps title, message and label and grew
+gracefully; the editor keeps the focused field above the keyboard.
+
+## DL-098 — The durable-media problem was already solved; the lifecycle around it was not
+
+**Date:** 2026-10-03
+**Context:** A brief asked for a Nudgio-managed media store, on the premise
+that a reminder might depend on the user's original gallery file and break
+when they clean their gallery. Investigation found the premise false and
+long-settled: `MediaImporter` streams every import into app-private
+`filesDir/media/<uuid>.<ext>` with a 64 KB buffer, hashes it in the same
+pass, writes `.part` then atomically renames, and inserts the row only after
+the file is final. `MediaAssetEntity` has **no source-URI column at all**,
+and says why — *"Storing it would create a path that breaks when the user
+moves or deletes the original."* `11_Edge_Cases...md` already specifies
+*"Original gallery file deleted — No effect after successful import because
+app owns a copy."* Reference-counted deletion, COPY-not-MOVE, album
+membership as metadata, size caps, free-space reserve, cancellation and
+journal recovery were all likewise already built.
+**Decision:** Do not rebuild what exists. The honest finding is that the
+invariant holds, and the work is in the lifecycle *around* it, where four
+gaps were real — three of them the same defect species as DL-096: a DAO
+method with a doc comment describing its purpose and no caller.
+**Consequence:** Recorded in docs/plans/durable-media.md rather than
+implemented twice. Scenarios 1, 2, 3, 8 and 10 of the brief pass by
+construction, and there is nothing to migrate: no release ever stored an
+external URI, so no user database contains a URI-based media record.
+
+## DL-099 — Importing the same photo five times made five copies
+
+**Date:** 2026-10-03
+**Context:** `MediaDao.getBySha256` is documented *"Duplicate detection on
+import (MR-09 indexes `sha256` for exactly this)"* and had **zero callers**,
+so every re-import of the same file produced another full copy on disk.
+**Decision:** `MediaImporter` checks for a reusable duplicate after the copy
+completes and before the rename — the digest is known by then, so a duplicate
+is answered without probing, thumbnailing, or even naming the new file, and
+the redundant bytes are released immediately. Three conditions, not just the
+hash: `sizeBytes` must also match (the brief names hash *and* size, and the
+pair makes the check total rather than trusting one signal), the existing
+row's file must still exist (otherwise reuse hands back a record whose bytes
+are gone), and the row must not be `missing`/`unsupported` (reusing an asset
+this device already decided it cannot play would propagate that failure into
+a reminder the user is creating right now). Oldest match wins, so repeated
+imports converge on one identity.
+**Consequence:** The copy itself still happens. Hashing the source *before*
+copying would read every byte twice to save only the duplicate case, against
+the brief's own constraint not to re-hash enormous videos needlessly; one
+read that both copies and hashes is the cheaper trade. Verified on device:
+importing the same photo twice logged
+`media.import.reusedDuplicate bytesReclaimed=124119` and left 6 files on
+disk where 7 would have been.
+
+## DL-100 — A reminder whose media vanished said "Paused"
+
+**Date:** 2026-10-03
+**Context:** `11_Edge_Cases...md` requires *"Integrity state Missing; disable
+attached reminders"*, and nothing did it — `MediaDao.updateIntegrityState`
+had no caller, which DL-096 had already found and only half-fixed by
+resolving integrity at *read* time. So a deleted file left four 6:15 AM
+reminders firing every morning and playing nothing.
+Wiring the sweep exposed the second, worse half on device: the four
+reminders correctly stopped, and then read **"Paused"** — identical to a
+reminder the user paused deliberately — beside thumbnails that still
+rendered, because the cached WebP outlives the asset it depicts. Home's
+empty state advised *"Turn one back on"*, which could not work: the next
+sweep would disable it again.
+**Decision:** Three parts.
+- `MediaLibraryService.sweepIntegrity` reconciles every asset against the
+  filesystem at startup, writing only on change, and the bridge disables the
+  attached reminders — disable, never delete, because the reminder is still
+  something the user asked for and a replaceable asset should not take it
+  down. Recovery runs in the same pass: an asset marked `missing` whose bytes
+  are back returns to `healthy`, or a successful restore would look like a
+  failed one. Reminders are not re-enabled automatically — re-arming an alarm
+  unasked is not a decision a sweep should make silently.
+- `ReminderSummary.mediaMissing` is resolved from the filesystem on every
+  read, so the list shows what is true now rather than a cached column only
+  the sweep refreshes.
+- `reminderStatus` gains a `mediaMissing` kind checked *before* `paused`,
+  because it is the cause. It renders in `error` tone, sorts second (above
+  merely-waiting — it is the only state needing user action, and burying it
+  under every paused reminder is how it stayed invisible), drops its enable
+  toggle, and Home names the real reason instead of offering futile advice.
+**Consequence:** The sweep lands ~18 s after cold start on the emulator,
+behind the other startup coroutines; the list corrects itself on its next
+refetch, which is acceptable for housekeeping but is why `mediaMissing` is
+resolved per read rather than trusted from the column.
+
+## DL-101 — The visible Nudgio album is an export, not the store
+
+**Date:** 2026-10-03
+**Context:** The brief asked for imported media to appear on the device as a
+recognisable Nudgio album (`Pictures/Nudgio/` or similar), and asked for the
+correct Android architecture to be determined rather than a folder blindly
+created.
+**Decision:** The app-private copy stays the single source of truth;
+MediaStore visibility is an explicit, per-item export. Making the managed
+copy MediaStore-visible would re-create the brief's own opening failure —
+a gallery cleanup sweeps `Pictures/Nudgio/` exactly as readily as
+`DCIM/Camera/`, and "Nudgio owns a durable copy" is the first of its four
+stated goals. Two further consequences settle it: MediaStore files **survive
+uninstall**, stranding hundreds of megabytes of personal photos on a device
+the user thought they had cleaned; and `Pictures/Nudgio/` is readable by any
+app holding `READ_MEDIA_IMAGES`, where app-private media is readable by
+none — a privacy regression for an app whose pitch is local-first with no
+Internet permission.
+The brief anticipated this and settled it: *"If Android deliberately allows
+users to delete visible MediaStore items, respect that. The goal is
+resilience."* It does, and there is no supported protection mechanism —
+`IS_PENDING` guards an in-progress write, not a finished item, and
+`createDeleteRequest` only asks. The honest answer to the brief's "optional
+protection strategy" is that none exists.
+**Consequence:** `MediaStoreExporter` writes to the correct collection per
+kind — `Pictures/Nudgio`, `Movies/Nudgio`, `Music/Nudgio` — rather than
+forcing audio into an image folder, and `IS_PENDING` is cleared only after
+the stream completes so no gallery app can show a half-copied video. Below
+API 29 it reports unsupported rather than taking `WRITE_EXTERNAL_STORAGE`,
+and the share sheet remains the permissionless path there. The goal the album
+was meant to serve — *"the user can understand that Nudgio has preserved the
+media"* — is served more directly by the Settings storage row, which states
+it outright instead of implying it.
+
+## DL-102 — The backup claimed to contain media and contained none
+
+**Date:** 2026-10-03
+**Context:** Reviewing what backups actually hold, per the brief. `BackupExporter`
+writes **no `media/` entries at all** and hardcodes every media figure:
+`entries[ENTRY_MEDIA_ASSETS] = jsonArrayBytes(emptyList())`, `mediaAssets = 0`,
+`totalMediaBytes = "0"`, `mediaCount = 0`. Its class doc explains why — *"No
+media assets exist yet (docs/decision-log.md, same gap as DL-012)"* — which
+was true when written and is not now; there were six managed assets on the
+test device while reading it. `BackupImporter`'s file-promotion phase is
+likewise an explicit no-op: *"Files promoted: no-op today (no media)."*
+Meanwhile Settings offered **"Export your media and reminders"**, the archive's
+own README promised *"plus any media/thumbnails you have added to the app"*,
+and restore reported *"Restored {mediaCount} media items"* from a count that
+is structurally always zero.
+So a user who backed up, replaced their phone and restored would get every
+reminder back with its media gone — the precise catastrophe this work is
+about, delivered by the one feature meant to prevent it, after the product
+told them three times that their media was safe.
+**Decision:** Make the product honest now; the feature is a separate,
+two-sided piece of work and a half-built backup path is more dangerous than a
+limited one. Settings now says "Export your reminders and settings", the
+archive README states plainly that imported media is **not** included and the
+originals should be kept, and restore no longer reports a media count or
+implies media came back.
+**Consequence:** This leaves a real durability hole, and it is the top
+remaining item: managed media is app-private, so it does not survive
+uninstall, and the spec's own recovery route for a missing asset is "Restore
+backup" — which cannot work until the archive carries bytes. The format is
+already designed for it (`MEDIA_DIR_PREFIX`, `MAX_MEDIA_ENTRY_BYTES`, and the
+structural validator's per-entry size cap all exist and are unused), so the
+work is: stream each managed file into `media/<storage_key>` with its CRC and
+hash computed in a first pass (STORED entries need both up front, and media
+must never be buffered whole — `BackupExporter`'s in-memory
+byte-array-per-entry pass is exactly what its class doc says stops being
+viable here), emit the real `media_assets` records and counts, and teach
+`BackupImporter` plus `BackupConflictPlanner` to restore and reconcile them.
+
+## DL-103 — Backups now carry the media they always claimed to
+
+**Date:** 2026-10-03
+**Context:** DL-102 found that `BackupExporter` wrote no `media/` entries,
+hardcoded every media figure to zero, and that `BackupImporter`'s
+file-promotion phase was an explicit no-op — while three pieces of UI told the
+user their media was safe. DL-102 made the product honest; this closes the
+hole it was honest about. It mattered because managed media is app-private and
+does not survive uninstall, and because the spec's own recovery route for a
+missing asset ("Restore backup") could not possibly work.
+**Decision:** The archive carries real `media-assets.json` records and the
+bytes alongside them at `media/<storage_key>`.
+- **Export streams.** `writeStoredFileEntry` reads each file twice — once for
+  CRC, SHA-256 and size, once to write — because a STORED zip entry must
+  declare size and CRC before any byte is written, and the alternative is
+  buffering a file that may be 2 GB. Peak memory stays at one 64 KB window,
+  the same constant `MediaImporter` copies with, so the two paths cannot drift
+  apart on memory budget. STORED rather than DEFLATE: the content is already
+  compressed, so deflating costs CPU to produce a file the same size.
+- **Only assets whose bytes exist** are exported. A row the integrity sweep has
+  marked missing would otherwise ship a record pointing at an entry that was
+  never written.
+- **`storage_key` is the archive filename**, so record and file find each other
+  without a second index — and it is validated on read (no separator, no
+  traversal, no leading dot), because an archive is attacker-controlled input
+  and that key becomes a filename on this device.
+- **Import verifies while extracting**, not at inspect time: that pass has to
+  read the bytes anyway, and hashing a multi-gigabyte archive twice to learn
+  the same thing is not worth the wait. Files land as `<key>.part` and are
+  renamed on success, so a failure leaves junk the startup sweep removes
+  rather than a truncated file at a key a row already points at.
+- **A restore repairs missing bytes.** `restoreMediaRows` skips a row that
+  already exists *unless* its file is gone, in which case the bytes are
+  re-promoted. Without that, "Restore backup" — the repair the spec names —
+  silently did nothing on the one path it was meant for.
+- **Replace does not delete media.** Reminders and profiles are logical data
+  the archive fully describes, so wiping them is recoverable by definition. A
+  photo is not: deleting imported media because the user chose "Replace" would
+  destroy originals that may exist nowhere else, with no undo. The archive's
+  own media still restores alongside, so every reminder it brings resolves.
+- **A reminder whose media is absent is a warning, not an error**, which is
+  also what keeps archives written before this change importable.
+**Consequence:** Verified end to end on device. An export of six assets
+produced a 6.4 MB archive containing all six files and real counts
+(`mediaAssets: 6`, `totalMediaBytes: 6718581`); all sixteen entries verified
+against `checksums.sha256` offline, including the streamed media. Deleting a
+3.2 MB video that four reminders depend on, then restoring, put it back
+byte-for-byte and the reminders returned from "Media unavailable" to merely
+paused.
+Restoring also exposed a defect of its own: `ImportScreen` never invalidated
+its caches, so a restore that had just put a missing file back still listed
+its reminders as "Media unavailable" until the app was killed and relaunched —
+a successful restore that looked like a failed one. It now invalidates media,
+reminders and the startup snapshot on commit.
