@@ -29,6 +29,9 @@ android/app/.kotlin/
 !debug.keystore
 android/keystore.properties
 android/app/src/main/assets/index.android.bundle*
+# `react-native bundle --assets-dest` copies every JS-referenced image into
+# density buckets beside the bundle. Build output of the same run, not source.
+android/app/src/main/res/drawable-*dpi/
 
 # Generated native artifacts (React Native Codegen)
 android/app/build/generated/
@@ -73,3 +76,8 @@ ios/Pods/
 xcuserdata/
 *.ipa
 *.mobileprovision
+
+# Generated knowledge graph (graphify rebuilds it from the AST on demand) and
+# the Metro log a dev run leaves behind. Both are reproducible output, not source.
+graphify-out/
+metro.log
