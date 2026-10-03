@@ -1,15 +1,33 @@
+/* Ink & Apricot — the palette the Nudgio mark is drawn in, and the one the
+   Android app already ships. Values mirror docs/plans/iphone-brand-tokens.css
+   so the site, the app and the logo cannot drift apart.
+
+   This page used to be near-black with a mint accent, which shared nothing
+   with the logo: cobalt letterform, apricot dot, warm cream ground. */
 :root {
-  --surface: #0e1513;
-  --surface-container: #17201d;
-  --surface-container-high: #1e2924;
-  --on-surface: #dee4e1;
-  --on-surface-variant: #bec9c5;
-  --outline: #89938f;
-  --outline-variant: rgba(137, 147, 143, 0.22);
-  --primary: #5edbc8;
-  --primary-glow: rgba(94, 219, 200, 0.45);
-  --on-primary: #003732;
-  --secondary: #ffb951;
+  color-scheme: light dark;
+
+  --surface: #F7F4EE;
+  --surface-container: #FFFEFA;
+  --surface-container-high: #ECE9E2;
+  --surface-scrim: rgba(247, 244, 238, 0.86);
+  --on-surface: #202638;
+  --on-surface-variant: #5F6675;
+  --outline: #767E90;
+  --outline-variant: #DEDDE5;
+  --primary: #2D4DB5;
+  --primary-pressed: #233C8D;
+  --primary-tint: rgba(45, 77, 181, 0.07);
+  /* Softer than the old mint halo: a glow carries on near-black and only
+     muddies a cream ground, so the dial leans on its edge and fill instead. */
+  --primary-glow: rgba(45, 77, 181, 0.22);
+  --on-primary: #FFFFFF;
+  /* Every --secondary use is small text, and the logo's own apricot
+     (#E9B58E) only reaches 3.1:1 on cream. This is the same hue darkened
+     until 12px text clears 4.5:1; --accent keeps the true apricot for
+     decorative fills, where contrast rules do not apply. */
+  --secondary: #A35A23;
+  --accent: #E9B58E;
 
   --font-display: 'Manrope', system-ui, sans-serif;
   --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -22,8 +40,27 @@
   box-sizing: border-box;
 }
 
-html {
-  color-scheme: dark;
+/* The same brand, after dark. Kept because the page was dark before this
+   and some readers will have asked their OS for that; the mark is a
+   transparent PNG, so it sits on either ground without a second asset. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #11141D;
+    --surface-container: #1D2230;
+    --surface-container-high: #2C3242;
+    --surface-scrim: rgba(17, 20, 29, 0.86);
+    --on-surface: #F3F1EC;
+    --on-surface-variant: #BCC2D0;
+    --outline: #858FA5;
+    --outline-variant: #394052;
+    --primary: #BAC8FF;
+    --primary-pressed: #A7B8F0;
+    --primary-tint: rgba(186, 200, 255, 0.10);
+    --primary-glow: rgba(186, 200, 255, 0.30);
+    --on-primary: #172654;
+    --secondary: #F1BE98;
+    --accent: #F1BE98;
+  }
 }
 
 body {
@@ -62,7 +99,7 @@ h1, h2, h3 {
   justify-content: space-between;
   gap: 16px;
   padding: 18px clamp(20px, 5vw, 56px);
-  background: rgba(14, 21, 19, 0.86);
+  background: var(--surface-scrim);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--outline-variant);
 }
@@ -79,10 +116,13 @@ h1, h2, h3 {
   color: var(--on-surface);
 }
 
-.wordmark__ring {
-  width: 26px;
-  height: 26px;
-  color: var(--primary);
+/* The mark carries its own colour, so unlike the glyph it replaces it is not
+   tinted by `currentColor` — the apricot dot is part of the logo, not an
+   accent the page gets to restyle. */
+.wordmark__mark {
+  width: 28px;
+  height: 28px;
+  display: block;
 }
 
 .site-nav {
@@ -259,13 +299,13 @@ main {
 .dial__track {
   fill: none;
   stroke: var(--outline);
-  stroke-opacity: 0.28;
+  stroke-opacity: 0.45;
   stroke-width: 1.5;
 }
 
 .dial__tick {
   stroke: var(--outline);
-  stroke-opacity: 0.55;
+  stroke-opacity: 0.75;
   stroke-width: 2;
 }
 
@@ -275,14 +315,14 @@ main {
 }
 
 .dial__play {
-  fill: var(--on-surface);
+  fill: var(--primary);
   transition: fill 0.3s ease;
 }
 
 .dial:hover .dial__play,
 .dial:focus-visible .dial__play,
 .dial.is-alerting .dial__play {
-  fill: var(--primary);
+  fill: var(--primary-pressed);
 }
 
 .dial__label {
@@ -290,9 +330,10 @@ main {
   font-weight: 800;
   font-size: 1.02rem;
   letter-spacing: 0.01em;
-  color: var(--on-surface);
-  padding: 11px 28px;
-  border: 1.5px solid var(--outline);
+  color: var(--on-primary);
+  background: var(--primary);
+  padding: 12px 30px;
+  border: 1.5px solid var(--primary);
   border-radius: 999px;
   transition: border-color 0.25s, color 0.25s, background-color 0.25s;
 }
@@ -300,9 +341,9 @@ main {
 .dial:hover .dial__label,
 .dial:focus-visible .dial__label,
 .dial.is-alerting .dial__label {
-  border-color: var(--primary);
-  color: var(--primary);
-  background: rgba(94, 219, 200, 0.08);
+  border-color: var(--primary-pressed);
+  color: var(--on-primary);
+  background: var(--primary-pressed);
 }
 
 .dial__state {
