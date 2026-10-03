@@ -2971,3 +2971,43 @@ on Android 13+. Writing `--` inside an XML comment, which is illegal, cost a
 13-minute release build before aapt reported it; the generator now parses
 every drawable it writes before saving, so that class of error cannot reach a
 build again.
+## DL-105 — The site's dark mode nearly erased the logo
+
+**Date:** 2026-10-04
+**Context:** `styles.css` carried a dark palette behind
+`@media (prefers-color-scheme: dark)` with a comment claiming the mark "is a
+transparent PNG, so it sits on either ground without a second asset." That was
+wrong: the mark is fixed cobalt `#2D4DB5`, which measures **2.49:1** against
+the dark ground `#11141D`. Adding a control that lets people *choose* dark
+made shipping that unacceptable.
+**Decision:** Three states — system, light, dark — with the palette expressed
+once.
+- **`light-dark()` instead of a duplicated dark block.** Every token is
+  declared as `light-dark(light, dark)` and reads the used `color-scheme`, so
+  the control's entire job is narrowing that one property to `light` or
+  `dark`; `system` leaves it at `light dark` and the OS decides. There is no
+  second palette to keep in step, and form controls and scrollbars follow for
+  free. Each token is declared twice, plain light value first, so a browser
+  predating `light-dark()` gets a complete light palette rather than no
+  palette at all.
+- **No JavaScript still works.** Nothing sets `data-theme`, which lands on
+  `system` — the correct default rather than a broken page.
+- **The mark is inlined** so it can read `var(--primary)` / `var(--accent)`;
+  an `<img>` cannot. The dark values are the brand's own
+  (`#BAC8FF`, 11.21:1), so this is the logo in its dark colourway, not the
+  page recolouring the logo. The favicon copy keeps its own
+  `prefers-color-scheme` rule instead, because a tab strip's light/dark is not
+  something the page's control reaches.
+- **The canvas pulse had to be taught to re-read.** `getPropertyValue` on an
+  unregistered custom property returns the unresolved
+  `light-dark(#2D4DB5, #BAC8FF)` token stream, not a colour — verified in the
+  browser — so `readColor` now resolves through a probe element's computed
+  `color`, and re-runs on a `nudgio:theme` event.
+**Consequence:** Verified in-browser across all three states and both pages:
+`data-theme` survives reload with no flash, the choice carries from the
+download page to the privacy page, `theme-color` resolves to a single colour
+on an explicit choice and keeps its media pair on `system`, and the header
+fits at 320px with no horizontal overflow. The pulse *animation* itself was
+not observed — the preview pane throttles `requestAnimationFrame` to zero
+frames per second — so only its colour-resolution path is verified, by
+measuring what `readColor` returns in each theme.
