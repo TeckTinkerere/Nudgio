@@ -49,6 +49,33 @@ export const interpolate = (template: string, options?: TranslateOptions): strin
 export const formatEnglishUnit = (value: number, unit: string): string =>
   `${value} ${unit}${value === 1 ? '' : 's'}`;
 
+/**
+ * Storage size for display: "486 MB", "1.2 GB", "0 MB" when empty.
+ *
+ * Decimal units (MB = 10^6), matching what Android's own storage screens
+ * show — a figure the user can compare against Settings > Storage rather
+ * than a binary one that reads ~5% smaller for no reason they can see.
+ *
+ * One decimal place only above a gigabyte: "486.3 MB" is noise at that
+ * scale, while "1.2 GB" vs "1 GB" is a difference worth seeing.
+ */
+export const formatStorageSize = (bytes: string | number): string => {
+  const value = typeof bytes === 'string' ? Number(bytes) : bytes;
+  const mb = value / 1_000_000;
+  if (!Number.isFinite(value)) {
+    // A malformed byte count is not worth a crash in a settings row.
+    return '—';
+  }
+  if (mb < 1 && value > 0) {
+    // Never round a real file down to "0 MB" — that reads as "nothing stored".
+    return '<1 MB';
+  }
+  if (mb < 1000) {
+    return `${Math.round(mb)} MB`;
+  }
+  return `${(mb / 1000).toFixed(1)} GB`;
+};
+
 /** Locale-formatted date, honoring the MR-13 "avoid assuming first day of week" rule via `Intl`. */
 export const formatLocalDate = (date: Date, languageTag: string | null): string =>
   new Intl.DateTimeFormat(languageTag ?? undefined, {

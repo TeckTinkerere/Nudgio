@@ -28,10 +28,13 @@ import type {
   ImportRequest,
   MediaDetail,
   MediaQuery,
+  MediaStorageUsage,
+  ReplaceMediaSourceRequest,
   MediaSummary,
   MutationResult,
   NotificationPermissionResult,
   Page,
+  PendingReminderOpen,
   PickedDocument,
   PickedRingtone,
   PreferencePatch,
@@ -72,7 +75,7 @@ export interface MediaReminderClient {
   getCapabilitySnapshot(): Promise<Result<CapabilitySnapshot, AppError>>;
   openCapabilitySettings(kind: CapabilityKind): Promise<Result<unknown, AppError>>;
   /** Drains the native "Accept asked to open this media" slot. `null` when nothing is pending. */
-  takePendingMediaOpen(): Promise<Result<UUID | null, AppError>>;
+  takePendingMediaOpen(): Promise<Result<PendingReminderOpen | null, AppError>>;
   getStatistics(rangeDays: number): Promise<Result<StatisticsSummary, AppError>>;
   getPreferences(): Promise<Result<PreferencesSnapshot, AppError>>;
   setPreferences(patch: PreferencePatch): Promise<Result<PreferencesSnapshot, AppError>>;
@@ -94,6 +97,9 @@ export interface MediaReminderClient {
   updateMedia(request: UpdateMediaRequest): Promise<Result<MediaDetail, AppError>>;
   deleteMedia(request: DeleteMediaRequest): Promise<Result<MutationResult, AppError>>;
   exportMediaAssets(ids: readonly UUID[]): Promise<Result<MutationResult, AppError>>;
+  getMediaStorageUsage(): Promise<Result<MediaStorageUsage, AppError>>;
+  saveMediaCopyToGallery(id: UUID): Promise<Result<MutationResult, AppError>>;
+  replaceMediaSource(request: ReplaceMediaSourceRequest): Promise<Result<MediaDetail, AppError>>;
   requestNotificationPermission(): Promise<Result<NotificationPermissionResult, AppError>>;
 
   listReminders(): Promise<Result<Page<ReminderSummary>, AppError>>;
@@ -222,8 +228,13 @@ export const createMediaReminderClient = (
       }),
     takePendingMediaOpen: () =>
       call('takePendingMediaOpen', async native => {
-        const raw = (await native.takePendingMediaOpen()) as {mediaId?: string | null};
-        return (raw?.mediaId ?? null) as UUID | null;
+        const raw = (await native.takePendingMediaOpen()) as {
+          reminderId?: string | null;
+          mediaId?: string | null;
+        } | null;
+        const reminderId = typeof raw?.reminderId === 'string' ? (raw.reminderId as UUID) : null;
+        const mediaId = typeof raw?.mediaId === 'string' ? (raw.mediaId as UUID) : null;
+        return reminderId === null && mediaId === null ? null : {reminderId, mediaId};
       }),
 
     getPreferences: () => call('getPreferences', native => native.getPreferences()),
@@ -263,12 +274,32 @@ export const createMediaReminderClient = (
 
     exportMediaAssets: ids => call('exportMediaAssets', native => native.exportMediaAssets(ids)),
 
+    getMediaStorageUsage: () =>
+      call('getMediaStorageUsage', native => native.getMediaStorageUsage()),
+
+    saveMediaCopyToGallery: id =>
+      call('saveMediaCopyToGallery', native => native.saveMediaCopyToGallery(id)),
+
+    replaceMediaSource: request =>
+      call('replaceMediaSource', native => native.replaceMediaSource(request)),
+
     requestNotificationPermission: () =>
       call('requestNotificationPermission', native => native.requestNotificationPermission()),
 
-    listReminders: () => call('listReminders', native => native.listReminders()),
+    // `action ?? null`: a native build older than DL-080 omits the key
+    // entirely; the domain type promises `null` for "no action", never
+    // `undefined`, so every consumer can switch on it without a second check.
+    listReminders: () =>
+      call('listReminders', async native => {
+        const page = await native.listReminders();
+        return {...page, items: page.items.map(item => ({...item, action: item.action ?? null}))};
+      }),
 
-    getReminder: id => call('getReminder', native => native.getReminder(id)),
+    getReminder: id =>
+      call('getReminder', async native => {
+        const detail = await native.getReminder(id);
+        return {...detail, action: detail.action ?? null};
+      }),
 
     saveReminder: request => call('saveReminder', native => native.saveReminder(request)),
 

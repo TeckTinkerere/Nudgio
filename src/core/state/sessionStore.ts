@@ -32,7 +32,20 @@ export interface InAppDueBanner {
   readonly defaultSnoozeMinutes: number;
 }
 
+/**
+ * DL-080 "the moment": the reminder that was just opened with Play, from
+ * whichever entry point (full-screen alarm, notification, in-app strip).
+ * `mediaId` is the fallback for a reminder that no longer exists.
+ */
+export interface OpenMoment {
+  readonly reminderId: UUID | null;
+  readonly mediaId: UUID | null;
+}
+
 interface SessionState {
+  /** Non-null while `ReminderMoment` is showing. */
+  readonly moment: OpenMoment | null;
+
   /**
    * MR-08 `reminderDueWhileForeground`; MR-03 "In-app strip". Non-null while
    * the compact strip should render over the current screen.
@@ -48,6 +61,9 @@ interface SessionState {
    */
   readonly activeOperationIds: ReadonlySet<UUID>;
 
+  openMoment(moment: OpenMoment): void;
+  closeMoment(): void;
+
   showDueBanner(banner: InAppDueBanner): void;
   collapseDueBanner(): void;
   dismissDueBanner(): void;
@@ -57,9 +73,14 @@ interface SessionState {
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
+  moment: null,
   inAppDueBanner: null,
   inAppDueBannerCollapsed: false,
   activeOperationIds: new Set(),
+
+  openMoment: moment => set({moment}),
+
+  closeMoment: () => set({moment: null}),
 
   showDueBanner: banner =>
     set({inAppDueBanner: banner, inAppDueBannerCollapsed: false}),

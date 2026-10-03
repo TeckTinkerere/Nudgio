@@ -75,10 +75,84 @@ class SchedulerCoordinator(
         val zoneId = ZoneId.systemDefault()
         val now = Instant.now()
 
+        resolveAbandonedAlarms(now)
         ensurePendingOccurrencesExist(zoneId, now)
 
         val earliest = database.occurrenceDao().getEarliestEligible()
         applyToAlarmManager(earliest, now, reason)
+    }
+
+    /**
+     * Step 1's "resolve stale sessions" half, which this class has documented
+     * from the start but never actually did.
+     *
+     * An occurrence moves to `claimed` the moment [AlarmDispatchReceiver]
+     * picks it up, and an `active_alarm_session` row is written `alerting`
+     * alongside it. Both are cleared when the user accepts, snoozes or
+     * dismisses. If nothing ever does — the process is killed mid-alarm, or
+     * `startForegroundService` is refused so [AlarmRingingService] never
+     * starts at all — the pair is stranded, and that is fatal for the
+     * reminder rather than merely untidy:
+     * [OccurrenceDao.getReminderIdsWithPendingOccurrence] counts `claimed`,
+     * so [ensurePendingOccurrencesExist] skips the reminder and never
+     * computes its next occurrence, while [OccurrenceDao.getEarliestEligible]
+     * only considers `pending`, so the stranded row is never scheduled
+     * either. The reminder stops firing permanently, every reconcile logs
+     * `scheduler.cleared`, and editing the reminder's time does not recover
+     * it — [OccurrenceDao.deleteUnclaimedPendingForReminder] spares `claimed`
+     * rows on purpose, so that saving can never cancel an alarm that is
+     * genuinely ringing at that moment.
+     *
+     * Two guards keep the sweep from ever silencing a live alarm, and both
+     * are needed. [AlarmRingingService.isRunning] is the obvious one: nothing
+     * in a service outlives its process, so while one is running it owns its
+     * sessions and they are left strictly alone.
+     *
+     * That alone is not enough, which an earlier version of this method
+     * proved by cancelling the very alarm it was dispatching. The dispatch
+     * path writes the session, calls `startForegroundService`, and then
+     * reconciles — all within the same tick — so the reconcile can land in
+     * the window after the session row exists but before `onCreate` has set
+     * the flag, and a seconds-old live session looks exactly like a stranded
+     * one. Hence the age guard: a session is only considered stranded once it
+     * is older than [STALE_AFTER_MILLIS], which is built from
+     * [AlarmRingingService.MAX_LIFETIME_SECONDS] — the hard cap the service
+     * stops itself at — plus a wide margin. Past that point no session can
+     * legitimately still be alerting, and inside it nothing is touched.
+     *
+     * Stranded occurrences are resolved as `missed` rather than deleted —
+     * that is what actually happened to the user, it keeps them in history
+     * and in [OccurrenceDao.recentlyMissed], and it frees the reminder to
+     * schedule again on the very next line of [reconcileLocked].
+     */
+    private suspend fun resolveAbandonedAlarms(now: Instant) {
+        if (AlarmRingingService.isRunning) return
+
+        val cutoff = now.toEpochMilli() - STALE_AFTER_MILLIS
+        val occurrenceDao = database.occurrenceDao()
+        val sessionDao = database.activeAlarmSessionDao()
+        val stranded = sessionDao.getAllAlerting().filter { it.lastUpdate < cutoff }
+        val claimed = occurrenceDao.getAbandonedClaimed(cutoff)
+        if (stranded.isEmpty() && claimed.isEmpty()) return
+
+        for (session in stranded) {
+            sessionDao.resolve(session.id, now.toEpochMilli())
+        }
+        // Both sets, de-duplicated: a stranded session's occurrence, plus any
+        // occurrence left `claimed` after its session was already resolved.
+        val occurrenceIds = (stranded.map { it.occurrenceId } + claimed.map { it.id }).toSet()
+        for (occurrenceId in occurrenceIds) {
+            occurrenceDao.resolve(
+                occurrenceId,
+                OccurrenceEntity.STATE_MISSED,
+                action = null,
+                resolvedAt = now.toEpochMilli(),
+            )
+        }
+        NativeLogger.debug(
+            "scheduler.abandonedAlarmsResolved",
+            mapOf("sessions" to stranded.size, "occurrences" to occurrenceIds.size),
+        )
     }
 
     /**
@@ -264,5 +338,17 @@ class SchedulerCoordinator(
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+    }
+
+    private companion object {
+        /**
+         * How old an `alerting` session must be before [resolveAbandonedAlarms]
+         * will treat it as stranded: [AlarmRingingService.MAX_LIFETIME_SECONDS]
+         * (the point the service stops itself) plus five minutes of slack for
+         * a device that was asleep or heavily throttled. Generous on purpose —
+         * being slow to recover a dead session costs one late reminder, while
+         * being hasty cancels a live alarm mid-ring.
+         */
+        const val STALE_AFTER_MILLIS: Long = (AlarmRingingService.MAX_LIFETIME_SECONDS + 300) * 1000L
     }
 }

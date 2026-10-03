@@ -177,6 +177,7 @@ class AlarmDispatchReceiver : BroadcastReceiver() {
                 useAlarmChannel = useAlarmChannel,
                 ongoing = useAlarmChannel,
                 useFullScreenIntent = decision.useFullScreenIntent,
+                playLabel = AlarmNotificationText.acceptLabel(context, database, reminder),
             )
 
             // Step 5 (the rest of it): start continuous ringing for a

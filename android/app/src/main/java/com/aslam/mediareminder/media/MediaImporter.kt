@@ -116,6 +116,37 @@ class MediaImporter(
 
         val copiedBytes = partialFile.length()
 
+        // Duplicate reuse, checked here rather than after the rename: the
+        // digest is known, so an identical asset can be answered without
+        // probing, thumbnailing or even naming the new file. MR-05's step
+        // order is unchanged for a genuine import; this is a short circuit
+        // ahead of step 6, not a reordering of it.
+        //
+        // The copy itself still happens. Hashing the source *before* copying
+        // would mean reading every byte twice to save the duplicate case,
+        // and the brief's own constraint is not to re-hash enormous videos
+        // needlessly — one read that both copies and hashes is the cheaper
+        // trade, and the redundant bytes are released immediately below.
+        val duplicate = findReusableDuplicate(sha256, copiedBytes)
+        if (duplicate != null) {
+            partialFile.delete()
+            markPhase(
+                operationId,
+                OperationJournalEntity.Phase.COMPLETE,
+                resultSummary = JSONObject().apply {
+                    put("mediaId", duplicate.id)
+                    put("kind", duplicate.kind)
+                    put("reusedExisting", true)
+                }.toString(),
+            )
+            onProgress(ProgressPhase.READY, copiedBytes, copiedBytes)
+            NativeLogger.debug(
+                "media.import.reusedDuplicate",
+                mapOf("mediaId" to duplicate.id, "bytesReclaimed" to copiedBytes),
+            )
+            return duplicate
+        }
+
         // Step 6: fsync, then atomically rename into the final key. `renameTo`
         // is atomic within one filesystem, and both files live under the same
         // app-private `media/` directory, so this never crosses a mount point.
@@ -188,6 +219,172 @@ class MediaImporter(
 
         return asset
     }
+
+    /**
+     * Points an existing media record at new bytes, keeping its identity.
+     *
+     * The recovery action for an asset whose file is gone
+     * (`11_Edge_Cases...md`: *"Offer Locate replacement, Restore backup or
+     * Delete"*). Keeping the same `id` is the whole point: every reminder
+     * referencing this asset is repaired by one action, where replacing the
+     * media reminder-by-reminder would mean editing each of them.
+     *
+     * Deliberately skips the duplicate short circuit [findReusableDuplicate]
+     * applies to a fresh import — reusing another row's file here would mean
+     * two rows sharing one `storage_key`, which is UNIQUE, and the user's
+     * intent is to give *this* record bytes, not to be redirected to another
+     * record that happens to hold them.
+     *
+     * Title and notes are preserved: they are what the user's reminders
+     * refer to, and the point of a replacement is that the thing keeps its
+     * meaning. `kind` and the probe results do change — replacing a photo
+     * with a video is a choice the user is allowed to make.
+     *
+     * The old file is deleted only after the row write succeeds, so a
+     * failure anywhere leaves the record pointing at bytes that still exist.
+     */
+    @Suppress("LongParameterList")
+    suspend fun replaceSource(
+        operationId: String,
+        mediaId: String,
+        sourceUri: String,
+        mimeType: String?,
+        declaredSizeBytes: Long?,
+        onProgress: suspend (phase: String, completedBytes: Long?, totalBytes: Long?) -> Unit,
+        isCancelled: () -> Boolean,
+    ): MediaAssetEntity {
+        val existing = mediaDao.getById(mediaId)
+            ?: throw MediaImportException(MediaImportException.SOURCE_UNREADABLE, "No such media record: $mediaId")
+        val now = Instant.now().toEpochMilli()
+
+        val kind = MediaKinds.kindOf(mimeType)
+            ?: throw MediaImportException(MediaImportException.UNSUPPORTED_TYPE, "Unsupported MIME type: $mimeType")
+
+        if (declaredSizeBytes != null) {
+            if (declaredSizeBytes > MediaStorage.MAX_ASSET_BYTES) {
+                throw MediaImportException(MediaImportException.TOO_LARGE, "Declared size $declaredSizeBytes exceeds the v1 per-asset limit")
+            }
+            val mediaDir = storage.mediaDir()
+            if (!MediaStorage.hasRoomFor(declaredSizeBytes, mediaDir.usableSpace, mediaDir.totalSpace)) {
+                throw MediaImportException(MediaImportException.STORAGE_INSUFFICIENT, "Not enough free space for $declaredSizeBytes bytes")
+            }
+        }
+
+        val storageKey = storage.newStorageKey(mimeType)
+        val partialFile = storage.partialFor(storageKey)
+        journalDao.upsert(
+            OperationJournalEntity(
+                id = operationId,
+                kind = "import",
+                phase = OperationJournalEntity.Phase.MEDIA_COPYING,
+                stagingPath = partialFile.absolutePath,
+                createdAt = now,
+                updatedAt = now,
+            ),
+        )
+
+        val sha256 = try {
+            copyAndHash(sourceUri, partialFile, declaredSizeBytes, onProgress, isCancelled)
+        } catch (cancelled: MediaImportCancelledException) {
+            failOperation(operationId, "cancelled", isCancellation = true)
+            partialFile.delete()
+            throw cancelled
+        } catch (mediaError: MediaImportException) {
+            failOperation(operationId, mediaError.reasonCode)
+            partialFile.delete()
+            throw mediaError
+        } catch (error: Exception) {
+            failOperation(operationId, MediaImportException.WRITE_FAILED)
+            partialFile.delete()
+            throw MediaImportException(MediaImportException.WRITE_FAILED, "Could not read or write the selected file")
+        }
+
+        val copiedBytes = partialFile.length()
+        val finalFile = storage.fileFor(storageKey)
+        if (!partialFile.renameTo(finalFile)) {
+            failOperation(operationId, MediaImportException.WRITE_FAILED)
+            partialFile.delete()
+            throw MediaImportException(MediaImportException.WRITE_FAILED, "Could not finalize the replacement file")
+        }
+
+        markPhase(operationId, OperationJournalEntity.Phase.MEDIA_PROBING)
+        onProgress(ProgressPhase.CHECKING, copiedBytes, copiedBytes)
+        val probe = MediaProbe.probe(finalFile, kind)
+
+        onProgress(ProgressPhase.CREATING_PREVIEW, copiedBytes, copiedBytes)
+        // Same thumbnail path as before, because the id is the same — the
+        // cache file for this asset is simply overwritten with the new art.
+        val thumbnailFile = storage.thumbnailFileFor(existing.id)
+        val thumbnailPath = if (MediaThumbnailer.generate(finalFile, kind, thumbnailFile)) {
+            thumbnailFile.name
+        } else {
+            thumbnailFile.delete()
+            null
+        }
+
+        val replaced = existing.copy(
+            kind = kind,
+            storageKey = storageKey,
+            mimeType = MediaKinds.normalize(mimeType),
+            sizeBytes = copiedBytes,
+            sha256 = sha256,
+            durationMs = probe.durationMs,
+            widthPx = probe.widthPx,
+            heightPx = probe.heightPx,
+            integrityState = probe.integrityState,
+            updatedAt = Instant.now().toEpochMilli(),
+            entityVersion = existing.entityVersion + 1,
+            thumbnailPath = thumbnailPath,
+        )
+        mediaDao.update(replaced)
+
+        // Only now: before this line the record still pointed at the old key.
+        storage.fileFor(existing.storageKey).delete()
+
+        markPhase(
+            operationId,
+            OperationJournalEntity.Phase.COMPLETE,
+            resultSummary = JSONObject().apply {
+                put("mediaId", replaced.id)
+                put("kind", replaced.kind)
+                put("replaced", true)
+            }.toString(),
+        )
+        onProgress(ProgressPhase.READY, copiedBytes, copiedBytes)
+        NativeLogger.debug("media.replaceSource", mapOf("mediaId" to replaced.id))
+        return replaced
+    }
+
+    /**
+     * An existing managed asset whose bytes these are, or null to import.
+     *
+     * `MediaDao.getBySha256` has carried the comment "Duplicate detection on
+     * import (MR-09 indexes `sha256` for exactly this)" since the DAO was
+     * written and had no caller until now, so importing the same photo five
+     * times produced five full copies.
+     *
+     * Three conditions, not just the hash:
+     *  - `sizeBytes` must match too. A SHA-256 collision is not a practical
+     *    worry, but the pair makes the check total rather than trusting one
+     *    signal, and the brief names content hash *and* file size.
+     *  - the existing row's file must still exist, or reuse would hand back a
+     *    record whose bytes are gone — the missing-media case, not a reuse.
+     *  - the row must not be marked `missing`/`unsupported`: reusing an asset
+     *    this device already decided it cannot play would propagate that
+     *    failure to a reminder the user is creating right now.
+     *
+     * Returns the oldest match, so repeated imports keep converging on one
+     * identity instead of chaining onto whichever copy came last.
+     */
+    private suspend fun findReusableDuplicate(sha256: String, sizeBytes: Long): MediaAssetEntity? =
+        mediaDao.getBySha256(sha256)
+            .filter { candidate ->
+                candidate.sizeBytes == sizeBytes &&
+                    candidate.integrityState != MediaAssetEntity.INTEGRITY_MISSING &&
+                    candidate.integrityState != MediaAssetEntity.INTEGRITY_UNSUPPORTED &&
+                    storage.fileFor(candidate.storageKey).exists()
+            }
+            .minByOrNull { it.createdAt }
 
     /** Streams [sourceUri] into [destination], returning the hex SHA-256 of the bytes written. */
     private suspend fun copyAndHash(

@@ -105,7 +105,13 @@ class AlarmRingingService : Service() {
         return START_STICKY
     }
 
+    override fun onCreate() {
+        super.onCreate()
+        running = true
+    }
+
     override fun onDestroy() {
+        running = false
         currentSessionId = null
         silencedSessions.clear()
         timeoutJob?.cancel()
@@ -173,6 +179,8 @@ class AlarmRingingService : Service() {
                 useAlarmChannel = true,
                 ongoing = true,
                 useFullScreenIntent = false,
+                playLabel = reminder?.let { AlarmNotificationText.acceptLabel(this@AlarmRingingService, database, it) }
+                    ?: getString(com.aslam.mediareminder.R.string.alarm_accept),
             )
             runCatching {
                 ServiceCompat.startForeground(
@@ -459,11 +467,35 @@ class AlarmRingingService : Service() {
     }
 
     companion object {
+        /**
+         * Whether this service exists right now, which is the only honest
+         * answer to "is an alarm actually ringing".
+         *
+         * `active_alarm_session.state = 'alerting'` is *not* that answer: the
+         * row is written before the service starts and cleared by whoever
+         * resolves the alarm, so if the service never starts (a refused
+         * `startForegroundService`) or the process dies before anyone
+         * accepts, the row stays `alerting` forever with nothing behind it.
+         * Nothing in a service survives process death, so an `alerting` row
+         * seen while this is `false` is always a leftover — see
+         * [SchedulerCoordinator.resolveAbandonedAlarms], which is why this
+         * exists.
+         */
+        @Volatile
+        private var running = false
+
+        val isRunning: Boolean get() = running
+
         /** Falls back only if a reminder/profile row is somehow missing — should not happen in practice. */
         private const val DEFAULT_TIMEOUT_SECONDS = 60
 
-        /** MR-06: "hard-capped at 10 minutes in v1." */
-        private const val MAX_LIFETIME_SECONDS = 600
+        /**
+         * MR-06: "hard-capped at 10 minutes in v1." Internal rather than
+         * private because [SchedulerCoordinator] derives its stale-session
+         * window from it — no session can legitimately still be alerting
+         * after the service itself would have stopped it.
+         */
+        internal const val MAX_LIFETIME_SECONDS = 600
 
         /**
          * [AlarmDispatchReceiver]'s single entry point for "this session needs

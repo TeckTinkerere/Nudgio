@@ -30,6 +30,8 @@ export {LoadingState} from './LoadingState';
 export type {LoadingStateProps} from './LoadingState';
 export {MediaCard} from './MediaCard';
 export type {MediaCardKind, MediaCardProps} from './MediaCard';
+export {MediaTile} from './MediaTile';
+export type {MediaTileKind, MediaTileProps} from './MediaTile';
 export {ProgressBar} from './ProgressBar';
 export type {ProgressBarProps} from './ProgressBar';
 export {RadioCard} from './RadioCard';

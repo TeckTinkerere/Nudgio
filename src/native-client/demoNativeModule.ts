@@ -195,6 +195,7 @@ const toSummary = (reminder: ReminderDetail): ReminderSummary => ({
   nextOccurrence: reminder.nextOccurrence,
   repeatSummary: reminder.repeatSummary,
   schedule: reminder.schedule,
+  action: reminder.action,
 });
 
 export const createDemoNativeModule = (): MediaReminderSpec => {
@@ -371,6 +372,29 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
       return {status: 'ok', affectedCount: existed ? 1 : 0};
     },
 
+    /** A fake has no picker to replace from, so this reports the record unchanged. */
+    replaceMediaSource: async (request: {mediaId: string}) => {
+      const existing = media.get(request.mediaId as never);
+      if (!existing) {
+        throw new Error('No such media');
+      }
+      return existing;
+    },
+
+    /** No device gallery behind a fake, so this reports the same "nothing to save into" state as a pre-API-29 phone. */
+    saveMediaCopyToGallery: async () => ({status: 'limited' as const, affectedCount: 0}),
+
+    /** Mirrors the Kotlin totals: recorded sizes, and nothing is ever "unavailable" in a map-backed fake. */
+    getMediaStorageUsage: async () => ({
+      itemCount: media.size,
+      // `sizeBytes` is a decimal string (`ByteCount`), so this sums the
+      // parsed values and stringifies once, rather than concatenating.
+      totalBytes: String(
+        [...media.values()].reduce((sum, item) => sum + Number(item.sizeBytes), 0),
+      ),
+      unavailableCount: 0,
+    }),
+
     listProfiles: async () => mockProfiles,
 
     listReminders: async (): Promise<Page<ReminderSummary>> =>
@@ -419,7 +443,8 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
         notes: request.notes,
         schedule: request.schedule,
         snooze: request.snooze,
-        historyEnabled: existing?.historyEnabled ?? true,
+        historyEnabled: request.historyEnabled ?? existing?.historyEnabled ?? true,
+        action: request.action ?? null,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
         entityVersion: (existing?.entityVersion ?? 0) + 1,

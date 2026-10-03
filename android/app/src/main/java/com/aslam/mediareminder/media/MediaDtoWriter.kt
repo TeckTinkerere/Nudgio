@@ -31,15 +31,36 @@ import java.time.Instant
  * existence-checked before being emitted: MR-09 "Derived thumbnails are WebP
  * cache and may be cleared at any time," so a stale path is treated the same
  * as "never generated" rather than shipped and left to fail at image-load
- * time. `sourceToken` (the original asset) is not existence-checked here —
- * that's `integrity`'s job (`INTEGRITY_MISSING`), a distinct, already-tracked
- * concept.
+ * `integrity` is resolved the same way, and for a blunter reason: nothing in
+ * the app ever called `MediaDao.updateIntegrityState`, so `integrity_state`
+ * was written once at import and never revisited. A file deleted afterwards
+ * stayed `healthy` forever, every surface kept drawing its cached thumbnail
+ * and reminder count as though all was well, and the user found out only
+ * when the reminder fired and played nothing — while `MediaTile`'s missing
+ * overlay, `MediaCard`'s missing treatment and Library's "Missing" filter
+ * were all unreachable UI. Reporting it from the file on disk costs one
+ * `exists()` next to the thumbnail check already happening here, and makes
+ * the stored column a cache rather than the truth.
  *
  * `sizeBytes` is a decimal *string*, not a number: MR-08 is explicit that a
  * media file can exceed `Number.MAX_SAFE_INTEGER` in bytes, and the TS side
  * brands it as `ByteCount` for exactly that reason.
  */
 object MediaDtoWriter {
+
+    /**
+     * The stored state, unless the bytes are simply gone — in which case the
+     * asset is `missing` no matter what the column says. Not written back:
+     * these run inside list reads, and a read should not fan out into writes.
+     * A future integrity sweep can persist it through
+     * `MediaDao.updateIntegrityState`.
+     */
+    private fun resolveIntegrity(entity: MediaAssetEntity, storage: MediaStorage): String =
+        if (storage.fileFor(entity.storageKey).exists()) {
+            entity.integrityState
+        } else {
+            MediaAssetEntity.INTEGRITY_MISSING
+        }
 
     fun writeSummary(entity: MediaAssetEntity, activeReminderCount: Int, storage: MediaStorage): WritableMap =
         Arguments.createMap().apply {
@@ -64,7 +85,7 @@ object MediaDtoWriter {
             putNull("category")
             putArray("tags", Arguments.createArray())
             putInt("activeReminderCount", activeReminderCount)
-            putString("integrity", entity.integrityState)
+            putString("integrity", resolveIntegrity(entity, storage))
             putString("createdAt", Instant.ofEpochMilli(entity.createdAt).toString())
         }
 

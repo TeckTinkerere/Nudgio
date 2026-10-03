@@ -218,6 +218,8 @@ interface ReminderSeed {
   readonly effectiveState: ReminderDetail['effectiveState'];
   readonly dueInMinutes: number;
   readonly occurrenceState: OccurrenceSummary['state'];
+  readonly notes?: string;
+  readonly action?: ReminderDetail['action'];
 }
 
 const reminderSeeds: readonly ReminderSeed[] = [
@@ -228,6 +230,8 @@ const reminderSeeds: readonly ReminderSeed[] = [
     profileIndex: 1,
     repeatSummary: 'Every day at 6:15 AM',
     schedule: {type: 'daily', localTime: localTime('06:15:00'), zonePolicy: 'follow_device'},
+    notes: 'Start slow. Two minutes of quiet before the phone.',
+    action: {type: 'open_link', uri: 'https://www.youtube.com/watch?v=inpok4MKVLM', label: 'Start meditation'},
     enabledIntent: true,
     effectiveState: 'active',
     dueInMinutes: 42,
@@ -416,8 +420,9 @@ export const mockReminders: readonly ReminderDetail[] = reminderSeeds.map(seed =
     effectiveState: seed.effectiveState,
     nextOccurrence: seed.effectiveState === 'disabled' ? null : occurrenceFor(seed),
     repeatSummary: seed.repeatSummary,
-    notes: undefined,
+    notes: seed.notes,
     schedule: seed.schedule,
+    action: seed.action ?? null,
     snooze: {defaultMinutes: 10, allowCustom: true, minimumMinutes: 1, maximumMinutes: 1440},
     historyEnabled: true,
     createdAt: instant(-60 * 24 * 60),

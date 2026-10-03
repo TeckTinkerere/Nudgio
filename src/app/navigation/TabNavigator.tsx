@@ -24,22 +24,14 @@ import {useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 import {SafeAreaInsetsContext, useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {AddActionSheet} from './AddActionSheet';
 import {AppTabBar} from './AppTabBar';
 import type {RootStackParamList, TabParamList} from './types';
-import {rootRoutes, tabRoutes} from '../../constants/routes';
-import {Dialog, FAB, ProgressBar, useTheme} from '../../design-system';
+import {rootRoutes, tabRoutes, type TabRouteName} from '../../constants/routes';
+import {FAB, useResponsive} from '../../design-system';
+import {HomeScreen} from '../../features/home/HomeScreen';
 import {LibraryScreen} from '../../features/library/LibraryScreen';
-import {RemindersScreen} from '../../features/reminders/RemindersScreen';
 import {SettingsScreen} from '../../features/settings/SettingsScreen';
-import {UpcomingScreen} from '../../features/today/UpcomingScreen';
-import {
-  importErrorCopy,
-  importPhaseLabelKey,
-  importProgressFraction,
-  STORAGE_INSUFFICIENT_MIN_MB,
-  useImportMedia,
-} from '../../hooks';
+import {useReminderList} from '../../hooks';
 import {useTranslation} from '../../localization';
 
 
@@ -68,12 +60,19 @@ const renderTabBar = (props: BottomTabBarProps) => <AppTabBar {...props} />;
  */
 function TabScreenInsets({children}: {readonly children: React.ReactElement}) {
   const insets = useSafeAreaInsets();
+  const {navigation: navTreatment} = useResponsive();
+  // Only a *bottom* bar sits between the screen and the gesture bar. A rail
+  // runs down the side, so there the screen keeps its real bottom inset —
+  // zeroing it would run content under the gesture bar on a tablet.
   // Memoized because this is a context value: a fresh object every render
   // would re-render every inset consumer in the whole tab subtree.
-  const withoutBottom = useMemo(() => ({...insets, bottom: 0}), [insets]);
+  const adjusted = useMemo(
+    () => (navTreatment === 'rail' ? insets : {...insets, bottom: 0}),
+    [insets, navTreatment],
+  );
 
   return (
-    <SafeAreaInsetsContext.Provider value={withoutBottom}>
+    <SafeAreaInsetsContext.Provider value={adjusted}>
       {children}
     </SafeAreaInsetsContext.Provider>
   );
@@ -96,76 +95,64 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Tabs'>;
  */
 const FAB_BOTTOM_OFFSET = 88;
 
+/** Below this usable height the FAB drops its label (see `roomForExtendedFab`). */
+const EXTENDED_FAB_MIN_HEIGHT = 640;
+
 export function TabNavigator({navigation}: Props) {
   const t = useTranslation();
-  const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const importMedia = useImportMedia();
-  const [addSheetOpen, setAddSheetOpen] = useState(false);
+  // The FAB is the tab's primary action, not one generic "Add": on Home
+  // that is a new reminder, straight into the editor. The Library has its
+  // own Add in its app bar (import, new album), and Settings has nothing to
+  // add — a FAB there only covered controls.
+  const [activeTab, setActiveTab] = useState<TabRouteName>(tabRoutes.home);
+  // Home's own first-run empty state already offers "Create a reminder" as
+  // its one obvious next step. Showing the FAB on top of it put two filled
+  // primary buttons on the same screen saying the same thing, so the FAB
+  // waits until there is actually a list for it to float over.
+  const reminders = useReminderList();
+  const hasReminders = (reminders.data?.items.length ?? 0) > 0;
+  // An *extended* FAB is wide enough to cover a whole row's title. There is
+  // room for that on a tall phone, where it floats over the end of a long
+  // list; there is not on a 320x568 one, where it landed squarely on the
+  // next moment's name. Short windows (and landscape, which is always short)
+  // get the plain 56 dp circle instead — same action, a third of the
+  // footprint. `nav.newReminder` stays its accessible name either way.
+  const {usableHeight, navigation: navTreatment, isLargeFontScale} = useResponsive();
+  // Height alone is not enough: at 1.5x font the extended FAB is far wider
+  // and the rows under it far taller, so on an 800 dp screen it still landed
+  // on a reminder's title. `isLargeFontScale` is the same signal `AppTabBar`
+  // already uses to drop its own labels, for the same reason.
+  const roomForExtendedFab = usableHeight >= EXTENDED_FAB_MIN_HEIGHT && !isLargeFontScale;
+  // MR-04's responsive table calls for a navigation rail on medium/expanded
+  // widths, and `AppTabBar` has always *drawn* one — a vertical column, 96 dp
+  // wide. It was never positioned as one: `tabBar` is the bottom-tab
+  // navigator's bottom slot, so on a tablet the rail rendered as a small
+  // box wedged into the bottom-left corner with a grey band beside it.
+  // `tabBarPosition` is what actually moves the bar to the edge.
+  const isRail = navTreatment === 'rail';
+  const createReminder = () => navigation.navigate(rootRoutes.reminderEditor, {reminderId: undefined});
 
   return (
     <View style={styles.fill}>
       <Tab.Navigator
-        screenOptions={{headerShown: false}}
+        screenOptions={{headerShown: false, tabBarPosition: isRail ? 'left' : 'bottom'}}
+        screenListeners={({route}) => ({focus: () => setActiveTab(route.name)})}
         tabBar={renderTabBar}
         screenLayout={renderScreenLayout}>
-        <Tab.Screen name={tabRoutes.today} component={UpcomingScreen} />
+        <Tab.Screen name={tabRoutes.home} component={HomeScreen} />
         <Tab.Screen name={tabRoutes.library} component={LibraryScreen} />
-        <Tab.Screen name={tabRoutes.reminders} component={RemindersScreen} />
         <Tab.Screen name={tabRoutes.settings} component={SettingsScreen} />
       </Tab.Navigator>
 
-      {importMedia.isImporting ? (
-        <View
-          style={[
-            styles.progressOverlay,
-            {
-              right: 0,
-              left: 0,
-              bottom: FAB_BOTTOM_OFFSET + insets.bottom,
-              paddingHorizontal: theme.spacing.md,
-            },
-          ]}
-          pointerEvents="none">
-          <ProgressBar
-            progress={importProgressFraction(importMedia.progress)}
-            label={t(importPhaseLabelKey(importMedia.progress?.phase) ?? 'library.import.copying')}
-          />
-        </View>
-      ) : (
+      {activeTab === tabRoutes.home && hasReminders ? (
         <FAB
-          testID="add-fab"
+          testID="new-reminder-fab"
           icon="add"
-          label={t('nav.add')}
-          onPress={() => setAddSheetOpen(true)}
-          bottomOffset={FAB_BOTTOM_OFFSET + insets.bottom}
-        />
-      )}
-
-      <AddActionSheet
-        visible={addSheetOpen}
-        onDismiss={() => setAddSheetOpen(false)}
-        onImportMedia={() => {
-          setAddSheetOpen(false);
-          importMedia.importMedia();
-        }}
-        onCreateReminder={() => {
-          setAddSheetOpen(false);
-          navigation.navigate(rootRoutes.reminderEditor, {reminderId: undefined});
-        }}
-      />
-
-      {importMedia.error ? (
-        <Dialog
-          visible
-          title={t(importErrorCopy(importMedia.error).titleKey)}
-          body={t(
-            importErrorCopy(importMedia.error).bodyKey,
-            importErrorCopy(importMedia.error).bodyKey === 'library.import.errorInsufficientSpace'
-              ? {megabytes: STORAGE_INSUFFICIENT_MIN_MB}
-              : undefined,
-          )}
-          cancel={{label: t('action.close'), onPress: () => importMedia.reset()}}
+          label={t('nav.newReminder')}
+          onPress={createReminder}
+          bottomOffset={(isRail ? 0 : FAB_BOTTOM_OFFSET) + insets.bottom}
+          extended={roomForExtendedFab}
         />
       ) : null}
     </View>
@@ -174,5 +161,4 @@ export function TabNavigator({navigation}: Props) {
 
 const styles = StyleSheet.create({
   fill: {flex: 1},
-  progressOverlay: {position: 'absolute'},
 });

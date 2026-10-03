@@ -233,6 +233,73 @@ class MediaLibraryService(private val database: MediaReminderDatabase, private v
         }
     }
 
+    /**
+     * Reconciles every asset's `integrity_state` against the filesystem.
+     *
+     * Nothing in the app had ever called `MediaDao.updateIntegrityState`, so
+     * `integrity_state` was written once at import and never revisited
+     * (docs/decision-log.md DL-096). DL-096 made a vanished file *visible* by
+     * resolving integrity at read time in `MediaDtoWriter`; it deliberately
+     * did not write back, because that path runs inside list reads. This is
+     * the write half, and it belongs at startup: the column becomes true
+     * again, and — the part that actually matters — the caller gets the ids
+     * so the reminders depending on those bytes can be stopped.
+     *
+     * `11_Edge_Cases...md` ("App-owned file missing"): *"Integrity state
+     * Missing; disable attached reminders."* Without this, a 7:00 AM
+     * recurring reminder whose video the user deleted still fires every
+     * morning and plays nothing, which is worse than not firing: it looks
+     * like the app is broken rather than like the media is gone.
+     *
+     * Recovery is handled in the same pass. An asset marked `missing` whose
+     * bytes are back — a restored backup being the realistic case — returns
+     * to `healthy`, because leaving it condemned would make a successful
+     * restore look like a failed one. Reminders are not re-enabled
+     * automatically: the user disabled nothing, but re-arming an alarm
+     * without being asked is not a decision this sweep should make silently.
+     *
+     * Writes only on change, so the common case (nothing moved) is a read.
+     */
+    suspend fun sweepIntegrity(): IntegritySweepResult {
+        val now = Instant.now().toEpochMilli()
+        val newlyMissing = mutableListOf<String>()
+        val recovered = mutableListOf<String>()
+
+        for (entity in mediaDao.getAll()) {
+            val present = storage.fileFor(entity.storageKey).exists()
+            val wasMissing = entity.integrityState == MediaAssetEntity.INTEGRITY_MISSING
+
+            if (!present && !wasMissing) {
+                mediaDao.updateIntegrityState(entity.id, MediaAssetEntity.INTEGRITY_MISSING, now)
+                newlyMissing += entity.id
+            } else if (present && wasMissing) {
+                mediaDao.updateIntegrityState(entity.id, MediaAssetEntity.INTEGRITY_HEALTHY, now)
+                recovered += entity.id
+            }
+        }
+
+        return IntegritySweepResult(newlyMissing = newlyMissing, recovered = recovered)
+    }
+
+    /** Ids whose integrity changed in a [sweepIntegrity] pass. */
+    data class IntegritySweepResult(
+        val newlyMissing: List<String>,
+        val recovered: List<String>,
+    )
+
+    /** Total managed bytes and item count for the Settings storage row. */
+    suspend fun storageUsage(): StorageUsage {
+        val totals = mediaDao.storageTotals()
+        val unavailable = mediaDao.getAll().count { !storage.fileFor(it.storageKey).exists() }
+        return StorageUsage(
+            itemCount = totals.items,
+            totalBytes = totals.bytes ?: 0L,
+            unavailableCount = unavailable,
+        )
+    }
+
+    data class StorageUsage(val itemCount: Int, val totalBytes: Long, val unavailableCount: Int)
+
     private suspend fun activeReminderCounts(items: List<MediaAssetEntity>): Map<String, Int> {
         if (items.isEmpty()) return emptyMap()
         return mediaDao

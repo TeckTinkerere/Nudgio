@@ -59,12 +59,14 @@ class AlarmActivity : AppCompatActivity() {
     /** True when this Activity is showing Settings' "Preview alarm styles" (see `AlarmIds.EXTRA_PREVIEW_*`), not a real session. */
     private var isPreview = false
 
-    /** The media this session's reminder points at, resolved in [loadSession] — Play opens it. */
+    /** The reminder (and its media) this session belongs to, resolved in [loadSession] — Play opens it. */
+    private var acceptReminderId: String? = null
     private var acceptMediaId: String? = null
 
     private lateinit var contentView: View
     private lateinit var backgroundImage: ImageView
     private lateinit var backgroundScrim: View
+    private lateinit var heroFrame: View
     private lateinit var heroImage: ImageView
     private lateinit var heroIcon: ImageView
     private lateinit var timeView: TextView
@@ -162,6 +164,7 @@ class AlarmActivity : AppCompatActivity() {
         contentView = findViewById(R.id.alarm_content)
         backgroundImage = findViewById(R.id.alarm_background_image)
         backgroundScrim = findViewById(R.id.alarm_background_scrim)
+        heroFrame = findViewById(R.id.alarm_hero)
         heroImage = findViewById(R.id.alarm_hero_image)
         heroIcon = findViewById(R.id.alarm_hero_icon)
         timeView = findViewById(R.id.alarm_time)
@@ -272,7 +275,18 @@ class AlarmActivity : AppCompatActivity() {
             val media = reminder?.let { database.mediaDao().getById(it.mediaId) }
 
             labelView.text = reminder?.label ?: getString(R.string.alarm_default_label)
-            setOptionalText(mediaTitleView, media?.title?.takeIf { it != reminder?.label })
+            // The user's own message is what this moment is for (DL-080);
+            // the media's file title is only a fallback when there is none.
+            // The user's own message, or nothing (DL-080). Deliberately *not*
+            // falling back to the media's file title the way the notification
+            // does: the notification has no picture, so "Photo - Oct 1, 2026"
+            // is the only hint of what is waiting, whereas here the media
+            // itself fills the screen directly above this line and naming the
+            // file only adds noise under it.
+            val message = reminder?.notes?.trim()?.takeIf { it.isNotEmpty() }
+            mediaTitleView.maxLines = MESSAGE_MAX_LINES
+            setOptionalText(mediaTitleView, message)
+            acceptButton.text = getString(AlarmNotificationText.acceptLabelRes(media?.kind))
             setOptionalText(
                 repeatSummaryView,
                 ruleEntity?.let { RepeatSummaryFormatter.summarize(ScheduleRuleMapper.toDomain(it)) },
@@ -281,8 +295,9 @@ class AlarmActivity : AppCompatActivity() {
                 snoozeButton.text = getString(R.string.alarm_snooze_minutes, minutes)
             }
 
+            acceptReminderId = reminder?.id
             acceptMediaId = media?.id
-            showArtwork(media?.thumbnailPath)
+            showArtwork(media)
         }
     }
 
@@ -292,22 +307,37 @@ class AlarmActivity : AppCompatActivity() {
     }
 
     /**
-     * Shows the reminder's own thumbnail twice: sharp in the hero tile and
+     * Shows the reminder's own thumbnail twice: sharp in the hero frame and
      * dimmed full-bleed behind everything. Decoded off the main thread — this
      * runs while an alarm is ringing, where a janky first frame is most
      * obvious. A missing/unreadable file keeps the branded fallback tile.
+     *
+     * The file is located through [MediaStorage], the same way every DTO
+     * writer does it (see [MediaThumbnailUri]). `MediaAssetEntity.thumbnailPath`
+     * holds only the *file name* `<mediaId>.webp` ([MediaImporter] writes
+     * `thumbnailFile.name`), so the previous `File(thumbnailPath)` here
+     * resolved against the process working directory, never existed, and
+     * silently fell back to the branded tile — which is why the full-screen
+     * alarm had never once shown the user's own media.
      */
-    private suspend fun showArtwork(thumbnailPath: String?) {
-        if (thumbnailPath.isNullOrBlank()) return
+    private suspend fun showArtwork(media: com.aslam.mediareminder.data.db.entity.MediaAssetEntity?) {
+        if (media?.thumbnailPath.isNullOrBlank()) return
+        val storage = com.aslam.mediareminder.media.MediaStorage(applicationContext)
         val bitmap = withContext(Dispatchers.IO) {
             runCatching {
-                val file = java.io.File(thumbnailPath)
+                val file = storage.thumbnailFileFor(media.id)
                 if (file.exists()) android.graphics.BitmapFactory.decodeFile(file.absolutePath) else null
             }.getOrNull()
         } ?: return
         heroImage.setImageBitmap(bitmap)
         heroImage.visibility = View.VISIBLE
         heroIcon.visibility = View.GONE
+        // `fitCenter` leaves bars beside a portrait image. The branded
+        // fallback tile is opaque, so leaving it in place painted those bars
+        // flat navy; clearing it lets the dimmed full-bleed copy below show
+        // through instead, which is the same picture and reads as depth
+        // rather than as a frame.
+        heroFrame.background = null
         backgroundImage.setImageBitmap(bitmap)
         backgroundImage.visibility = View.VISIBLE
         backgroundScrim.visibility = View.VISIBLE
@@ -338,7 +368,7 @@ class AlarmActivity : AppCompatActivity() {
         // media id is handed over out-of-band (see `PendingMediaOpen`) rather
         // than as an Intent extra JS would have to race RN startup to read.
         if (action == AlarmIds.ACTION_PLAY) {
-            PendingMediaOpen.set(acceptMediaId)
+            PendingMediaOpen.set(acceptReminderId, acceptMediaId)
             runCatching {
                 startActivity(
                     Intent(this, com.aslam.mediareminder.MainActivity::class.java).apply {
@@ -352,6 +382,7 @@ class AlarmActivity : AppCompatActivity() {
 
     companion object {
         private const val ENTRANCE_DURATION_MS = 320L
+        private const val MESSAGE_MAX_LINES = 4
 
         /** [AlarmRingingService] reads this before proactively re-invoking this activity for a promoted queued session — never true unless this activity is genuinely already the foreground UI. */
         @Volatile

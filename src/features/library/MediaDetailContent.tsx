@@ -24,6 +24,8 @@ import {MediaPreviewPlayer} from './MediaPreviewPlayer';
 import {useDeleteMedia} from './useDeleteMedia';
 import {useExportMedia} from './useExportMedia';
 import {useMediaDetail} from './useMediaDetail';
+import {useReplaceMediaSource} from './useReplaceMediaSource';
+import {useSaveMediaToGallery} from './useSaveMediaToGallery';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {useToast} from '../../app/toast/ToastProvider';
 import {rootRoutes} from '../../constants/routes';
@@ -95,6 +97,8 @@ export function MediaDetailContent({mediaId, onBack, onDeleted}: MediaDetailCont
   const media = useMediaDetail(mediaId);
   const reminders = useReminderList();
   const deleteMedia = useDeleteMedia();
+  const saveToGallery = useSaveMediaToGallery();
+  const replaceSource = useReplaceMediaSource();
   const exportMedia = useExportMedia();
   const {showToast} = useToast();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -295,6 +299,61 @@ export function MediaDetailContent({mediaId, onBack, onDeleted}: MediaDetailCont
             ))
           )}
         </Stack>
+
+        {/* The repair path, and the only action worth offering while the
+            bytes are gone: the record keeps its id, so replacing here fixes
+            every reminder pointing at it at once, rather than making the
+            user edit each one. Saving a copy is hidden meanwhile — there is
+            nothing to copy. */}
+        {item.integrity === 'missing' ? (
+          <Stack gap="xs">
+            <Text variant="bodyMedium" tone="variant">
+              {t('library.detail.replaceMedia.missing')}
+            </Text>
+            <Button
+              label={t('library.detail.replaceMedia')}
+              icon="upload"
+              loading={replaceSource.isPending}
+              onPress={() => {
+                replaceSource.mutate(item.id, {
+                  onSuccess: outcome => {
+                    if (outcome.status === 'replaced') {
+                      showToast({
+                        message: t('library.detail.replaceMedia.done'),
+                        tone: 'success',
+                      });
+                    }
+                  },
+                  onError: () =>
+                    showToast({message: t('library.detail.replaceMedia.failed'), tone: 'error'}),
+                });
+              }}
+            />
+          </Stack>
+        ) : (
+        /* Nudgio's copy is app-private, which is what makes a reminder
+           survive the user clearing their gallery — and also why nothing
+           they already use can see it. This puts a copy where they expect
+           their media to live, on request, without the reminder ever
+           depending on it. */
+        <Button
+          label={t('library.detail.saveToGallery')}
+          variant="tonal"
+          icon="download"
+          onPress={() => {
+            saveToGallery.mutate(item.id, {
+              onSuccess: result =>
+                showToast(
+                  result.status === 'limited'
+                    ? {message: t('library.detail.saveToGallery.unsupported'), tone: 'error'}
+                    : {message: t('library.detail.saveToGallery.done'), tone: 'success'},
+                ),
+              onError: () =>
+                showToast({message: t('library.detail.saveToGallery.failed'), tone: 'error'}),
+            });
+          }}
+        />
+        )}
 
         <Button
           label={t('action.delete')}

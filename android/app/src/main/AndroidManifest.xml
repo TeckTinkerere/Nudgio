@@ -125,6 +125,21 @@
             android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize|keyboardHidden|uiMode" />
 
         <!--
+          DL-080: the notification's Play button. Invisible (translucent, no
+          history, not in Recents); it resolves the session through
+          AlarmActionReceiver and opens the app on the reminder. An activity,
+          not a receiver, because Android 12+ blocks a notification-action
+          receiver from starting UI.
+        -->
+        <activity
+            android:name=".alarm.AlarmOpenActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:exported="false"
+            android:noHistory="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity="" />
+
+        <!--
           MR-10 "Sharing and privacy": "Completed private exports shared
           through another app use FileProvider with read-only temporary URI
           permission. The app never grants a whole directory." `grantUriPermissions`

@@ -14,7 +14,7 @@ describe('alarm settings', () => {
       <NavigationContainer><ToastProvider><SettingsScreen /></ToastProvider></NavigationContainer>,
       {container},
     );
-    fireEvent(await screen.findByRole('switch', {name: 'Use device time format'}), 'valueChange', true);
+    fireEvent.press(await screen.findByText('Device'));
     await waitFor(() => expect(update).toHaveBeenCalledWith({use24HourTime: null}));
     view.unmount();
     container.queryClient.clear();
@@ -30,8 +30,8 @@ describe('alarm settings', () => {
       <NavigationContainer><ToastProvider><SettingsScreen /></ToastProvider></NavigationContainer>,
       {container},
     );
-    await waitFor(() => expect(screen.getByText('Change')).toBeTruthy());
-    fireEvent.press(screen.getByText('Change'));
+    const row = await screen.findByRole('button', {name: /Alarm ringtone/});
+    fireEvent.press(row);
     await waitFor(() => expect(screen.getByText('Could not save ringtone. Try again.')).toBeTruthy());
     expect(screen.queryByText('Ringtone updated.')).toBeNull();
     expect(preview).not.toHaveBeenCalled();

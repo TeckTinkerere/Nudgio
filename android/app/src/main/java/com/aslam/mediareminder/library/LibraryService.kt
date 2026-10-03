@@ -7,8 +7,17 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
-/** All folder mutations are atomic and compare the revision the user saw. */
-class LibraryService(private val db: MediaReminderDatabase) {
+/**
+ * All folder mutations are atomic and compare the revision the user saw.
+ *
+ * @param coverToken turns a media row into its thumbnail token (or null when
+ *   none exists). Injected rather than built here so this class keeps no
+ *   file-system knowledge; production passes `MediaThumbnailUri.resolveThumbnail`.
+ */
+class LibraryService(
+    private val db: MediaReminderDatabase,
+    private val coverToken: (MediaAssetEntity) -> String? = { null },
+) {
     suspend fun command(encoded: String): String {
         require(encoded.length <= 65536) { "Library request is too large." }
         val request = JSONObject(encoded)
@@ -101,12 +110,26 @@ class LibraryService(private val db: MediaReminderDatabase) {
         val total = db.mediaDao().count()
         return JSONObject().put("revision", state.revision).put("total", total)
             .put("unsorted", total - counts.values.sum())
+            .put("unsortedCovers", covers(dao.newestUnsorted(COVER_COUNT)))
             .put("canUndo", state.undo?.let { System.currentTimeMillis() - JSONObject(it).getLong("at") in 0..600_000 } ?: false)
             .put("folders", JSONArray(folders.map { f ->
                 JSONObject().put("id", f.id).put("parentId", f.parentId ?: JSONObject.NULL).put("name", f.name).put("pinned", f.pinned)
                     .put("directCount", counts[f.id] ?: 0)
                     .put("count", (counts[f.id] ?: 0) + folders.filter { it.parentId == f.id }.sumOf { counts[it.id] ?: 0 })
+                    .put("subfolderCount", folders.count { it.parentId == f.id })
+                    // Album covers: the newest few items, including subfolders' —
+                    // an album of albums still shows what is inside it.
+                    .put("covers", covers(dao.newestIn(listOf(f.id) + folders.filter { it.parentId == f.id }.map { it.id }, COVER_COUNT)))
             }))
+    }
+
+    /** `[{kind, thumbnailToken|null}]`, newest first — a cover can fall back to a kind icon. */
+    private fun covers(media: List<MediaAssetEntity>): JSONArray = JSONArray(media.map { item ->
+        JSONObject().put("kind", item.kind).put("thumbnailToken", coverToken(item) ?: JSONObject.NULL)
+    })
+
+    private companion object {
+        const val COVER_COUNT = 4
     }
 }
 

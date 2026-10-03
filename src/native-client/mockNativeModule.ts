@@ -134,6 +134,10 @@ export const createMockNativeModule = (
     });
 
   return {
+    getMediaStorageUsage: async () => ({itemCount: 0, totalBytes: '0', unavailableCount: 0}),
+    saveMediaCopyToGallery: async () => ({status: 'limited' as const, affectedCount: 0}),
+    replaceMediaSource: notImplemented('replaceMediaSource'),
+
     getStartupSnapshot: async (): Promise<StartupSnapshot> => ({
       contractVersion: options.contractVersion ?? appConfig.bridgeContractVersion,
       schemaVersion: 1,

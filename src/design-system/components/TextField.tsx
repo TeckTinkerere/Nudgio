@@ -10,7 +10,7 @@
  *    issue", so this component never clears itself on error.
  */
 import {useState} from 'react';
-import {TextInput, View, type KeyboardTypeOptions} from 'react-native';
+import {TextInput, View, type KeyboardTypeOptions, type TextInputProps} from 'react-native';
 
 import {Text} from './Text';
 import {useTheme} from '../theme/useTheme';
@@ -30,6 +30,11 @@ export interface TextFieldProps {
   readonly keyboardType?: KeyboardTypeOptions;
   readonly disabled?: boolean;
   readonly required?: boolean;
+  /** Links, emails and codes must not be auto-capitalized or "corrected". */
+  readonly autoCapitalize?: TextInputProps['autoCapitalize'];
+  readonly autoCorrect?: boolean;
+  readonly returnKeyType?: TextInputProps['returnKeyType'];
+  readonly onBlur?: () => void;
   readonly testID?: string;
 }
 
@@ -45,6 +50,10 @@ export function TextField({
   keyboardType,
   disabled = false,
   required = false,
+  autoCapitalize,
+  autoCorrect,
+  returnKeyType,
+  onBlur,
   testID,
 }: TextFieldProps) {
   const theme = useTheme();
@@ -68,13 +77,19 @@ export function TextField({
         value={value}
         onChangeText={onChangeText}
         onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onBlur={() => {
+          setFocused(false);
+          onBlur?.();
+        }}
         placeholder={placeholder}
         placeholderTextColor={theme.color.onSurfaceDisabled}
         editable={!disabled}
         multiline={multiline}
         maxLength={maxLength}
         keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
+        returnKeyType={returnKeyType}
         testID={testID}
         accessibilityLabel={label}
         accessibilityState={{disabled}}

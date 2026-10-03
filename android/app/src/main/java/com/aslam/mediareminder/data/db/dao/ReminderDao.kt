@@ -51,6 +51,9 @@ interface ReminderDao {
             snooze_minimum_minutes = :snoozeMinimumMinutes,
             snooze_maximum_minutes = :snoozeMaximumMinutes,
             history_enabled = :historyEnabled,
+            action_type = :actionType,
+            action_uri = :actionUri,
+            action_label = :actionLabel,
             updated_at = :updatedAt,
             entity_version = entity_version + 1
         WHERE id = :id AND entity_version = :expectedVersion
@@ -69,6 +72,9 @@ interface ReminderDao {
         snoozeMinimumMinutes: Int,
         snoozeMaximumMinutes: Int,
         historyEnabled: Boolean,
+        actionType: String?,
+        actionUri: String?,
+        actionLabel: String?,
         updatedAt: Long,
         expectedVersion: Int,
     ): Int

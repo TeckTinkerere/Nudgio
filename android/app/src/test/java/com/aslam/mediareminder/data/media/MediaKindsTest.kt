@@ -69,9 +69,19 @@ class MediaKindsTest {
     }
 
     @Test
-    fun `titleFrom falls back to a kind label when the display name is blank or absent`() {
-        assertEquals("Imported video", MediaKinds.titleFrom(null, MediaAssetEntity.KIND_VIDEO))
-        assertEquals("Imported audio", MediaKinds.titleFrom("   ", MediaAssetEntity.KIND_AUDIO))
+    fun `titleFrom falls back to kind and date when the display name is blank or absent`() {
+        val day = java.time.LocalDate.of(2026, 10, 2)
+        val video = MediaKinds.titleFrom(null, MediaAssetEntity.KIND_VIDEO, day)
+        assertTrue(video, video.startsWith("Video · ") && video.contains("2026"))
+        assertTrue(MediaKinds.titleFrom("   ", MediaAssetEntity.KIND_AUDIO, day).startsWith("Audio · "))
+    }
+
+    @Test
+    fun `titleFrom ignores the Photo Picker's numeric ids`() {
+        val day = java.time.LocalDate.of(2026, 10, 2)
+        assertTrue(MediaKinds.titleFrom("1000000033.jpg", MediaAssetEntity.KIND_IMAGE, day).startsWith("Photo · "))
+        assertTrue(MediaKinds.titleFrom("22.mp4", MediaAssetEntity.KIND_VIDEO, day).startsWith("Video · "))
+        assertEquals("IMG_2041", MediaKinds.titleFrom("IMG_2041.jpg", MediaAssetEntity.KIND_IMAGE, day))
     }
 
     @Test

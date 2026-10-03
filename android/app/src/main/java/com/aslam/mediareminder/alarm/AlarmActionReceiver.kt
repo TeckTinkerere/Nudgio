@@ -79,23 +79,14 @@ class AlarmActionReceiver : BroadcastReceiver() {
                     "alarm.action.resolved",
                     mapOf("action" to outcome.actionLabel, "sessionId" to sessionId, "occurrenceId" to outcome.occurrenceId),
                 )
-                // Play means "yes, show me the thing you were reminding me
-                // about" from the notification shade exactly as much as it
-                // does from the full-screen AlarmActivity's own Accept
-                // button (same underlying ACTION_PLAY, see that class' doc
-                // comment) — open the app on the reminder's media the same
-                // way. Snooze/Dismiss deliberately do not do this.
-                if (outcome.actionLabel == "play") {
-                    val mediaId = AcceptMediaResolver.resolve(database, outcome.reminderId)
-                    PendingMediaOpen.set(mediaId)
-                    runCatching {
-                        context.startActivity(
-                            Intent(context, com.aslam.mediareminder.MainActivity::class.java).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            },
-                        )
-                    }
-                }
+                // Opening the app for Play is deliberately *not* done here:
+                // since Android 12 a broadcast receiver reached from a
+                // notification action may not start an activity (the
+                // "notification trampoline" restriction), so a
+                // `startActivity` from this receiver silently did nothing.
+                // Every Play entry point that should open the reminder is an
+                // activity itself — [AlarmActivity] and [AlarmOpenActivity] —
+                // and opens it there (DL-080).
                 // Whatever just happened (accepted/snoozed/dismissed), the
                 // occurrence that was `alerting` is no longer pending —
                 // reconcile so a repeating reminder's next cycle (or the

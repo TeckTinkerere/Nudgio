@@ -1,6 +1,7 @@
 package com.aslam.mediareminder.alarm
 
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
@@ -20,14 +21,21 @@ import java.util.Locale
 object RepeatSummaryFormatter {
 
     private val timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Locale.US)
+    private val onceFormatter = DateTimeFormatter.ofPattern("EEE d MMM 'at' h:mm a", Locale.US)
     private val weekdayNames = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
     private val monthNames = listOf(
         "January", "February", "March", "April", "May", "June",
         "July", "August", "September", "October", "November", "December",
     )
 
-    fun summarize(rule: ScheduleRule): String = when (rule) {
-        is ScheduleRule.Once -> "Once"
+    /**
+     * @param zone where a one-time reminder's instant is shown; the device
+     *   zone in production, a fixed one in tests.
+     */
+    fun summarize(rule: ScheduleRule, zone: ZoneId = ZoneId.systemDefault()): String = when (rule) {
+        // "Once" alone told the alarm screen and the reminders list nothing
+        // about *when*; the date is what a one-time reminder is about.
+        is ScheduleRule.Once -> "Once on ${rule.instant.atZone(zone).format(onceFormatter)}"
         is ScheduleRule.Daily -> "Every day at ${format(rule.localTime)}"
         is ScheduleRule.Weekly -> "${weekdayList(rule.isoWeekdays)} at ${format(rule.localTime)}"
         is ScheduleRule.Monthly -> "Monthly on day ${rule.dayOfMonth} at ${format(rule.localTime)}"

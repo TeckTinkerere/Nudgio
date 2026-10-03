@@ -220,6 +220,28 @@ export type ScheduleRuleDto =
       readonly zonePolicy: 'follow_device';
     };
 
+/**
+ * DL-080 Reminder Actions: the optional "what next" a reminder offers once
+ * it is opened ("Open lesson", "Start workout"). A discriminated union so a
+ * future action kind is a new variant, not a reshaped field. Today there is
+ * one: `open_link`, an Android `ACTION_VIEW` of `uri` — which already
+ * covers web pages, YouTube/Spotify/Maps app links, `tel:`, `mailto:`,
+ * `geo:` and other apps' deep links. Validated natively
+ * (`ReminderActionRules.kt`) and mirrored in `features/reminders/reminderActions.ts`.
+ */
+export type ReminderActionDto = {
+  readonly type: 'open_link';
+  readonly uri: string;
+  /** Custom button text; `null`/absent means "derive one from the link". */
+  readonly label?: string | null;
+};
+
+/** Native `PendingMediaOpen`: which reminder Play asked to open (`mediaId` is the fallback if the reminder is gone). */
+export interface PendingReminderOpen {
+  readonly reminderId: UUID | null;
+  readonly mediaId: UUID | null;
+}
+
 export interface SnoozePolicyDto {
   readonly defaultMinutes: number;
   readonly allowCustom: boolean;
@@ -235,6 +257,15 @@ export interface ReminderSummary {
   readonly thumbnailToken?: ThumbnailToken;
   /** Lets the Reminders list preview-play this reminder's media in place; absent only when the joined media row is null. */
   readonly sourceToken?: MediaSourceToken;
+  /**
+   * The reminder's media is no longer on disk.
+   *
+   * Resolved from the filesystem on every read, not from the cached
+   * `integrity_state` column. Without it a reminder the startup integrity
+   * sweep disabled is indistinguishable from one the user paused, so the
+   * list would invite "turn it back on" for something that cannot work.
+   */
+  readonly mediaMissing?: boolean;
   readonly profileId: UUID;
   readonly enabledIntent: boolean;
   readonly effectiveState: ReminderEffectiveState;
@@ -246,17 +277,24 @@ export interface ReminderSummary {
    */
   readonly repeatSummary: string;
   /**
-   * The reminder's own recurrence rule — used only to build the "Upcoming"
-   * 5-day display projection (`projectUpcomingOccurrences`), a read-only
-   * forward-looking list. MR-08's "UI never calculates authoritative next
-   * occurrence" governs actual scheduling, which stays entirely native; nothing
-   * computed from this field is ever written back into a save/schedule call.
+   * The reminder's own recurrence rule. Read-only on this side: it tells
+   * `reminderStatus` whether a one-time reminder has already passed, and
+   * seeds the editor when duplicating. MR-08's "UI never calculates
+   * authoritative next occurrence" still holds — every *time* the UI shows
+   * comes from `nextOccurrence`, never from re-deriving this rule.
    */
   readonly schedule: ScheduleRuleDto;
+  /** `null` when the reminder has no follow-up action. */
+  readonly action: ReminderActionDto | null;
+  /**
+   * The user's own message. On the summary, not just the detail: Home leads
+   * with it under the next moment's media and it is already what the due
+   * notification says, so a list must not need a detail fetch per row.
+   */
+  readonly notes?: string;
 }
 
 export interface ReminderDetail extends ReminderSummary {
-  readonly notes?: string;
   readonly schedule: ScheduleRuleDto;
   readonly snooze: SnoozePolicyDto;
   readonly historyEnabled: boolean;
@@ -281,6 +319,9 @@ export interface SaveReminderRequest {
   readonly profileId: UUID;
   readonly snooze: SnoozePolicyDto;
   readonly enabledIntent: boolean;
+  readonly historyEnabled?: boolean;
+  /** Omitted or `null` means "no action" — the editor always sends the whole reminder, so this also clears one. */
+  readonly action?: ReminderActionDto | null;
 }
 
 /**
@@ -536,6 +577,39 @@ export interface ImportCommitRequest {
   readonly operationId: UUID;
   readonly importToken: string;
   readonly mode: ImportMode;
+}
+
+/**
+ * "Replace media": give an existing record new bytes without changing its id.
+ *
+ * The id is preserved deliberately — it is what every reminder points at, so
+ * one replacement repairs all of them. Title and notes survive too; the point
+ * of a replacement is that the thing keeps its meaning.
+ */
+export interface ReplaceMediaSourceRequest {
+  readonly mediaId: UUID;
+  readonly sourceUri: ImportToken;
+  readonly displayName?: string;
+  readonly mimeType?: string;
+  readonly sizeBytes?: ByteCount;
+}
+
+/**
+ * What Nudgio's own media copies cost, for the Settings storage row.
+ *
+ * Nudgio keeps its own copy of every imported asset so a reminder never
+ * depends on the original (ADR-010), which means it consumes real storage.
+ * Nothing in the product ever said so.
+ *
+ * `unavailableCount` is reported alongside rather than quietly subtracted
+ * from the total: an asset whose bytes have gone still has a row, and a
+ * figure that silently shrank would hide exactly what the integrity sweep
+ * exists to surface.
+ */
+export interface MediaStorageUsage {
+  readonly itemCount: number;
+  readonly totalBytes: ByteCount;
+  readonly unavailableCount: number;
 }
 
 export interface MutationResult {

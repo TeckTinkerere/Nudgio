@@ -17,33 +17,24 @@ import {InAppDueCard} from './InAppDueCard';
 import {RootNavigator} from './navigation';
 import {usePendingMediaOpen} from './usePendingMediaOpen';
 import {useReminderDueEvents} from './useReminderDueEvents';
-import {MediaSelectionPreviewModal} from '../features/reminders/MediaSelectionPreviewModal';
-import {useTranslation} from '../localization';
+import {ReminderMoment} from '../features/moment/ReminderMoment';
 
 function AppShellOverlays() {
   // MR-06 rule 4 / MR-08 `reminderDueWhileForeground`: one subscription for
   // the app's lifetime, independent of which screen is mounted underneath.
   useReminderDueEvents();
-  const t = useTranslation();
-  const pendingMedia = usePendingMediaOpen();
+  // Play on a full-screen alarm or the notification lands here (DL-080).
+  usePendingMediaOpen();
 
   return (
     <>
       <InAppDueCard />
       {/*
-        Accept on a full-screen alarm lands here. Rendered at the shell, not
-        inside a screen, because the app may have cold-started straight from
-        the lock screen with no particular screen mounted yet. Passing no
-        `onSelect`/`selectLabel` gives the plain viewer (no confirm footer),
-        and covers all four media kinds rather than only the two
-        `MediaPreviewPlayer` can play on its own.
+        The moment: rendered at the shell, not inside a screen, because the
+        app may have cold-started straight from the lock screen with no
+        particular screen mounted yet.
       */}
-      <MediaSelectionPreviewModal
-        item={pendingMedia.item}
-        onDismiss={pendingMedia.clear}
-        closeLabel={t('library.player.close')}
-        loadErrorLabel={t('library.player.loadError')}
-      />
+      <ReminderMoment />
     </>
   );
 }

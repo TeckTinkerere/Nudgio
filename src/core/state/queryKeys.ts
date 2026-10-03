@@ -18,6 +18,8 @@ export const queryKeys = {
     all: () => ['media'] as const,
     list: (query: unknown) => ['media', 'list', query] as const,
     detail: (id: UUID) => ['media', 'detail', id] as const,
+    /** Under `media` so any media mutation's `invalidateQueries(media.all())` refreshes the storage figure too. */
+    storage: () => ['media', 'storage'] as const,
   },
 
   reminders: {

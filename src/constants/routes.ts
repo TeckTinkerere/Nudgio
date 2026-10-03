@@ -20,10 +20,15 @@ export const rootRoutes = {
   about: 'About',
 } as const;
 
+/**
+ * Three destinations, not four. "Upcoming" and "Reminders" were two views of
+ * the same objects — the landing one was empty whenever nothing happened to
+ * fall inside its 5-day window — so they are now one `Home`. See
+ * `features/home/HomeScreen.tsx`.
+ */
 export const tabRoutes = {
-  today: 'Today',
+  home: 'Home',
   library: 'Library',
-  reminders: 'Reminders',
   settings: 'Settings',
 } as const;
 

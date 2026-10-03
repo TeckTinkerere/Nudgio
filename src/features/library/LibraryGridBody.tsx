@@ -41,7 +41,16 @@ export interface LibraryGridBodyProps {
   readonly onImport?: () => void;
   readonly emptyTitle?: string;
   readonly emptyBody?: string;
+  /** Space between cells; galleries use a hairline, card grids more air. */
+  readonly gap?: number;
+  /**
+   * `true` (cards): a short last row's cells stretch to fill it. `false`
+   * (square gallery tiles): they keep the width of a full row's cells.
+   */
+  readonly fillLastRow?: boolean;
 }
+
+const spacerKeys = (count: number): string[] => Array.from({length: Math.max(0, count)}, (_, index) => `spacer-${index}`);
 
 const chunk = <T,>(items: readonly T[], size: number): T[][] => {
   const rows: T[][] = [];
@@ -68,6 +77,8 @@ export function LibraryGridBody({
   onImport,
   emptyTitle,
   emptyBody,
+  gap = 8,
+  fillLastRow = true,
 }: LibraryGridBodyProps) {
   const t = useTranslation();
 
@@ -139,12 +150,15 @@ export function LibraryGridBody({
       /> : loadingMore ? <LoadingState label={t('loading.startingUp')} /> : null}
       keyExtractor={entry => entry.key}
       renderItem={({item: entry}) => entry.folder ? <View style={styles.folder}>{entry.folder}</View> : (
-        <View style={styles.row}>
+        <View style={[styles.row, {gap, marginBottom: gap}]}>
           {entry.media?.map(item => (
             <View key={item.id} style={styles.cell}>
               {renderCard(item)}
             </View>
           ))}
+          {!fillLastRow && entry.media
+            ? spacerKeys(mediaGridColumns - entry.media.length).map(key => <View key={key} style={styles.cell} />)
+            : null}
         </View>
       )}
       onScroll={onScroll}
@@ -167,6 +181,6 @@ export function LibraryGridBody({
 
 const styles = StyleSheet.create({
   folder: {marginBottom: 8},
-  row: {flexDirection: 'row', gap: 8, marginBottom: 8},
+  row: {flexDirection: 'row'},
   cell: {flex: 1},
 });

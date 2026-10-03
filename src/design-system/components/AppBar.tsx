@@ -25,7 +25,6 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {IconName} from '../icons';
 import {IconButton} from './IconButton';
 import {Text} from './Text';
-import {withAlpha} from '../theme/colorUtils';
 import {useTheme} from '../theme/useTheme';
 
 export interface AppBarAction {
@@ -91,7 +90,11 @@ export function AppBar({
           paddingTop: insets.top + theme.spacing.md,
           paddingHorizontal: theme.spacing.xs,
           paddingBottom: theme.spacing.sm,
-          backgroundColor: floating ? withAlpha(theme.color.surface, 0.85) : theme.color.surface,
+          // Opaque even when floating: at 85% alpha, text scrolling under
+          // the status bar and title showed through and read as overlapping
+          // glitches (seen on-device in the reminder editor) rather than as
+          // a frosted effect — RN has no backdrop blur to make it work.
+          backgroundColor: theme.color.surface,
           flexDirection: 'row',
           alignItems: 'center',
           gap: theme.spacing.xxs,
@@ -111,11 +114,13 @@ export function AppBar({
       ) : null}
 
       <View style={{flex: 1, paddingHorizontal: theme.spacing.xs}}>
-        <Text variant="titleLarge" isHeading>
+        {/* One line: a long album or reminder name ellipsizes instead of
+            breaking mid-word between the back button and the actions. */}
+        <Text variant="titleLarge" isHeading numberOfLines={1}>
           {title}
         </Text>
         {subtitle ? (
-          <Text variant="bodyMedium" tone="variant">
+          <Text variant="bodyMedium" tone="variant" numberOfLines={1}>
             {subtitle}
           </Text>
         ) : null}

@@ -84,6 +84,21 @@ data class ReminderEntity(
 
     @ColumnInfo(name = "entity_version", defaultValue = "1")
     val entityVersion: Int = 1,
+
+    /**
+     * Optional "what next" action offered once the reminder is opened
+     * (`MIGRATION_6_7`, DL-080). All three are null together for "no
+     * action"; [com.aslam.mediareminder.reminders.ReminderActionRules] is
+     * the only writer and validates the combination.
+     */
+    @ColumnInfo(name = "action_type")
+    val actionType: String? = null,
+
+    @ColumnInfo(name = "action_uri")
+    val actionUri: String? = null,
+
+    @ColumnInfo(name = "action_label")
+    val actionLabel: String? = null,
 ) {
     companion object {
         const val STATE_DISABLED = "disabled"

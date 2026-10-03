@@ -17,16 +17,14 @@ import type {IconName} from '../../design-system';
 import {useTranslation} from '../../localization';
 
 const ICON_FOR: Record<string, IconName> = {
-  [tabRoutes.today]: 'today',
+  [tabRoutes.home]: 'reminders',
   [tabRoutes.library]: 'library',
-  [tabRoutes.reminders]: 'reminders',
   [tabRoutes.settings]: 'settings',
 };
 
-const LABEL_KEY_FOR: Record<string, 'nav.today' | 'nav.library' | 'nav.reminders' | 'nav.settings'> = {
-  [tabRoutes.today]: 'nav.today',
+const LABEL_KEY_FOR: Record<string, 'nav.home' | 'nav.library' | 'nav.settings'> = {
+  [tabRoutes.home]: 'nav.home',
   [tabRoutes.library]: 'nav.library',
-  [tabRoutes.reminders]: 'nav.reminders',
   [tabRoutes.settings]: 'nav.settings',
 };
 
@@ -48,15 +46,15 @@ export function AppTabBar({state, navigation}: BottomTabBarProps) {
         borderTopWidth: isRail ? 0 : theme.layout.borderWidth,
         borderRightWidth: isRail ? theme.layout.borderWidth : 0,
         borderColor: theme.color.outlineVariant,
-        paddingBottom: isRail ? theme.spacing.md : insets.bottom,
-        paddingTop: theme.spacing.sm,
+        paddingBottom: isRail ? insets.bottom + theme.spacing.md : insets.bottom,
+        paddingTop: (isRail ? insets.top : 0) + theme.spacing.sm,
         paddingHorizontal: theme.spacing.xs,
         gap: theme.spacing.xs,
         width: isRail ? 96 : undefined,
       }}>
       {state.routes.map((route, index) => {
         const isFocused = state.index === index;
-        const label = t(LABEL_KEY_FOR[route.name] ?? 'nav.today');
+        const label = t(LABEL_KEY_FOR[route.name] ?? 'nav.home');
 
         const onPress = () => {
           const event = navigation.emit({
@@ -92,7 +90,7 @@ export function AppTabBar({state, navigation}: BottomTabBarProps) {
                 : transparent,
             }}>
             <Icon
-              name={ICON_FOR[route.name] ?? 'today'}
+              name={ICON_FOR[route.name] ?? 'reminders'}
               color={isFocused ? theme.color.onPrimaryContainer : theme.color.onSurfaceVariant}
             />
             {/*
