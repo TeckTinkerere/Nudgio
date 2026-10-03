@@ -2,6 +2,7 @@ package com.aslam.mediareminder.backup
 
 import com.aslam.mediareminder.alarm.ScheduleRule
 import com.aslam.mediareminder.data.PreferencesRepository
+import com.aslam.mediareminder.data.db.entity.MediaAssetEntity
 import com.aslam.mediareminder.data.db.entity.ReminderEntity
 import com.aslam.mediareminder.data.db.entity.ReminderProfileEntity
 import org.json.JSONArray
@@ -12,6 +13,18 @@ data class ValidatedBackup(
     val manifest: BackupManifest,
     val profiles: List<ReminderProfileEntity>,
     val reminders: List<ReminderEntity>,
+    /** Assets whose record *and* bytes are both present in the archive. */
+    val media: List<MediaAssetEntity>,
+    /**
+     * Declared SHA-256 per archive entry, for the importer to verify media
+     * against while it streams each one out.
+     *
+     * The JSON entries are verified here, in memory. Media cannot be: a
+     * single asset may be 2 GB, so hashing it at inspect time would mean
+     * reading the whole archive twice over. The importer checks each media
+     * entry as it extracts it instead — one read, same guarantee.
+     */
+    val declaredChecksums: Map<String, String>,
     val scheduleRules: Map<String, ScheduleRule>,
     val settings: PreferencesRepository.Snapshot?,
     val compatibility: String,
@@ -80,11 +93,11 @@ object BackupSemanticValidator {
         val remindersJson = readAndVerify(BackupFormat.ENTRY_REMINDERS)
         val scheduleRulesJson = readAndVerify(BackupFormat.ENTRY_SCHEDULE_RULES)
         val settingsJson = readAndVerify(BackupFormat.ENTRY_SETTINGS)
+        val mediaJson = readAndVerify(BackupFormat.ENTRY_MEDIA_ASSETS)
         // Present structurally (BackupFormat.REQUIRED_DATA_ENTRIES) but
         // always empty today — still checksum-verified for forward
-        // compatibility, contents intentionally unused until a media/
+        // compatibility, contents intentionally unused until a
         // category/tag data model exists (docs/decision-log.md).
-        readAndVerify(BackupFormat.ENTRY_MEDIA_ASSETS)
         readAndVerify(BackupFormat.ENTRY_CATEGORIES)
         readAndVerify(BackupFormat.ENTRY_TAGS)
         readAndVerify(BackupFormat.ENTRY_REMINDER_TAGS)
@@ -122,7 +135,37 @@ object BackupSemanticValidator {
             }
         }
 
+        val declaredMedia = parseJsonArray(mediaJson) { BackupMediaAssetCodec.fromJson(it) }
+        requireUnique(declaredMedia.map { it.id }, "media")
+        requireUnique(declaredMedia.map { it.storageKey }, "media storage key")
+
+        // A record is only usable if its bytes rode along. An archive written
+        // before media was carried at all has no `media/` entries and simply
+        // yields an empty list here, which is why an older backup still
+        // imports rather than failing validation.
+        val media = declaredMedia.filter { asset ->
+            entriesByName.containsKey(BackupFormat.MEDIA_DIR_PREFIX + asset.storageKey)
+        }
+        if (media.size != declaredMedia.size) {
+            warnings += "${declaredMedia.size - media.size} media records have no file in the archive and will be skipped"
+        }
+
+        // Deliberately a warning, never an error. Reminders reference media
+        // by id, and the archive is not the only place that media can live —
+        // a merge into a library that already holds it resolves fine. When it
+        // genuinely is absent, the reminder still restores and the integrity
+        // sweep marks it "Media unavailable" rather than the whole import
+        // failing, which is also what keeps pre-media archives importable.
+        val archiveMediaIds = media.map { it.id }.toSet()
+        val unresolved = reminders.count { it.mediaId !in archiveMediaIds }
+        if (unresolved > 0) {
+            warnings += "$unresolved reminders reference media that is not in this archive"
+        }
+
         // MR-10 "Compare declared counts/sizes to actual."
+        if (manifest.counts.mediaAssets != media.size) {
+            warnings += "Manifest declares ${manifest.counts.mediaAssets} media items but archive contains ${media.size}"
+        }
         if (manifest.counts.reminders != reminders.size) {
             warnings += "Manifest declares ${manifest.counts.reminders} reminders but archive contains ${reminders.size}"
         }
@@ -139,6 +182,8 @@ object BackupSemanticValidator {
             manifest = manifest,
             profiles = profiles,
             reminders = reminders,
+            media = media,
+            declaredChecksums = declaredChecksums,
             scheduleRules = scheduleRules,
             settings = settings,
             compatibility = compatibility,

@@ -149,5 +149,8 @@ object BackupConflictPlanner {
             a.snoozeDefaultMinutes == b.snoozeDefaultMinutes &&
             a.snoozeAllowCustom == b.snoozeAllowCustom &&
             a.snoozeMinimumMinutes == b.snoozeMinimumMinutes &&
-            a.snoozeMaximumMinutes == b.snoozeMaximumMinutes
+            a.snoozeMaximumMinutes == b.snoozeMaximumMinutes &&
+            a.actionType == b.actionType &&
+            a.actionUri == b.actionUri &&
+            a.actionLabel == b.actionLabel
 }

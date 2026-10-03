@@ -72,6 +72,12 @@ class BackupConflictPlannerTest {
         reminders = reminders,
         scheduleRules = scheduleRules,
         settings = null,
+        // This planner is about reminders and profiles; media restores on a
+        // separate path (`BackupImporter.restoreMediaRows`) and never reaches
+        // the conflict plan, so an empty archive media set is the honest
+        // fixture rather than a convenience.
+        media = emptyList(),
+        declaredChecksums = emptyMap(),
         compatibility = "compatible",
         checksumStatus = "valid",
         warnings = emptyList(),

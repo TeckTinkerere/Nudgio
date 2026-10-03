@@ -1,7 +1,9 @@
 package com.aslam.mediareminder.backup
 
+import com.aslam.mediareminder.data.db.entity.MediaAssetEntity
 import com.aslam.mediareminder.data.db.entity.ReminderEntity
 import com.aslam.mediareminder.data.db.entity.ReminderProfileEntity
+import com.aslam.mediareminder.reminders.ReminderActionRules
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
@@ -87,10 +89,38 @@ object BackupReminderCodec {
         put("historyEnabled", entity.historyEnabled)
         put("createdAt", Instant.ofEpochMilli(entity.createdAt).toString())
         put("updatedAt", Instant.ofEpochMilli(entity.updatedAt).toString())
+        // Additive and optional (DL-080): omitted entirely for "no action",
+        // so an archive without any actions is byte-identical in shape to a
+        // pre-actions one, and older readers simply never see the key.
+        if (entity.actionType != null && entity.actionUri != null) {
+            put(
+                "action",
+                JSONObject().apply {
+                    put("type", entity.actionType)
+                    put("uri", entity.actionUri)
+                    put("label", entity.actionLabel ?: JSONObject.NULL)
+                },
+            )
+        }
     }
 
     fun fromJson(json: JSONObject): ReminderEntity =
         decodeBackupRecord("reminder_record_malformed", "Malformed reminders.json record") {
+            // An archive is untrusted input: the action goes through the same
+            // rules as a save, and an unsafe one fails the whole record
+            // rather than being silently dropped or silently kept.
+            val actionJson = json.optJSONObject("action")
+            val action = when (
+                val resolved = ReminderActionRules.validate(
+                    type = actionJson?.optString("type")?.takeIf { it.isNotEmpty() },
+                    uri = actionJson?.optString("uri"),
+                    label = actionJson?.takeUnless { it.isNull("label") }?.optString("label"),
+                )
+            ) {
+                is ReminderActionRules.Result.Ok -> resolved.action
+                is ReminderActionRules.Result.Invalid ->
+                    throw BackupFormatException("reminder_record_malformed", "Invalid reminder action")
+            }
             ReminderEntity(
                 id = json.getString("id"),
                 mediaId = json.getString("mediaId"),
@@ -106,6 +136,9 @@ object BackupReminderCodec {
                 historyEnabled = json.getBoolean("historyEnabled"),
                 createdAt = Instant.parse(json.getString("createdAt")).toEpochMilli(),
                 updatedAt = Instant.parse(json.getString("updatedAt")).toEpochMilli(),
+                actionType = action?.type,
+                actionUri = action?.uri,
+                actionLabel = action?.label,
             )
         }
 }
@@ -130,16 +163,95 @@ object BackupSettingsCodec {
 }
 
 /**
- * `media-assets.json`/`categories.json`/`tags.json`/`reminder-tags.json`:
- * always an empty array today. No media import pipeline exists yet (no
- * `media_assets`/`categories`/`tags` Room tables — the same gap
+ * `media-assets.json` records.
+ *
+ * `storageKey` is in the record because it is the *archive* filename too:
+ * each asset's bytes ride along at `media/<storageKey>`, so the record and
+ * the file find each other without a second index. It stays opaque
+ * (`<uuid>.<ext>`, never user text), which is what makes it safe to use as a
+ * zip entry name — a title-derived name would reintroduce exactly the path
+ * traversal `MediaStorage` exists to prevent.
+ *
+ * Omitted deliberately:
+ *  - `entityVersion`, per this file's header: optimistic-concurrency state is
+ *    local, and a restored row starts its version history fresh.
+ *  - `thumbnailPath`, which names a file in `cacheDir` that the OS may
+ *    reclaim at any time. Shipping derived cache in a backup would bloat the
+ *    archive to re-create something `backfillMissingThumbnails` rebuilds for
+ *    free on first read.
+ *  - `categoryId`, since no `categories` table exists; it restores as null,
+ *    the same value every exported row carries today.
+ *
+ * `integrityState` is **not** trusted from the archive. A restore writes
+ * `unchecked` and lets the startup integrity sweep decide against the
+ * filesystem it actually landed on — an asset marked `healthy` on the
+ * exporting phone proves nothing about whether its bytes survived the trip.
+ */
+object BackupMediaAssetCodec {
+    fun toJson(entity: MediaAssetEntity): JSONObject = JSONObject().apply {
+        put("id", entity.id)
+        put("kind", entity.kind)
+        put("title", entity.title)
+        put("notes", entity.notes ?: JSONObject.NULL)
+        put("storageKey", entity.storageKey)
+        put("mimeType", entity.mimeType)
+        put("sizeBytes", entity.sizeBytes.toString())
+        put("sha256", entity.sha256)
+        put("durationMs", entity.durationMs ?: JSONObject.NULL)
+        put("widthPx", entity.widthPx ?: JSONObject.NULL)
+        put("heightPx", entity.heightPx ?: JSONObject.NULL)
+        put("createdAt", Instant.ofEpochMilli(entity.createdAt).toString())
+        put("updatedAt", Instant.ofEpochMilli(entity.updatedAt).toString())
+    }
+
+    fun fromJson(json: JSONObject): MediaAssetEntity =
+        decodeBackupRecord("media_record_malformed", "Malformed media-assets.json record") {
+            val kind = json.getString("kind")
+            if (kind !in MediaAssetEntity.KINDS) {
+                throw BackupFormatException("media_record_malformed", "Unknown media kind: $kind")
+            }
+            val storageKey = json.getString("storageKey")
+            // The storage key becomes a filename on this device, so it is
+            // checked here rather than trusted: an archive is attacker-
+            // controlled input, and `media/../../databases/x` inside a record
+            // would otherwise be written wherever it pointed.
+            if (storageKey.isBlank() || storageKey.contains('/') || storageKey.contains('\\') || storageKey.startsWith(".")) {
+                throw BackupFormatException("media_record_malformed", "Unsafe media storage key")
+            }
+            MediaAssetEntity(
+                id = json.getString("id"),
+                kind = kind,
+                title = json.getString("title"),
+                notes = if (json.isNull("notes")) null else json.optString("notes"),
+                storageKey = storageKey,
+                mimeType = json.getString("mimeType"),
+                sizeBytes = json.getString("sizeBytes").toLong(),
+                sha256 = json.getString("sha256"),
+                durationMs = if (json.isNull("durationMs")) null else json.getLong("durationMs"),
+                widthPx = if (json.isNull("widthPx")) null else json.getInt("widthPx"),
+                heightPx = if (json.isNull("heightPx")) null else json.getInt("heightPx"),
+                categoryId = null,
+                integrityState = MediaAssetEntity.INTEGRITY_UNCHECKED,
+                createdAt = Instant.parse(json.getString("createdAt")).toEpochMilli(),
+                updatedAt = Instant.parse(json.getString("updatedAt")).toEpochMilli(),
+                thumbnailPath = null,
+            )
+        }
+}
+
+/**
+ * `categories.json`/`tags.json`/`reminder-tags.json`: always an empty array
+ * today. No `categories`/`tags` Room tables exist (the same gap
  * docs/decision-log.md DL-012 already recorded for the reminder engine).
  * These entries are still written on every export, and still read
  * (tolerating absence of any of their optional fields) on every import, so
  * the archive layout is complete and forward-compatible the moment a future
- * media-import slice starts populating them — no format version bump
- * required for that, since MR-10's own JSON-record rules already tolerate
- * additive fields inside `extensions`.
+ * slice starts populating them — no format version bump required for that,
+ * since MR-10's own JSON-record rules already tolerate additive fields
+ * inside `extensions`.
+ *
+ * `media-assets.json` used to be in this list and no longer is: it carries
+ * real records (see [BackupMediaAssetCodec]) as of the managed-media work.
  */
 object BackupEmptyArrayCodec {
     fun emptyArray(): JSONArray = JSONArray()
