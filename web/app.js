@@ -254,8 +254,10 @@
       var v = rootStyles.getPropertyValue(name).trim();
       return hexToRgb(v || fallback);
     }
-    var c1 = readColor('--primary', '#5edbc8');
-    var c2 = readColor('--secondary', '#ffb951');
+    // Fallbacks are the Ink & Apricot light values, used only if the custom
+    // properties cannot be read; they were still the pre-brand mint and amber.
+    var c1 = readColor('--primary', '#2D4DB5');
+    var c2 = readColor('--accent', '#E9B58E');
 
     var BARS = 40;
     var amp = new Float32Array(BARS);

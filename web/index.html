@@ -5,13 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Nudgio — download the APK</title>
   <meta name="description" content="Nudgio turns your own photos, clips and voice notes into reminders and alarms. No account, no backend, no internet permission. Android 8.0+, sideloaded APK." />
-  <meta name="theme-color" content="#0E1513" />
+  <meta name="theme-color" content="#F7F4EE" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#11141D" media="(prefers-color-scheme: dark)" />
 
   <meta property="og:title" content="Nudgio — download the APK" />
   <meta property="og:description" content="Reminders and alarms built from your own media. No account, no backend, no internet permission." />
   <meta property="og:type" content="website" />
 
-  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="icon" type="image/png" sizes="64x64" href="brand/nudgio-mark-64.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="brand/nudgio-mark-192.png" />
+  <link rel="apple-touch-icon" href="brand/nudgio-mark-192.png" />
+  <meta property="og:image" content="https://nudgio.mohdaslam.dev/brand/nudgio-og.png" />
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -21,10 +26,8 @@
 
   <header class="site-header">
     <a class="wordmark" href="#top">
-      <svg class="wordmark__ring" viewBox="0 0 108 108" aria-hidden="true">
-        <path fill="none" stroke="currentColor" stroke-width="7" d="M54,24 A30,30 0 1 1 53.9,24"/>
-        <path fill="currentColor" d="M46,38 L46,70 L74,54 Z"/>
-      </svg>
+      <img class="wordmark__mark" src="brand/nudgio-mark-192.png" width="192" height="192"
+           alt="" aria-hidden="true" decoding="async" />
       Nudgio
     </a>
     <nav class="site-nav">
