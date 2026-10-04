@@ -3,17 +3,21 @@
  * presentation, permissions. Previously only page 1 existed; pages
  * 2-3 were left as "UX content work" (see decision log).
  *
- * Page 3 is a real permissions step, not a description of one: it renders the
- * live `CapabilityRow`s for `notifications`, `exact_alarm` and
- * `full_screen_intent` (the same rows the Health screen uses), so the user
- * grants them here, in context, having just been told why. This is
- * deliberately the *first* ask —
- * `useRequestNotificationPermissionOnLaunch` now stays silent until
- * onboarding is complete, because Android only ever shows the notification
- * dialog twice and spending one of those on an unexplained cold-launch
- * prompt is not recoverable. Neither row blocks Continue: MR-03's "the user
- * can skip setup" applies to permissions too, and the reminder editor
- * re-checks both before saving anyway.
+ * Page 3 is a real permissions step in two stages: a **primer** that explains
+ * the ask and fires the OS notification dialog from its own button, then a
+ * **review** showing the live `CapabilityRow`s (the same rows the Health
+ * screen uses). The user is told why, then asked, then shown what happened.
+ *
+ * This is the *only* automatic notification ask in the app. A cold-launch
+ * catch-up prompt used to exist alongside it and was deleted: on a device it
+ * fired seconds after onboarding finished, so a user who declined the primer
+ * was asked again immediately and unexplained — which consumed both of the
+ * two dialogs Android ever shows and left the permission permanently denied.
+ * Every other route to it is now user-initiated and explained: the Home
+ * banner, the Health screen, and the `Allow` action on the row below.
+ *
+ * Nothing here blocks Continue: MR-03's "the user can skip setup" applies to
+ * permissions too, and the reminder editor re-checks before saving anyway.
  *
  * `hasCompletedOnboarding`
  * writes exactly once, from either the final page's primary action or Skip —
@@ -33,10 +37,23 @@ import type {RootStackParamList} from '../../app/navigation/types';
 import {useToast} from '../../app/toast/ToastProvider';
 import {links, testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
-import {Button, EmptyState, Icon, Screen, Stack, Text, useTheme} from '../../design-system';
+import {
+  Button,
+  EmptyState,
+  Icon,
+  Screen,
+  Stack,
+  Text,
+  useTheme,
+} from '../../design-system';
 import type {IconName} from '../../design-system';
 import {BrandLogo} from '../../design-system/components/BrandLogo';
-import {useCapabilitySnapshot, useHaptics, useUpdatePreferences} from '../../hooks';
+import {
+  useCapabilitySnapshot,
+  useHaptics,
+  useRequestNotificationPermission,
+  useUpdatePreferences,
+} from '../../hooks';
 import {useTranslation} from '../../localization';
 import {CapabilityRow} from '../capability/CapabilityRow';
 
@@ -45,31 +62,78 @@ type Navigation = NativeStackNavigationProp<RootStackParamList, 'Onboarding'>;
 const PAGE_COUNT = 3;
 type PageIndex = 0 | 1 | 2;
 
+/**
+ * The permissions page is two steps behind one dot: a primer that explains
+ * the ask, then the resulting state. They are not separate pages because the
+ * second is the answer to the first — splitting them would add a dot the
+ * user cannot navigate back across (the OS dialog is not re-showable at
+ * will), and would make a denial look like a page they had failed to
+ * complete.
+ */
+type PermissionStage = 'primer' | 'review';
+
 interface PageContent {
   readonly icon: IconName;
-  readonly titleKey: 'onboarding.purpose.title' | 'onboarding.adaptive.title' | 'onboarding.permissions.title';
-  readonly bodyKey: 'onboarding.purpose.body' | 'onboarding.adaptive.body' | 'onboarding.permissions.body';
+  readonly titleKey:
+    | 'onboarding.purpose.title'
+    | 'onboarding.adaptive.title'
+    | 'onboarding.permissions.title';
+  readonly bodyKey:
+    | 'onboarding.purpose.body'
+    | 'onboarding.adaptive.body'
+    | 'onboarding.permissions.body';
 }
 
 const PAGES: readonly PageContent[] = [
-  {icon: 'library', titleKey: 'onboarding.purpose.title', bodyKey: 'onboarding.purpose.body'},
-  {icon: 'notification', titleKey: 'onboarding.adaptive.title', bodyKey: 'onboarding.adaptive.body'},
-  {icon: 'lock', titleKey: 'onboarding.permissions.title', bodyKey: 'onboarding.permissions.body'},
+  {
+    icon: 'library',
+    titleKey: 'onboarding.purpose.title',
+    bodyKey: 'onboarding.purpose.body',
+  },
+  {
+    icon: 'notification',
+    titleKey: 'onboarding.adaptive.title',
+    bodyKey: 'onboarding.adaptive.body',
+  },
+  {
+    icon: 'lock',
+    titleKey: 'onboarding.permissions.title',
+    bodyKey: 'onboarding.permissions.body',
+  },
 ];
 
 /** Named function (not an inline object) so `no-inline-styles` sees a value it can't mistake for a screen-code magic literal — the color/width really are dynamic per dot, not a one-off. */
-const dotStyleFor = (isActive: boolean, activeColor: string, inactiveColor: string) => ({
+const dotStyleFor = (
+  isActive: boolean,
+  activeColor: string,
+  inactiveColor: string,
+) => ({
   backgroundColor: isActive ? activeColor : inactiveColor,
   width: isActive ? 20 : 8,
 });
 
 /** Dot row — decorative; the real page-position announcement is the row's own accessibilityLabel. */
-function PageIndicator({page, label}: {readonly page: PageIndex; readonly label: string}) {
+function PageIndicator({
+  page,
+  label,
+}: {
+  readonly page: PageIndex;
+  readonly label: string;
+}) {
   const theme = useTheme();
   return (
-    <Stack direction="row" justify="center" gap="xs" groupAccessibility accessibilityLabel={label}>
+    <Stack
+      direction="row"
+      justify="center"
+      gap="xs"
+      groupAccessibility
+      accessibilityLabel={label}>
       {PAGES.map((_, index) => {
-        const dotStyle = dotStyleFor(index === page, theme.color.primary, theme.color.outlineVariant);
+        const dotStyle = dotStyleFor(
+          index === page,
+          theme.color.primary,
+          theme.color.outlineVariant,
+        );
         return <View key={index} style={[styles.dot, dotStyle]} />;
       })}
     </Stack>
@@ -86,7 +150,7 @@ function PageIndicator({page, label}: {readonly page: PageIndex; readonly label:
  * index, so a future snapshot that reorders or adds items cannot silently
  * change what this page asks for.
  */
-function PermissionsPage() {
+function PermissionsPage({stage}: {readonly stage: PermissionStage}) {
   const t = useTranslation();
   const theme = useTheme();
   const capability = useCapabilitySnapshot();
@@ -96,15 +160,61 @@ function PermissionsPage() {
   const exactAlarm = items.find(item => item.kind === 'exact_alarm');
   const fullScreenIntent = items.find(item => item.kind === 'full_screen_intent');
 
+  // The primer: explanation only, no rows. The OS dialog fires from the
+  // page's primary button, so the user reads why before Android asks.
+  if (stage === 'primer') {
+    return (
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollFill,
+          {padding: theme.spacing.lg, gap: theme.spacing.lg},
+        ]}>
+        <Stack gap="xs" align="center">
+          <Icon name="notification" size="xl" color={theme.color.onSurfaceVariant} />
+          <Text variant="titleLarge" align="center" isHeading>
+            {t('onboarding.primer.title')}
+          </Text>
+          <Text variant="bodyLarge" tone="variant" align="center">
+            {t('onboarding.primer.body')}
+          </Text>
+        </Stack>
+      </ScrollView>
+    );
+  }
+
+  // The review: what is genuinely still outstanding after the dialog. On
+  // Android 13+ `exact_alarm` reports ready without ever being asked for
+  // (`USE_EXACT_ALARM` is granted at install), so this usually shows one
+  // settled row rather than a list of chores. Rows stay filtered by kind,
+  // not sliced by index, so a snapshot that reorders cannot change what
+  // this page asks for.
+  const outstanding = [notifications, exactAlarm, fullScreenIntent].filter(
+    item => item !== undefined && item.status !== 'ready',
+  );
+
   return (
-    <ScrollView contentContainerStyle={[styles.scrollFill, {padding: theme.spacing.lg, gap: theme.spacing.lg}]}>
+    <ScrollView
+      contentContainerStyle={[
+        styles.scrollFill,
+        {padding: theme.spacing.lg, gap: theme.spacing.lg},
+      ]}>
       <Stack gap="xs" align="center">
-        <Icon name="lock" size="xl" color={theme.color.onSurfaceVariant} />
+        <Icon
+          name={outstanding.length === 0 ? 'check' : 'lock'}
+          size="xl"
+          color={
+            outstanding.length === 0
+              ? theme.color.primary
+              : theme.color.onSurfaceVariant
+          }
+        />
         <Text variant="titleLarge" align="center" isHeading>
           {t('onboarding.permissions.title')}
         </Text>
         <Text variant="bodyLarge" tone="variant" align="center">
-          {t('onboarding.permissions.body')}
+          {outstanding.length === 0
+            ? t('onboarding.permissions.allSet')
+            : t('onboarding.permissions.body')}
         </Text>
       </Stack>
 
@@ -125,6 +235,8 @@ export function OnboardingScreen() {
   const haptics = useHaptics();
   const {showToast} = useToast();
   const [page, setPage] = useState<PageIndex>(0);
+  const [permissionStage, setPermissionStage] = useState<PermissionStage>('primer');
+  const requestNotifications = useRequestNotificationPermission();
 
   // Onboarding completion must never be a hard gate a user can get stuck
   // behind: `hasCompletedOnboarding` is a soft "don't show this again" flag,
@@ -153,6 +265,24 @@ export function OnboardingScreen() {
   const handleStart = () => finish(true);
   const handleSkip = () => finish(false);
 
+  /**
+   * Fires the OS notification dialog straight off the primer, then shows what
+   * actually happened.
+   *
+   * `onSettled`, not `onSuccess`: a denial resolves the mutation just as a
+   * grant does, and even a thrown bridge error must still advance — leaving
+   * the user on a primer whose button has stopped working would be the one
+   * genuinely unrecoverable outcome here. The review step reads live
+   * capability state rather than this call's result, so it stays truthful
+   * either way.
+   */
+  const handleAllowNotifications = () => {
+    haptics.trigger('confirm');
+    requestNotifications.mutate(undefined, {
+      onSettled: () => setPermissionStage('review'),
+    });
+  };
+
   const goNext = () => {
     haptics.trigger('confirm');
     setPage(current => (current + 1) as PageIndex);
@@ -165,8 +295,10 @@ export function OnboardingScreen() {
   const current = PAGES[page]!;
   const isLastPage = page === PAGE_COUNT - 1;
 
+  const isPrimer = isLastPage && permissionStage === 'primer';
+
   const body = isLastPage ? (
-    <PermissionsPage />
+    <PermissionsPage stage={permissionStage} />
   ) : (
     <EmptyState
       icon={current.icon}
@@ -190,7 +322,11 @@ export function OnboardingScreen() {
   return (
     <Screen testID={testIds.onboarding.screen}>
       <Stack style={styles.flexFill} justify="space-between">
-        <Stack direction="row" justify="flex-end" paddingHorizontal="sm" paddingVertical="xs">
+        <Stack
+          direction="row"
+          justify="flex-end"
+          paddingHorizontal="sm"
+          paddingVertical="xs">
           <Button
             testID={testIds.onboarding.skipButton}
             label={isLastPage ? t('onboarding.exploreFirst') : t('onboarding.skip')}
@@ -202,7 +338,10 @@ export function OnboardingScreen() {
         {theme.a11y.reduceMotion ? (
           body
         ) : (
-          <Animated.View key={page} entering={FadeIn.duration(200)} style={styles.flexFill}>
+          <Animated.View
+            key={page}
+            entering={FadeIn.duration(200)}
+            style={styles.flexFill}>
             {body}
           </Animated.View>
         )}
@@ -210,13 +349,28 @@ export function OnboardingScreen() {
         <Stack gap="md" paddingHorizontal="lg" paddingVertical="md">
           <PageIndicator
             page={page}
-            label={t('onboarding.pageIndicator', {current: page + 1, total: PAGE_COUNT})}
+            label={t('onboarding.pageIndicator', {
+              current: page + 1,
+              total: PAGE_COUNT,
+            })}
           />
           <Button
             testID={testIds.onboarding.continueButton}
-            label={isLastPage ? t('onboarding.start') : t('onboarding.purpose.continue')}
-            onPress={isLastPage ? handleStart : goNext}
-            loading={isLastPage && updatePreferences.isPending}
+            label={
+              isPrimer
+                ? t('onboarding.primer.allow')
+                : isLastPage
+                  ? t('onboarding.start')
+                  : t('onboarding.purpose.continue')
+            }
+            onPress={
+              isPrimer ? handleAllowNotifications : isLastPage ? handleStart : goNext
+            }
+            loading={
+              isPrimer
+                ? requestNotifications.isPending
+                : isLastPage && updatePreferences.isPending
+            }
             fullWidth
           />
           {page > 0 ? (

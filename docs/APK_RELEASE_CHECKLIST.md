@@ -13,11 +13,12 @@ Android checklist. Cross-check against `specs/Markdown/20_Release_Distribution_P
 
 ## Manifest / permissions audit
 
-Current manifest declares exactly: `POST_NOTIFICATIONS`, `SCHEDULE_EXACT_ALARM`, `RECEIVE_BOOT_COMPLETED`, `VIBRATE`, `WAKE_LOCK`, `USE_FULL_SCREEN_INTENT`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`. No `INTERNET`, no `SYSTEM_ALERT_WINDOW`, no broad media/gallery access, no battery-exemption request, no location/contacts/camera/microphone/phone-state.
+Current manifest declares exactly: `POST_NOTIFICATIONS`, `SCHEDULE_EXACT_ALARM` (capped at `maxSdkVersion="32"`), `USE_EXACT_ALARM`, `RECEIVE_BOOT_COMPLETED`, `VIBRATE`, `WAKE_LOCK`, `USE_FULL_SCREEN_INTENT`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`. No `INTERNET`, no `SYSTEM_ALERT_WINDOW`, no broad media/gallery access, no battery-exemption request, no location/contacts/camera/microphone/phone-state.
 
 - [ ] Re-confirm this list is still exactly true before every release — a transitive dependency bump is the most likely way a new permission sneaks in unnoticed. `grep -A2 uses-permission android/app/src/main/AndroidManifest.xml` and diff against the list above.
 - [ ] Confirm every receiver/service/activity except `MainActivity` is still `exported="false"` (the manifest's own comment says every exported component gets a manifest test — check that test exists and passes, or add it).
-- [ ] Confirm `SCHEDULE_EXACT_ALARM` usage still matches Play's exact-alarm permission policy for your target API level at release time — this is a policy area Google has changed before and may change again; re-read the current Play Console policy, don't assume MR-06's text is still current (MR-22's own instruction: "refresh current platform facts, don't assume").
+- [ ] Confirm the exact-alarm pair still matches Play's policy for your target API level at release time — this is a policy area Google has changed before and may change again; re-read the current Play Console policy, don't assume MR-06's text is still current (MR-22's own instruction: "refresh current platform facts, don't assume").
+- [ ] **`USE_EXACT_ALARM` is review-gated.** It is a normal permission granted at install, restricted to apps whose "core, user facing functionality requires precisely-timed actions" — alarm clocks and calendars. Apps that declare it without qualifying are "disallowed from publishing on Google Play." Nudgio qualifies on the alarm-clock case (`AlarmActivity` over the keyguard, `AlarmRingingService`, `setAlarmClock()`). This is moot while the app is sideloaded, but is the first thing to re-check before any Play listing — and if the app's core purpose ever stops being alarms, revert to `SCHEDULE_EXACT_ALARM` alone. See DL-107.
 
 ## Play Console data-safety form
 
