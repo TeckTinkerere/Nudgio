@@ -3058,3 +3058,114 @@ same geometry from one file, and the build fails if any of the three drifts.
 unchanged" for launcher, onboarding and About; that instruction was now false
 on all three counts and has been rewritten to name the master as the source
 and the script as the enforcement.
+
+## DL-107 — The exact-alarm interruption was a permission choice, not a flow problem
+
+**Date:** 2026-10-04
+**Context:** The user reported that granting exact-alarm access "felt jarring"
+because the system Settings page appeared in the middle of creating a
+reminder, and asked for the permission requests to be moved into onboarding.
+Investigation found the premise was mostly already satisfied: `OnboardingScreen`
+page 3 has asked for `notifications`, `exact_alarm` and `full_screen_intent`
+since the flow was built, and `ReminderEditorScreen` only *warns* when they are
+missing. Moving the ask would therefore not have fixed anything — the redirect
+would simply have arrived earlier.
+
+The real cause is which permission the manifest declares.
+`SCHEDULE_EXACT_ALARM` is *special access*: revocable, denied by default on
+Android 14+, and recoverable only by sending the user to a Settings page.
+Any flow built on it eventually ejects the user from the app.
+
+**Decision:** Declare `USE_EXACT_ALARM` (API 33+) and cap
+`SCHEDULE_EXACT_ALARM` at `maxSdkVersion="32"`.
+
+`USE_EXACT_ALARM` is a normal permission, granted at install and not
+revocable, and Android documents it for exactly this case: "Calendar or alarm
+clock apps need to send calendar reminders, wake-up alarms, or alerts when the
+app is no longer running. These apps can request the `USE_EXACT_ALARM` normal
+permission." Nudgio is one — `AlarmActivity` shows over the keyguard,
+`AlarmRingingService` sounds the alert, `SchedulerCoordinator` uses
+`setAlarmClock()`.
+
+The result on API 33+ is that there is no exact-alarm permission journey at
+all: no onboarding step, no mid-creation redirect, and no way for the
+capability to lapse later. `SCHEDULE_EXACT_ALARM` remains for API 31-32, the
+only range where it is still needed (below 31 exact alarms need no special
+access), so one APK stays correct from minSdk 26 to targetSdk 36.
+
+**No Kotlin changed.** `ExactAlarmAccess.isAvailable()` already answers the
+question through `canScheduleExactAlarms()`, which simply returns true once
+`USE_EXACT_ALARM` is held, and `CapabilitySnapshotProvider` already emits
+`action = "none"` when the status is ready — so the `open_special_access`
+affordance disappears on its own. That the fix needed no code is a property of
+`ExactAlarmAccess` being the single place the question was answered.
+
+**Deviations recorded, as this log's preamble requires:**
+- **ADR-006** says "Request `SCHEDULE_EXACT_ALARM` contextually." Superseded on
+  API 33+: there is nothing to request contextually any more. The contextual
+  path survives for 31-32 and is unchanged.
+- **MR-03 "Page 3 - permissions by intent"** says "Onboarding does not
+  immediately request every permission," listing exact-alarm access as
+  requested "only after the user chooses exact timing." That is now
+  unnecessary for exact alarm, and the notification ask does move up-front —
+  see DL-108.
+
+**Play Store caveat:** `USE_EXACT_ALARM` is review-gated and apps that do not
+qualify are "disallowed from publishing on Google Play." Moot while Nudgio is
+sideloaded; recorded in `docs/APK_RELEASE_CHECKLIST.md` as the first thing to
+re-check before any listing.
+
+## DL-108 — A pre-permission primer, because Android only asks twice
+
+**Date:** 2026-10-04
+**Context:** With DL-107 removing the exact-alarm redirect, notifications are
+the only permission left to ask for on a modern device. Onboarding asked for it
+through a live `CapabilityRow` the user had to notice and tap, on the same
+screen as the explanation.
+**Decision:** Split that step into a **primer** and a **review**, the standard
+pre-permission pattern: the primer explains the ask and its primary button
+fires the OS dialog; the review then shows live capability state, including
+whatever is genuinely still outstanding.
+- **Two stages, one page indicator dot.** The review is the *answer* to the
+  primer, not a separate step. A second dot would imply a page the user could
+  navigate back across, and the OS dialog cannot be re-shown at will; worse, a
+  denial would read as a page they had failed to complete.
+- **`onSettled`, not `onSuccess`.** A denial resolves the mutation exactly as a
+  grant does, and even a bridge error must still advance — stranding someone on
+  a primer whose button had stopped working would be the one genuinely
+  unrecoverable outcome. The review reads live capability state rather than the
+  call's result, so it stays truthful either way.
+- **The copy is singular.** "One thing before we start", not the two the
+  original brief assumed, because on API 33+ exact alarm is already granted and
+  claiming otherwise would be false on most devices.
+- **A branded splash** replaces the generic `LoadingState` spinner on cold
+  start, which was previously indistinguishable from a list that had failed to
+  load. `SplashScreen` owns what is shown, `StartupGate` owns when — so a
+  future welcome animation is a change to one file. `RootNavigator`'s own
+  preference gate uses it too: the two gates run back to back on every cold
+  start, and using different treatments made the first seconds flicker from a
+  branded frame to a bare spinner and back.
+- **`useRequestNotificationPermissionOnLaunch` is deleted.** This was found on
+  device, not in review, and it is the reason this entry exists at all: the
+  hook fired as soon as `hasCompletedOnboarding` flipped true, so a user who
+  declined the primer was re-prompted *seconds later* on the Home screen,
+  unexplained. `dumpsys` confirmed the cost — `POST_NOTIFICATIONS` went to
+  `USER_SET|USER_FIXED` within a minute, meaning both of the two dialogs
+  Android ever shows were spent and the permission was permanently denied,
+  reachable only through Settings. The hook was written when onboarding's
+  permission page was a passive list the user might never have tapped, so a
+  catch-up ask made sense; once the primer asks for certain, the catch-up is
+  only ever a duplicate. Deleting it was chosen over gating it behind a new
+  `hasAskedNotificationPermission` preference because that field would have
+  touched the bridge contract, the native DataStore, the mocks and the backup
+  format to buy an unexplained prompt nobody wants. Every remaining route to
+  the permission — the primer, the Home banner, the Health row — is
+  user-initiated and explained.
+**Consequence:** The Home banner was rebuilt around the same decision
+(`CapabilityBanner`). It now names notifications explicitly and appears with no
+reminders yet, because that is where a user lands immediately after declining
+the primer; previously it reported "Exact timing is off" for every
+`needs_action` rollup — the wrong thing for the one permission a user can
+actually decline — and stayed hidden until a reminder existed, so the
+explanation arrived after the decision it explained. Its action deep-links to
+notification settings rather than the in-app Health screen.

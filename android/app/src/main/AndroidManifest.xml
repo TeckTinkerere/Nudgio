@@ -30,7 +30,39 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!--
+      Exact alarms, declared the way Android asks an alarm app to declare them.
+
+      `SCHEDULE_EXACT_ALARM` is a *special access* permission: the user can
+      revoke it, and on Android 14+ it is denied by default, so the only way
+      back is to eject the user into a system Settings page. That redirect is
+      what made granting feel like an interruption, because it arrived in the
+      middle of creating a reminder.
+
+      `USE_EXACT_ALARM` (API 33+) is a normal permission granted at install
+      and not revocable, and it exists precisely for "calendar or alarm clock
+      apps [that] need to send calendar reminders, wake-up alarms, or alerts
+      when the app is no longer running." Nudgio is one: `AlarmActivity`
+      shows over the keyguard, `AlarmRingingService` sounds the alert, and
+      `SchedulerCoordinator` uses `setAlarmClock()`. So on API 33+ there is
+      no permission journey at all — no onboarding step, no mid-creation
+      redirect, and no way for the capability to silently lapse later.
+
+      `SCHEDULE_EXACT_ALARM` is capped at API 32 because that is the only
+      range where it is still needed: below API 31 exact alarms need no
+      special access, and from 33 the line above covers it. Both are declared
+      so a single APK is correct across minSdk 26 to targetSdk 36.
+
+      Note for any future Play Store listing: `USE_EXACT_ALARM` is
+      review-gated, and an app that does not qualify is "disallowed from
+      publishing on Google Play." Nudgio qualifies on the alarm-clock use
+      case; if its core purpose ever stops being alarms, this must revert to
+      `SCHEDULE_EXACT_ALARM` alone.
+    -->
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />

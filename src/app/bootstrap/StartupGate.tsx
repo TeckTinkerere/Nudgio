@@ -8,28 +8,34 @@
  */
 import type {PropsWithChildren} from 'react';
 
+import {SplashScreen} from './SplashScreen';
 import {useAppBootstrap} from './useAppBootstrap';
-import {useRequestNotificationPermissionOnLaunch} from './useRequestNotificationPermissionOnLaunch';
 import {testIds} from '../../constants';
-import {ErrorState, LoadingState} from '../../design-system';
+import {ErrorState} from '../../design-system';
 import {useTranslation} from '../../localization';
-
 
 export function StartupGate({children}: PropsWithChildren) {
   const t = useTranslation();
   const bootstrap = useAppBootstrap();
-  useRequestNotificationPermissionOnLaunch(bootstrap.snapshot);
 
   if (bootstrap.phase === 'loading') {
+    // The branded splash, not the generic spinner: this is the app's first
+    // frame on a cold start, and it used to look identical to a list that
+    // had failed to load.
     return (
-      <LoadingState label={t('loading.startingUp')} testID={testIds.appShell.startupLoading} />
+      <SplashScreen
+        caption={t('loading.startingUp')}
+        testID={testIds.appShell.startupLoading}
+      />
     );
   }
 
   if (bootstrap.phase === 'repairing') {
     // MR-07: a long repair gets its own state, distinct from the generic
-    // loading spinner, so a slow device reads as "working" not "stuck".
-    return <LoadingState label={t('loading.repairing')} />;
+    // loading spinner, so a slow device reads as "working" not "stuck". It
+    // keeps the splash's frame — a repair is still startup from the user's
+    // side — and only the caption changes.
+    return <SplashScreen caption={t('loading.repairing')} />;
   }
 
   if (bootstrap.phase === 'error') {

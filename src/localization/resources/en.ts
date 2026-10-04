@@ -28,9 +28,23 @@ export const en = {
   'onboarding.adaptive.title': 'It shows up the way you need it to',
   'onboarding.adaptive.body':
     'When your phone is locked, a reminder can open like an alarm. While you are using your phone, Android shows a compact notification instead.',
+  // The pre-permission primer. Shown immediately before the OS notification
+  // dialog, which Android will only ever show twice — so the ask is explained
+  // first, while a decline here costs nothing and can be retried later.
+  //
+  // Translator note: deliberately singular. Exact-alarm timing is granted at
+  // install on Android 13+ (`USE_EXACT_ALARM`), so on most devices
+  // notifications are the only thing left to ask for. The review step below
+  // lists whatever is genuinely still outstanding.
+  'onboarding.primer.title': 'One thing before we start',
+  'onboarding.primer.body':
+    'Nudgio needs your permission to show reminders. Without it a reminder still runs on time — it just cannot reach you when it does.',
+  'onboarding.primer.allow': 'Allow notifications',
   'onboarding.permissions.title': 'Let your reminders reach you',
   'onboarding.permissions.body':
     'Nudgio needs these to alert you at the right moment. You can continue without them and grant them later in Settings — reminders just may be late or silent until you do.',
+  'onboarding.permissions.allSet':
+    'All set. Nudgio can reach you when a reminder is due.',
   'onboarding.start': 'Create my first reminder',
   'onboarding.exploreFirst': 'Explore first',
   'onboarding.back': 'Back',
@@ -44,12 +58,17 @@ export const en = {
   'today.status.actionNeeded': 'Action needed',
   'today.status.limitedTiming': 'Limited timing',
   'today.empty.title': 'Your first reminder',
-  'today.empty.body': 'Pick a photo, video or sound that means something to you, and choose when it should come back.',
+  'today.empty.body':
+    'Pick a photo, video or sound that means something to you, and choose when it should come back.',
   'today.empty.createReminder': 'Create a reminder',
   'today.empty.importMedia': 'Import media',
   'today.empty.createTextCard': 'Create reminder from a text card',
   'today.capability.exactTimingOff.title': 'Exact timing is off',
   'today.capability.exactTimingOff.effect': 'Android may deliver reminders later.',
+  'today.capability.notificationsOff.title': 'Notifications are off',
+  'today.capability.notificationsOff.effect':
+    'Reminders will still run on time, but Nudgio cannot show them until you turn notifications on.',
+  'today.capability.openSettings': 'Open settings',
   'today.capability.openHealth': 'Open Health',
   // Translator note: {count} is a plain integer.
   'today.activeReminderCount': '{count} active reminders',
@@ -60,7 +79,8 @@ export const en = {
   'home.next.previewFor': 'Preview what {label} will show',
   'home.next.opensAfter': 'Opens a link afterwards',
   'home.empty.noneScheduledTitle': 'Nothing scheduled',
-  'home.empty.noneScheduledBody': 'Every reminder below is paused or finished. Turn one back on, or create a new one.',
+  'home.empty.noneScheduledBody':
+    'Every reminder below is paused or finished. Turn one back on, or create a new one.',
   'home.empty.mediaMissingTitle': 'Some media is missing',
   'home.empty.mediaMissingBody':
     "Nudgio can't find the media for {count} of your reminders, so they've stopped. Open one to pick new media or remove it.",
@@ -82,7 +102,8 @@ export const en = {
   // Translator note: {name} is an album name.
   'library.albums.newInside': 'New album in {name}',
   'library.albums.newSubtitle': 'Group your media the way you think about it',
-  'library.albums.newUnavailable': 'Albums go one level deep, so this album cannot hold more albums.',
+  'library.albums.newUnavailable':
+    'Albums go one level deep, so this album cannot hold more albums.',
   'library.albums.nameLabel': 'Album name',
   'library.albums.namePlaceholder': 'Family, Workouts, Lessons',
   // Translator note: {name} is the album just created.
@@ -99,7 +120,8 @@ export const en = {
   'library.albums.deleteAlbumBody':
     'Only the album goes. Everything in it stays in your library, back in Unsorted or the album above it.',
   'library.albums.moveTo': 'Move to',
-  'library.albums.moveHint': 'Albums hold one level of albums. Greyed-out places would nest deeper.',
+  'library.albums.moveHint':
+    'Albums hold one level of albums. Greyed-out places would nest deeper.',
   'library.albums.searchAlbums': 'Search albums',
   'library.albums.topLevel': 'Library',
   'library.albums.topLevelDetail': 'Not inside another album',
@@ -126,7 +148,8 @@ export const en = {
   'library.albums.importAudioSubtitle': 'Voice notes, music, sounds',
   // Translator note: {name} is an album name.
   'library.albums.emptyAlbumTitle': 'Nothing in {name} yet',
-  'library.albums.emptyAlbumBody': 'Import straight into this album, or select items anywhere in your library and choose Move.',
+  'library.albums.emptyAlbumBody':
+    'Import straight into this album, or select items anywhere in your library and choose Move.',
   'library.explorer.unsorted': 'Unsorted',
   'library.explorer.searchLibrary': 'Search Library',
   'library.explorer.searchPlace': 'Search {name}',
@@ -138,29 +161,41 @@ export const en = {
   'today.pause': 'Pause',
   'settings.profiles.show': 'Show alert styles and previews',
   'settings.profiles.hide': 'Hide alert style previews',
-  'settings.alarmHealth.ready': 'Android reports that reminder alerts are available. Use Health to check individual settings.',
-  'settings.alarmHealth.limited': 'Some Android settings limit reminder alerts. Open Health above to see what is affected and how to fix it.',
+  'settings.alarmHealth.ready':
+    'Android reports that reminder alerts are available. Use Health to check individual settings.',
+  'settings.alarmHealth.limited':
+    'Some Android settings limit reminder alerts. Open Health above to see what is affected and how to fix it.',
   'reminders.editor.moreOptions': 'More options · Snooze, notes and history',
   'reminders.editor.hideOptions': 'Hide extra options',
-  'reminders.editor.previewEstimate': 'Schedule preview. The exact next occurrence is confirmed after saving.',
+  'reminders.editor.previewEstimate':
+    'Schedule preview. The exact next occurrence is confirmed after saving.',
   'reminders.editor.scheduleSummary': '{repeat} at {time}',
   'reminders.editor.validationWeekdaysRequired': 'Choose at least one weekday.',
-  'reminders.editor.validationProfileRequired': 'An alert style is required. Reopen this screen to reload styles.',
+  'reminders.editor.validationProfileRequired':
+    'An alert style is required. Reopen this screen to reload styles.',
   'reminders.editor.checkingAlertSettings': 'Checking alert settings',
   'reminders.editor.monthDaySummary': '{month} · Day {day}',
   'today.pauseTitle': 'Pause reminder?',
-  'today.pauseBody': '“{label}” will stop alerting until you turn it on again in Reminders.',
+  'today.pauseBody':
+    '“{label}” will stop alerting until you turn it on again in Reminders.',
   'library.explorer.retryFolders': 'Could not load folders · Retry',
-  'library.explorer.noFoldersFound': 'No matching folders. Try another name or choose the root above.',
-  'library.explorer.undoUnavailable': 'This move can no longer be undone. You can move the media again.',
+  'library.explorer.noFoldersFound':
+    'No matching folders. Try another name or choose the root above.',
+  'library.explorer.undoUnavailable':
+    'This move can no longer be undone. You can move the media again.',
   'library.explorer.moveHere': 'Move here',
   'library.explorer.moveSeparate': 'Move folders and media separately.',
-  'library.explorer.moveFolderFailed': 'Folder could not be moved. Choose another destination.',
-  'library.explorer.moveMediaChanged': 'Some selected media changed. Select them again.',
-  'library.explorer.moveMediaFailed': 'Media could not be moved. Refresh and try again.',
+  'library.explorer.moveFolderFailed':
+    'Folder could not be moved. Choose another destination.',
+  'library.explorer.moveMediaChanged':
+    'Some selected media changed. Select them again.',
+  'library.explorer.moveMediaFailed':
+    'Media could not be moved. Refresh and try again.',
   'library.explorer.moveFailed': 'Move could not be completed. Refresh and try again.',
-  'library.explorer.folderSaveFailed': 'Folder could not be saved. Refresh and try again.',
-  'library.explorer.folderRemoveFailed': 'Folder could not be removed. Refresh and try again.',
+  'library.explorer.folderSaveFailed':
+    'Folder could not be saved. Refresh and try again.',
+  'library.explorer.folderRemoveFailed':
+    'Folder could not be removed. Refresh and try again.',
   'library.explorer.importedUnsorted': 'Imported to Unsorted. Move it from there.',
   'library.explorer.pinFailed': 'Could not update the pin. Refresh and try again.',
   'library.explorer.add': 'Add',
@@ -170,7 +205,8 @@ export const en = {
   'library.explorer.save': 'Save',
   'library.explorer.create': 'Create',
   'library.explorer.deleteTitle': 'Delete selected',
-  'library.explorer.deleteBody': 'Removing folders keeps their media. Deleting selected media removes its files and disables linked reminders; it does not delete those reminders.',
+  'library.explorer.deleteBody':
+    'Removing folders keeps their media. Deleting selected media removes its files and disables linked reminders; it does not delete those reminders.',
   'library.explorer.deleteImpact': '{folders} folders and {media} media selected.',
   'library.search.placeholder': 'Search media',
   'library.filter.videos': 'Videos',
@@ -186,7 +222,8 @@ export const en = {
   'library.empty.title': 'Your library is empty',
   'library.empty.body': 'Imported videos, audio, images and text cards appear here.',
   'library.empty.filtered.title': 'No media matches these filters',
-  'library.empty.filtered.body': 'Try a different search term, or clear the filters to see everything.',
+  'library.empty.filtered.body':
+    'Try a different search term, or clear the filters to see everything.',
   'library.empty.filtered.clearFilters': 'Clear filters',
   'library.sort.recentlyAdded': 'Recently added',
   'library.sort.name': 'Name',
@@ -236,7 +273,8 @@ export const en = {
   'library.player.loadError': "Couldn't play this file.",
   'library.player.play': 'Play {title}',
   'library.detail.emptySelectionTitle': 'Select an item',
-  'library.detail.emptySelectionBody': 'Choose something from your library to see its details here.',
+  'library.detail.emptySelectionBody':
+    'Choose something from your library to see its details here.',
   'library.selection.select': 'Select',
   'library.selection.back': 'Exit selection',
   'library.selection.export': 'Export',
@@ -289,7 +327,8 @@ export const en = {
   'reminders.editor.hour': 'Hour',
   'reminders.editor.minute': 'Minute',
   // Translator note: {time} is the resolved local time after a DST gap.
-  'reminders.dst.gap': '{original} does not occur on this date. The reminder will use {resolved}.',
+  'reminders.dst.gap':
+    '{original} does not occur on this date. The reminder will use {resolved}.',
   'reminders.dst.useSecond': 'Use second {time}',
   'reminders.editor.newTitle': 'New reminder',
   'reminders.editor.editTitle': 'Edit reminder',
@@ -322,7 +361,8 @@ export const en = {
   // Translator note: {minutes} is a plain integer.
   'reminders.editor.snoozeMinutes': '{minutes} minutes',
   'reminders.editor.historyToggle': 'Record history',
-  'reminders.editor.historyHelper': 'Keep a local record of Play, Snooze and Dismiss for this reminder.',
+  'reminders.editor.historyHelper':
+    'Keep a local record of Play, Snooze and Dismiss for this reminder.',
   'reminders.editor.enabledToggle': 'Enabled',
   'reminders.editor.capabilitySummary': 'Capability summary',
   'reminders.editor.validationLabelRequired': 'Give this reminder a name.',
@@ -379,7 +419,8 @@ export const en = {
   'moment.close': 'Close reminder',
   'moment.loading': 'Opening your reminder',
   'moment.mediaMissingTitle': "This media isn't available anymore",
-  'moment.mediaMissingBody': 'It may have been deleted. Your reminder and its message still work.',
+  'moment.mediaMissingBody':
+    'It may have been deleted. Your reminder and its message still work.',
   // Translator note: {time} is an already-formatted clock time; {repeat} is a plain-language repeat summary.
   'moment.context': '{time} · {repeat}',
   'reminders.toggle.disableError': "Couldn't disable the reminder. Try again.",
@@ -388,7 +429,8 @@ export const en = {
   'reminders.detail.alertStyle': 'Alert style',
   'reminders.detail.snooze': 'Snooze',
   'reminders.detail.disabledNotice': 'This reminder is disabled and will not alert.',
-  'reminders.detail.needsSetupNotice': 'This reminder needs a capability fixed before it can alert.',
+  'reminders.detail.needsSetupNotice':
+    'This reminder needs a capability fixed before it can alert.',
   'reminders.weekday.mon': 'Mon',
   'reminders.weekday.tue': 'Tue',
   'reminders.weekday.wed': 'Wed',
@@ -406,9 +448,11 @@ export const en = {
 
   // --- Profiles (ADR-018) -----------------------------------------------------
   'profile.gentle.name': 'Gentle',
-  'profile.gentle.description': 'Heads-up if Android permits, one short vibration, sound off by default.',
+  'profile.gentle.description':
+    'Heads-up if Android permits, one short vibration, sound off by default.',
   'profile.standard.name': 'Standard',
-  'profile.standard.description': 'Heads-up with sound. Full-screen alarm when your phone is locked.',
+  'profile.standard.description':
+    'Heads-up with sound. Full-screen alarm when your phone is locked.',
   'profile.persistent.name': 'Persistent',
   'profile.persistent.description': 'Repeated alerts and continuous alarm when locked.',
   'profile.persistent.notice': 'Not for emergencies.',
@@ -440,23 +484,31 @@ export const en = {
   // "failure" wording for a state the user has not actually done anything
   // wrong to reach (MR-03 "Copy style").
   'capability.notifications.ready': 'Reminders can show a notification.',
-  'capability.notifications.blocked': 'Reminders cannot show a notification until this is allowed.',
+  'capability.notifications.blocked':
+    'Reminders cannot show a notification until this is allowed.',
   'capability.exactAlarm.ready': 'Reminders fire at the exact time you set.',
-  'capability.exactAlarm.limited': 'Android may deliver reminders a little later than the exact time you set.',
-  'capability.fullScreenIntent.ready': 'Alarms can take over the screen, even when it is locked.',
+  'capability.exactAlarm.limited':
+    'Android may deliver reminders a little later than the exact time you set.',
+  'capability.fullScreenIntent.ready':
+    'Alarms can take over the screen, even when it is locked.',
   'capability.fullScreenIntent.limited':
     'Reminders will show as a notification instead of taking over the screen, even when it is locked.',
   'capability.batteryEnvironment.ready': 'Background alerts are not restricted.',
   'capability.batteryEnvironment.limited':
     'Your battery settings may delay background alerts. This is expected — Nudgio never asks to be exempted.',
-  'capability.batteryEnvironment.unknown': "This device doesn't report battery-restriction status.",
+  'capability.batteryEnvironment.unknown':
+    "This device doesn't report battery-restriction status.",
   'capability.scheduler.ready': 'The next reminder is registered with Android.',
   'capability.scheduler.idle': 'No next reminder is currently scheduled.',
   'capability.scheduler.unknown': 'Scheduler status has not been confirmed yet.',
-  'capability.scheduler.pending': 'The latest schedule has not been confirmed by Android. Reopen the app and check again.',
-  'capability.scheduler.inexact': 'The next reminder uses limited timing and may arrive later.',
-  'capability.channels.ready': 'Reminder channels are enabled. Android controls their sound and presentation.',
-  'capability.channels.blocked': 'A reminder channel is disabled. Enable both reminder channels in Android settings.',
+  'capability.scheduler.pending':
+    'The latest schedule has not been confirmed by Android. Reopen the app and check again.',
+  'capability.scheduler.inexact':
+    'The next reminder uses limited timing and may arrive later.',
+  'capability.channels.ready':
+    'Reminder channels are enabled. Android controls their sound and presentation.',
+  'capability.channels.blocked':
+    'A reminder channel is disabled. Enable both reminder channels in Android settings.',
 
   // --- Backup (MR-03) ----------------------------------------------------------
   'backup.export.title': 'Export',
@@ -477,11 +529,14 @@ export const en = {
   'backup.import.chooseFile': 'Choose backup file',
   'backup.import.inspecting': 'Inspecting backup',
   'backup.import.inspectOnly': 'Inspect only',
-  'backup.import.inspectOnlyDescription': 'Look at what is in this backup. Nothing on this device changes.',
+  'backup.import.inspectOnlyDescription':
+    'Look at what is in this backup. Nothing on this device changes.',
   'backup.import.merge': 'Merge',
-  'backup.import.mergeDescription': 'Add this backup’s media and reminders alongside what you already have.',
+  'backup.import.mergeDescription':
+    'Add this backup’s media and reminders alongside what you already have.',
   'backup.import.replace': 'Replace',
-  'backup.import.replaceDescription': 'Erase everything on this device first, then restore only what is in this backup.',
+  'backup.import.replaceDescription':
+    'Erase everything on this device first, then restore only what is in this backup.',
   'backup.import.replaceNotice': 'This cannot be undone.',
   'backup.import.replaceConfirmToken': 'REPLACE',
   'backup.import.replaceConfirmTitle': 'Replace all local data?',
@@ -491,7 +546,8 @@ export const en = {
   'backup.import.previewSourceVersion': 'From app version {version}',
   'backup.import.previewSize': 'Archive size',
   'backup.import.checksumValid': 'Checksum verified',
-  'backup.import.checksumInvalid': 'Checksum does not match. This archive may be damaged.',
+  'backup.import.checksumInvalid':
+    'Checksum does not match. This archive may be damaged.',
   'backup.import.compatibilityCompatible': 'Compatible with this app version',
   'backup.import.compatibilityMigratable': 'Will be upgraded during import',
   'backup.import.compatibilityTooNew': 'This backup was created by a newer app version',
@@ -508,7 +564,8 @@ export const en = {
   'backup.import.committing': 'Restoring',
   'backup.import.successTitle': 'Import complete',
   // Translator note: {mediaCount} and {reminderCount} are plain integers.
-  'backup.import.successBody': 'Restored {reminderCount} reminders and {mediaCount} media items.',
+  'backup.import.successBody':
+    'Restored {reminderCount} reminders and {mediaCount} media items.',
 
   // --- Settings (MR-04, appearance) -------------------------------------------
   'settings.title': 'Settings',
@@ -527,10 +584,13 @@ export const en = {
   'settings.row.health.subtitle': 'Permissions and scheduler status',
   'settings.row.profiles': 'Alert profiles',
   'settings.row.profiles.subtitle': 'Gentle, Standard, Persistent',
-  'settings.alarmPreview.hint': 'Preview tests notification and lock-screen presentation. To test ringing, Snooze and retries, create a reminder. Android controls whether a heads-up or full-screen alert appears.',
+  'settings.alarmPreview.hint':
+    'Preview tests notification and lock-screen presentation. To test ringing, Snooze and retries, create a reminder. Android controls whether a heads-up or full-screen alert appears.',
   'settings.alarmPreview.notificationTitle': '{name} preview',
-  'settings.alarmPreview.scheduled': "Preview scheduled — check your notifications in a few seconds.",
-  'settings.alarmPreview.notificationsBlocked': 'Turn on notifications first so the preview can appear.',
+  'settings.alarmPreview.scheduled':
+    'Preview scheduled — check your notifications in a few seconds.',
+  'settings.alarmPreview.notificationsBlocked':
+    'Turn on notifications first so the preview can appear.',
   'settings.alarmPreview.failed': 'Preview could not be scheduled. Try again.',
   'settings.row.defaults': 'Reminder defaults',
   'settings.row.defaults.subtitle': 'Default snooze duration',
@@ -540,11 +600,13 @@ export const en = {
   'library.detail.replaceMedia': 'Replace media',
   'library.detail.replaceMedia.missing':
     "Nudgio can't find this file any more. Pick a replacement and every reminder using it starts working again.",
-  'library.detail.replaceMedia.done': 'Replaced. Reminders using this are ready to turn back on.',
+  'library.detail.replaceMedia.done':
+    'Replaced. Reminders using this are ready to turn back on.',
   'library.detail.replaceMedia.failed': 'Could not replace this media.',
   'library.detail.saveToGallery': 'Save a copy to gallery',
   'library.detail.saveToGallery.done': 'Saved to your gallery, in a Nudgio folder.',
-  'library.detail.saveToGallery.unsupported': "This Android version can't save straight to the gallery. Use Share instead.",
+  'library.detail.saveToGallery.unsupported':
+    "This Android version can't save straight to the gallery. Use Share instead.",
   'library.detail.saveToGallery.failed': 'Could not save a copy to your gallery.',
   'settings.row.storage': 'Nudgio media',
   'settings.row.storage.subtitle': '{items} · {size}',
@@ -572,16 +634,19 @@ export const en = {
   'settings.defaults.use24HourTime.helper':
     'Show times as 18:30 instead of 6:30 PM. Turn off device time format to choose.',
   'settings.defaults.alarmRingtone': 'Alarm ringtone',
-  'settings.defaults.alarmRingtone.helper': 'Used for Standard and Persistent ringing. Notification sounds follow Android channel settings.',
+  'settings.defaults.alarmRingtone.helper':
+    'Used for Standard and Persistent ringing. Notification sounds follow Android channel settings.',
   'settings.defaults.alarmRingtone.change': 'Change',
   'settings.defaults.alarmRingtone.preview': 'Play ringtone preview',
   'settings.defaults.alarmRingtone.stopPreview': 'Stop ringtone preview',
   'settings.defaults.alarmRingtone.changed': 'Ringtone updated.',
   'settings.defaults.alarmRingtone.failed': 'Could not open ringtone picker.',
   'settings.defaults.alarmRingtone.saveFailed': 'Could not save ringtone. Try again.',
-  'settings.defaults.alarmRingtone.previewFailed': 'Could not play this tone. Choose another ringtone.',
+  'settings.defaults.alarmRingtone.previewFailed':
+    'Could not play this tone. Choose another ringtone.',
   'settings.accessibility.reduceMotion': 'Reduce motion',
-  'settings.accessibility.reduceMotion.helper': 'Follows your system setting; shown here for reference.',
+  'settings.accessibility.reduceMotion.helper':
+    'Follows your system setting; shown here for reference.',
   'settings.accessibility.fontScale': 'Text size follows your system font setting.',
   'settings.accessibility.highContrast': 'High contrast',
   'settings.accessibility.on': 'On',
@@ -607,7 +672,8 @@ export const en = {
   'statistics.empty.title': 'No history yet',
   'statistics.empty.body': 'Once reminders start alerting, a summary appears here.',
   // Translator note: {date}, {completed}, {dismissed} and {missed} are already formatted.
-  'statistics.dayAccessible': '{date}: {completed} completed, {dismissed} dismissed, {missed} missed',
+  'statistics.dayAccessible':
+    '{date}: {completed} completed, {dismissed} dismissed, {missed} missed',
 
   // --- About ---------------------------------------------------------------------
   'about.title': 'About',
@@ -619,7 +685,8 @@ export const en = {
   'about.licenseValue': 'Apache License 2.0',
   'about.sourceCode': 'Source code',
   'about.privacyDetails': 'Privacy details',
-  'about.noInternet': 'This app has no Internet permission and makes no network requests.',
+  'about.noInternet':
+    'This app has no Internet permission and makes no network requests.',
   'about.madeFor': 'Built for a calm, offline, local-first media reminder.',
 
   // --- Generic actions/states --------------------------------------------------
@@ -639,7 +706,8 @@ export const en = {
   'error.unexpected.title': 'Something went wrong',
   'error.unexpected.effect': 'The last action could not be completed.',
   'error.notificationsBlocked.title': 'Notifications are turned off',
-  'error.notificationsBlocked.effect': 'Allow notifications in Settings so alerts and previews can appear.',
+  'error.notificationsBlocked.effect':
+    'Allow notifications in Settings so alerts and previews can appear.',
   'error.bridgeUnavailable.title': 'Native features are unavailable',
   'error.bridgeUnavailable.effect':
     'This build is running without the Android reliability core connected.',

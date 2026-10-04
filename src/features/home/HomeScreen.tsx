@@ -36,6 +36,7 @@ import {useCallback, useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 import type {ListRenderItem} from 'react-native';
 
+import {CapabilityBanner} from './CapabilityBanner';
 import {statusKindFor, statusLabelKeyFor} from './capabilityStatus';
 import {NextMomentCard} from './NextMomentCard';
 import type {RootStackParamList} from '../../app/navigation/types';
@@ -44,7 +45,6 @@ import {rootRoutes} from '../../constants/routes';
 import {useSessionStore} from '../../core/state/sessionStore';
 import {
   AppBar,
-  Banner,
   Card,
   Dialog,
   EmptyState,
@@ -59,7 +59,12 @@ import {
   VirtualizedList,
 } from '../../design-system';
 import {spacing} from '../../design-system/tokens';
-import {useHaptics, usePreferences, useReminderList, useStartupSnapshot} from '../../hooks';
+import {
+  useHaptics,
+  usePreferences,
+  useReminderList,
+  useStartupSnapshot,
+} from '../../hooks';
 import {formatLocalTime, useTranslation} from '../../localization';
 import type {ReminderSummary} from '../../native-client/types';
 import {ReminderRow} from '../reminders/ReminderRow';
@@ -71,7 +76,11 @@ type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
 type Row =
   | {readonly type: 'heading'; readonly key: string; readonly label: string}
-  | {readonly type: 'reminder'; readonly key: string; readonly reminder: ReminderSummary};
+  | {
+      readonly type: 'reminder';
+      readonly key: string;
+      readonly reminder: ReminderSummary;
+    };
 
 export function HomeScreen() {
   const t = useTranslation();
@@ -89,7 +98,8 @@ export function HomeScreen() {
   // "Preview" shows exactly what will appear when this reminder fires — the
   // same moment screen Play opens (DL-080), not a bare media player.
   const previewMoment = useCallback(
-    (reminder: ReminderSummary) => openMoment({reminderId: reminder.id, mediaId: reminder.mediaId}),
+    (reminder: ReminderSummary) =>
+      openMoment({reminderId: reminder.id, mediaId: reminder.mediaId}),
     [openMoment],
   );
 
@@ -135,7 +145,10 @@ export function HomeScreen() {
           });
         case 'later':
           return t('reminders.status.dateAt', {
-            date: new Intl.DateTimeFormat(languageTag, {day: 'numeric', month: 'short'}).format(at),
+            date: new Intl.DateTimeFormat(languageTag, {
+              day: 'numeric',
+              month: 'short',
+            }).format(at),
             time,
           });
       }
@@ -150,7 +163,11 @@ export function HomeScreen() {
     }
     return [
       {type: 'heading', key: 'h-all', label: t('home.section.all')},
-      ...rest.map(reminder => ({type: 'reminder' as const, key: reminder.id, reminder})),
+      ...rest.map(reminder => ({
+        type: 'reminder' as const,
+        key: reminder.id,
+        reminder,
+      })),
     ];
   }, [ordered, next, t]);
 
@@ -173,7 +190,11 @@ export function HomeScreen() {
               reminder={item.reminder}
               now={now}
               use24Hour={use24Hour}
-              onOpen={() => navigation.navigate(rootRoutes.reminderDetail, {reminderId: item.reminder.id})}
+              onOpen={() =>
+                navigation.navigate(rootRoutes.reminderDetail, {
+                  reminderId: item.reminder.id,
+                })
+              }
               onToggle={enabled => setEnabled.mutate({id: item.reminder.id, enabled})}
             />
           </View>
@@ -218,17 +239,12 @@ export function HomeScreen() {
       {/* The floating `AppBar` sits outside the scroll region; this reserves its height. */}
       <View style={{height: appBar.barHeight}} />
 
-      {/* MR-03: one high-salience card, only for a condition that affects
-          active reminders, and it never blocks browsing. */}
-      {overallStatus === 'needs_action' && hasAnyReminder ? (
-        <Banner
-          testID={testIds.today.capabilityBanner}
-          kind="actionNeeded"
-          title={t('today.capability.exactTimingOff.title')}
-          effect={t('today.capability.exactTimingOff.effect')}
-          action={{label: t('today.capability.openHealth'), onPress: () => navigation.navigate(rootRoutes.health)}}
-        />
-      ) : null}
+      {/* MR-03: one high-salience card, and it never blocks browsing. Which
+          condition it reports, and when, lives in the component. */}
+      <CapabilityBanner
+        capability={startup.data.capability}
+        hasAnyReminder={hasAnyReminder}
+      />
 
       {next ? (
         <Stack gap="xs">
@@ -239,7 +255,11 @@ export function HomeScreen() {
             testID={testIds.today.nextReminderCard}
             reminder={next.reminder}
             whenLabel={whenLabelFor(next.at)}
-            onOpen={() => navigation.navigate(rootRoutes.reminderDetail, {reminderId: next.reminder.id})}
+            onOpen={() =>
+              navigation.navigate(rootRoutes.reminderDetail, {
+                reminderId: next.reminder.id,
+              })
+            }
             onPreview={() => previewMoment(next.reminder)}
           />
         </Stack>
@@ -255,7 +275,11 @@ export function HomeScreen() {
         <Card padding="md">
           <Stack gap="xxs">
             <Text variant="titleMedium">
-              {t(missingMediaCount > 0 ? 'home.empty.mediaMissingTitle' : 'home.empty.noneScheduledTitle')}
+              {t(
+                missingMediaCount > 0
+                  ? 'home.empty.mediaMissingTitle'
+                  : 'home.empty.noneScheduledTitle',
+              )}
             </Text>
             <Text variant="bodyMedium" tone="variant">
               {missingMediaCount > 0
@@ -281,7 +305,10 @@ export function HomeScreen() {
           onHeightChange={appBar.onHeightChange}
           trailing={
             overallStatus === 'ok' ? undefined : (
-              <StatusPill kind={statusKindFor(overallStatus)} label={t(statusLabelKeyFor(overallStatus))} />
+              <StatusPill
+                kind={statusKindFor(overallStatus)}
+                label={t(statusLabelKeyFor(overallStatus))}
+              />
             )
           }
         />
@@ -302,6 +329,14 @@ export function HomeScreen() {
         />
       ) : (
         <View style={[styles.flexFill, {paddingTop: appBar.barHeight}]}>
+          {/* Also here, not only in the list header: with no reminders yet
+              the list never renders, and this is exactly the state a user
+              is in right after declining the onboarding primer — the one
+              moment the explanation matters most. */}
+          <CapabilityBanner
+            capability={startup.data.capability}
+            hasAnyReminder={hasAnyReminder}
+          />
           <EmptyState
             testID={testIds.today.emptyState}
             icon="today"
@@ -309,7 +344,8 @@ export function HomeScreen() {
             body={t('today.empty.body')}
             action={{
               label: t('today.empty.createReminder'),
-              onPress: () => navigation.navigate(rootRoutes.reminderEditor, {reminderId: undefined}),
+              onPress: () =>
+                navigation.navigate(rootRoutes.reminderEditor, {reminderId: undefined}),
             }}
           />
         </View>

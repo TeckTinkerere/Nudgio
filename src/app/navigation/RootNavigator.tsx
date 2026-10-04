@@ -16,7 +16,7 @@
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 
 import {rootRoutes} from '../../constants/routes';
-import {LoadingState, useTheme} from '../../design-system';
+import {useTheme} from '../../design-system';
 import {AboutScreen} from '../../features/about/AboutScreen';
 import {BackupScreen} from '../../features/backup/BackupScreen';
 import {ImportScreen} from '../../features/backup/ImportScreen';
@@ -32,6 +32,7 @@ import {useTranslation} from '../../localization';
 import {HealthScreen} from './placeholders/HealthScreen';
 import {TabNavigator} from './TabNavigator';
 import type {RootStackParamList} from './types';
+import {SplashScreen} from '../bootstrap/SplashScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -41,8 +42,15 @@ export function RootNavigator() {
   const preferences = usePreferences();
 
   // `isPending`, not `isLoading` — see useAppBootstrap for why.
+  //
+  // The same splash `StartupGate` shows, not the generic spinner. These two
+  // gates run back to back on every cold start — the bridge snapshot
+  // resolves, then preferences decide onboarding vs tabs — so using
+  // different treatments made the first seconds flicker from a branded
+  // frame to a bare ActivityIndicator and back. One frame, held until
+  // there is something real to show.
   if (preferences.isPending) {
-    return <LoadingState label={t('loading.startingUp')} />;
+    return <SplashScreen caption={t('loading.startingUp')} />;
   }
 
   const initialRoute = preferences.data?.hasCompletedOnboarding
