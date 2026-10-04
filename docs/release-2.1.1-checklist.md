@@ -39,11 +39,11 @@ r74 makes it exit 1 naming the mismatch, so the guard is not vacuous.
 
 ## Not covered by this pass
 
-- **The themed (monochrome) icon was not seen rendered.** It is verified
-  structurally — present in the shipped APK, generated from the same geometry
-  as the foreground, which does render correctly — but the emulator's wallpaper
-  picker rendered a black screen, so the Android 13 themed-icon toggle was
-  never exercised.
+- ~~**The themed (monochrome) icon was not seen rendered.**~~ **Closed after
+  release.** The wallpaper picker's black screen was transient; reopening it
+  from the home-screen long-press menu worked. The themed icon was then
+  exercised on Android 16 and renders correctly — see the 2.1.2 record for the
+  procedure and what it showed. The layer shipped in 2.1.1 is the same one.
 - Device-size matrix and TalkBack, both already listed as uncovered for 2.1.0,
   were not re-run. No UI changed in this release.
 - `src/features/moment/__tests__/ReminderMoment.test.tsx` failed once during

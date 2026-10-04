@@ -58,12 +58,35 @@ Without it the fixed cobalt mark would sit straight on the dark surface at
 theme-aware. The plate solves it here instead, which is what lets the app keep
 the original "never restyle the artwork" instruction.
 
+## The themed icon, verified after release
+
+Carried forward from 2.1.1 as uncovered, and now closed. On the Android 16
+emulator (`sdk_gphone64_x86_64`, Pixel Launcher, user build so no root):
+long-press the home screen → **Wallpaper & style** → **Themed icons** on, then
+drag Nudgio out of the drawer onto the home screen.
+
+Two things made this harder than it looks, and are worth recording for anyone
+re-running it:
+
+- **Themed icons apply to the home screen only.** The app drawer keeps
+  full-colour icons, so checking there shows nothing and looks like a failure.
+- **The icon has to be on the home screen**, and the drawer's long-press menu
+  offers only App info / Pause app. `input swipe` starts moving immediately so
+  no long-press registers; `input motionevent DOWN … MOVE … UP` with a pause
+  after DOWN performs a real drag.
+
+The result renders as a monochrome mark on the system's dark plate, tinted
+from the wallpaper and indistinguishable in treatment from Gmail's themed icon
+beside it. The design claim in `ic_launcher_monochrome.xml` — that the sphere
+stays a separate shape rather than merging into the strokes once colour is
+gone — holds: it reads as a distinct dot. Both chimes render and nothing
+clips.
+
+*(The emulator was left with Themed icons ON so the result can be inspected;
+it was OFF beforehand.)*
+
 ## Not covered by this pass
 
-- **The themed (monochrome) icon still has not been seen rendered.** Present in
-  the APK and generated from the same geometry as the foreground, but the
-  emulator's wallpaper picker renders a black screen, so the Android 13 themed
-  toggle remains unexercised — carried over from 2.1.1.
 - `BrandLogo` has no test coverage; nothing in the suite renders About or
   onboarding. The device screenshots are the verification.
 - Device-size matrix and TalkBack, uncovered since 2.1.0, were not re-run.
