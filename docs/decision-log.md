@@ -3011,3 +3011,50 @@ fits at 320px with no horizontal overflow. The pulse *animation* itself was
 not observed — the preview pane throttles `requestAnimationFrame` to zero
 frames per second — so only its colour-resolution path is verified, by
 measuring what `readColor` returns in each theme.
+
+## DL-106 — The app showed one logo and the launcher showed another
+
+**Date:** 2026-10-04
+**Context:** DL-104 moved the launcher icon onto the SVG master but left
+`BrandLogo` — the icon on the About and onboarding screens — rendering
+`assets/brand/nudgio-logo.jpg` through `<Image>`. So the two icons a user sees
+were a vector and a soft-3D raster of the same logo, and the JPEG stayed in the
+APK because `BrandLogo` was the one thing still requiring it. Its own comment
+said "Approved artwork; never tint it or replace its gradients with theme
+colours," which is why DL-104 deliberately left it alone.
+**Decision:** `BrandLogo` now draws the mark with `react-native-svg`, which the
+project already depends on for `Icon`, using the master's geometry and the
+launcher's own placement — a 1936-unit viewport and a translate of
+(-67, -28), no scale factor, so the numbers in the component still read as the
+master's.
+- **The colours stay fixed, and the plate is what makes that possible.**
+  Measured on device: the cream plate is 1.00:1 against the light surface, so
+  it vanishes and the mark reads as floating on the page, and 16.76:1 against
+  the dark surface, where it reads as the icon tile. Without the plate the
+  fixed mark would sit straight on the dark surface at 2.49:1 — precisely the
+  defect DL-105 had to fix on the website by making its mark theme-aware. The
+  plate solves it here instead, which is what lets the app keep the original
+  "never restyle the artwork" instruction while the website cannot.
+- **The plate keeps its 24/128 corner ratio**, so the shape on screen is the
+  one the old `<Image borderRadius: 24>` drew; what changed is that it is now
+  resolution-free rather than a 128 dp bitmap.
+- **Geometry is guarded, not trusted.** The component is hand-written rather
+  than generated, because generated TSX that must satisfy prettier and eslint
+  is more brittle than the thing it protects against. Instead
+  `scripts/build-brand-assets.py` grew `verify_component`, which asserts the
+  component contains the master's exact path data, stroke widths, sphere and
+  transform, comparing with whitespace collapsed so prettier's line wrapping
+  cannot break it. Changing `strokeWidth={242}` to `243` makes the script exit
+  1 naming the mismatch.
+- **The JPEG stops shipping but stays in the repository.** Nothing requires it
+  any more, so Metro no longer bundles it and the generated
+  `drawable-mdpi/assets_brand_nudgiologo.jpg` disappears; `raw/keep.xml` lost
+  the entry that was protecting that resource from the shrinker. The file
+  itself remains under `assets/brand/` as the provenance record the master was
+  measured from, which `assets/brand/README.md` documents.
+**Consequence:** Every surface — launcher, in-app icon, website — is now the
+same geometry from one file, and the build fails if any of the three drifts.
+`docs/brand-guidelines.md` said to "use `assets/brand/nudgio-logo.jpg`
+unchanged" for launcher, onboarding and About; that instruction was now false
+on all three counts and has been rewritten to name the master as the source
+and the script as the enforcement.

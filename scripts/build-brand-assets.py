@@ -226,8 +226,44 @@ def verify(master_path):
     print("verified against assets/brand/nudgio-mark.svg")
 
 
+def verify_component(path):
+    """The in-app icon is hand-written TSX, so check it the same way.
+
+    BrandLogo draws the mark with react-native-svg rather than importing
+    generated data, which keeps the component reviewable -- but it means the
+    geometry lives in a third place. Asserting the path data here is what
+    stops the app icon, the launcher and the website drifting apart.
+    """
+    with open(path, encoding="utf-8") as f:
+        source = f.read()
+    # The component wraps long path strings across lines to satisfy prettier,
+    # so compare with whitespace collapsed rather than demanding one line.
+    flat = " ".join(source.split()).replace("' + '", "").replace("' '", "")
+    missing = []
+    for data, width, _ in _strokes():
+        if data not in flat:
+            missing.append(data)
+        if "strokeWidth={%d}" % width not in flat:
+            missing.append("strokeWidth={%d}" % width)
+    for name, value in zip(("cx", "cy", "r"), SPHERE):
+        if "%s={%d}" % (name, value) not in flat:
+            missing.append("%s={%d}" % (name, value))
+    for const, value in (("VIEWPORT", VIEWPORT),
+                         ("TRANSLATE_X", TRANSLATE[0]),
+                         ("TRANSLATE_Y", TRANSLATE[1])):
+        if "%s = %d;" % (const, value) not in flat:
+            missing.append("%s = %d" % (const, value))
+    if missing:
+        raise SystemExit(
+            "build-brand-assets: %s has drifted from the master\n  missing: %s\n"
+            "Fix the component or the master, then re-run."
+            % (path, "\n           ".join(missing)))
+    print("verified against src/design-system/components/BrandLogo.tsx")
+
+
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 verify(os.path.join(root, "assets", "brand", "nudgio-mark.svg"))
+verify_component(os.path.join(root, "src", "design-system", "components", "BrandLogo.tsx"))
 
 out = os.path.join(root, "web", "brand")
 os.makedirs(out, exist_ok=True)

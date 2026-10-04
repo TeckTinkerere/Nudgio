@@ -20,7 +20,9 @@ Approved colour direction, 27 September 2026. Applied to the Android source and 
 - Native alarm screens remain dark, with moon-blue Play, a warm Snooze treatment and neutral Dismiss/Silence controls.
 - Android Material You remains opt-in. Users who enabled wallpaper colours keep that choice; switching it off restores the new fixed brand.
 - Keep Android's native control shapes, sizes and behaviour. This change does not apply iPhone navigation or typography to Android.
-- The approved 2026-09-29 logo is the sculptural blue n with apricot sphere, supplied by the user. Use `assets/brand/nudgio-logo.jpg` unchanged. Android launcher, onboarding and About use this artwork; the earlier ring/play placeholder is superseded. See `assets/brand/README.md` for provenance and checksum.
+- The approved 2026-09-29 logo is the sculptural blue n with apricot sphere, supplied by the user. `assets/brand/nudgio-logo.jpg` is its provenance record — see `assets/brand/README.md` for the checksum — but nothing renders it any more.
+- **`assets/brand/nudgio-mark.svg` is the master every surface draws from.** It was reconstructed by measuring that JPEG, so its coordinate space *is* the JPEG's 2048px space and every number is checkable against it. The Android launcher icon, the in-app `BrandLogo` (About and onboarding) and the website mark are all this geometry; `scripts/build-brand-assets.py` regenerates the launcher drawables, the web SVG and the PNGs from it, and **fails if the master, the generated outputs or `BrandLogo.tsx` disagree**. Change the master, re-run the script, never hand-edit a generated file.
+- The mark is flat by intent. The JPEG is a soft-3D render; the master is the canonical form behind it, which is what stays legible at 16px. The launcher icon's colours are fixed (cream plate, cobalt mark, apricot sphere) and do not follow the app's day/night setting — the Android 13+ monochrome layer is what adapts. The website mark is the one surface that recolours, to the brand's own dark-mode cobalt `#BAC8FF`, because fixed cobalt measured 2.49:1 on the dark ground.
 
 ## Sources of truth
 
