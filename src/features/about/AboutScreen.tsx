@@ -74,17 +74,28 @@ export function AboutScreen({navigation}: Props) {
           <ErrorState
             title={t('error.unexpected.title')}
             effect={t('error.unexpected.effect')}
-            recoveryAction={{label: t('action.retry'), onPress: () => startup.refetch()}}
+            recoveryAction={{
+              label: t('action.retry'),
+              onPress: () => startup.refetch(),
+            }}
             diagnosticCode={startup.error.correlationId}
           />
         ) : (
           <Card style={styles.fullWidth}>
             <Stack gap="xs">
-              <AboutRow label={t('about.version', {version: startup.data.appVersion})} />
-              <AboutRow label={t('about.buildVariant', {variant: startup.data.buildVariant})} />
-              <AboutRow label={t('about.schemaVersion', {version: startup.data.schemaVersion})} />
               <AboutRow
-                label={t('about.contractVersion', {version: appConfig.bridgeContractVersion})}
+                label={t('about.version', {version: startup.data.appVersion})}
+              />
+              <AboutRow
+                label={t('about.buildVariant', {variant: startup.data.buildVariant})}
+              />
+              <AboutRow
+                label={t('about.schemaVersion', {version: startup.data.schemaVersion})}
+              />
+              <AboutRow
+                label={t('about.contractVersion', {
+                  version: appConfig.bridgeContractVersion,
+                })}
               />
             </Stack>
           </Card>
@@ -108,8 +119,21 @@ export function AboutScreen({navigation}: Props) {
         </Card>
 
         <Stack gap={2} style={styles.fullWidth}>
-          <AboutLinkRow icon="share" label={t('about.sourceCode')} href={links.sourceRepository} />
-          <AboutLinkRow icon="lock" label={t('about.privacyDetails')} href={links.privacyDetails} />
+          <AboutLinkRow
+            icon="share"
+            label={t('about.sourceCode')}
+            href={links.sourceRepository}
+          />
+          <AboutLinkRow
+            icon="notification"
+            label={t('about.community')}
+            href={links.community}
+          />
+          <AboutLinkRow
+            icon="lock"
+            label={t('about.privacyDetails')}
+            href={links.privacyDetails}
+          />
         </Stack>
       </Stack>
     </Screen>
@@ -128,7 +152,15 @@ function AboutRow({label}: {readonly label: string}) {
  * access" invariant — that rule is about Nudgio's own manifest/runtime, not
  * about a link a user chose to follow out of it.
  */
-function AboutLinkRow({icon, label, href}: {readonly icon: IconName; readonly label: string; readonly href: string}) {
+function AboutLinkRow({
+  icon,
+  label,
+  href,
+}: {
+  readonly icon: IconName;
+  readonly label: string;
+  readonly href: string;
+}) {
   const theme = useTheme();
   return (
     <ListRow
