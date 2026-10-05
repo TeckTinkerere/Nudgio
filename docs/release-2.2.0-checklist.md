@@ -54,12 +54,48 @@ set out to solve. The hook is deleted; see DL-108.
 exactly the state a user is in right after declining. Now rendered in both
 branches.
 
-## Not covered by this pass
+## API 31–32, verified after release
 
-- **API 31–32 was not exercised.** That is the only range where
-  `SCHEDULE_EXACT_ALARM` still applies and the contextual Settings path
-  survives. The emulator used was API 36; the older path is unchanged code,
-  but it was not re-tested.
+Listed below as uncovered when 2.2.0 shipped, and since closed. A fresh
+`system-images;android-32;google_apis;x86_64` AVD (Android 12, API 32) was
+created for it — API 32 specifically, because it is the exact boundary of the
+`maxSdkVersion="32"` cap and an off-by-one there would silently drop the
+permission.
+
+| Check | API 32 | API 36 (for contrast) |
+|---|---|---|
+| `SCHEDULE_EXACT_ALARM` | requested, **`granted=true`** | absent — capped away |
+| `USE_EXACT_ALARM` | requested but ignored (does not exist) | **`granted=true`** |
+
+Each range ends up with exactly one working exact-alarm permission, which is
+what the pair was written to achieve.
+
+Behaviour on API 32, driven end to end:
+
+- Default state: exact alarm reports **Ready**.
+- With the appop denied (`cmd appops set … SCHEDULE_EXACT_ALARM deny`): the row
+  reports **Limited timing** with an **Open settings** action, and that action
+  lands on `Settings$AlarmsAndRemindersAppActivity` — the contextual
+  `open_special_access` path, intact on the one range that still needs it.
+- The onboarding primer degrades correctly: `POST_NOTIFICATIONS` does not exist
+  below API 33, so no dialog appears and the review reads "All set".
+
+**One defect found and fixed.** The primer was shown on Android 12 even though
+there was nothing to ask for — a dead tap whose copy ("Nudgio needs your
+permission to show reminders") is false where Nudgio already has it. The
+permissions step now starts at the review stage when notifications already
+report ready, which also covers a reinstall on any API level that retains the
+grant. Not in 2.2.0; see the follow-up release.
+
+Caveat on the AVD: the default profile was 320×640 at 160 dpi, on which the
+permissions review is badly clipped — only the first row is visible without
+scrolling. That is an unusually small/low-density profile rather than real
+Android 12 hardware, and the run above used an override of 640×1280 at 160 dpi
+(400×800 dp). **Whether 320×640 clipping predates this release was not
+established**, so it is recorded here as an open question rather than a
+regression or a non-issue.
+
+## Not covered by this pass
 - `BrandLogo`, `SplashScreen`, `CapabilityBanner` and the onboarding primer
   have no unit tests; nothing in the suite renders onboarding or Home's empty
   state. The device run is the verification.

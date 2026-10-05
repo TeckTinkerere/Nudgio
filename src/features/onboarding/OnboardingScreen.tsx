@@ -236,6 +236,9 @@ export function OnboardingScreen() {
   const {showToast} = useToast();
   const [page, setPage] = useState<PageIndex>(0);
   const [permissionStage, setPermissionStage] = useState<PermissionStage>('primer');
+  // Same cached query `PermissionsPage` reads; used here only to decide
+  // whether the primer has anything to ask for (see `stage` below).
+  const onboardingCapability = useCapabilitySnapshot();
   const requestNotifications = useRequestNotificationPermission();
 
   // Onboarding completion must never be a hard gate a user can get stuck
@@ -295,10 +298,23 @@ export function OnboardingScreen() {
   const current = PAGES[page]!;
   const isLastPage = page === PAGE_COUNT - 1;
 
-  const isPrimer = isLastPage && permissionStage === 'primer';
+  // Skip the primer when there is nothing left to ask for. Android 12 and
+  // below have no POST_NOTIFICATIONS permission at all — it is granted
+  // implicitly — and a reinstall can arrive with it already held. Showing the
+  // primer there is a dead tap, and its copy ("Nudgio needs your permission to
+  // show reminders") is simply untrue where Nudgio already has it. Found by
+  // running this flow on API 32, where the primer appeared and resolved
+  // instantly into "All set".
+  const notificationsReady =
+    onboardingCapability.data?.items.some(
+      item => item.kind === 'notifications' && item.status === 'ready',
+    ) ?? false;
+  const stage: PermissionStage =
+    permissionStage === 'primer' && notificationsReady ? 'review' : permissionStage;
+  const isPrimer = isLastPage && stage === 'primer';
 
   const body = isLastPage ? (
-    <PermissionsPage stage={permissionStage} />
+    <PermissionsPage stage={stage} />
   ) : (
     <EmptyState
       icon={current.icon}
