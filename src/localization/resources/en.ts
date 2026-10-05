@@ -684,6 +684,9 @@ export const en = {
   'about.license': 'License',
   'about.licenseValue': 'Apache License 2.0',
   'about.sourceCode': 'Source code',
+  // r/Nudgio. Named for what the user gets out of it, not for the platform —
+  // "Reddit" is where it happens, not why anyone would tap it.
+  'about.community': 'Feedback and ideas',
   'about.privacyDetails': 'Privacy details',
   'about.noInternet':
     'This app has no Internet permission and makes no network requests.',

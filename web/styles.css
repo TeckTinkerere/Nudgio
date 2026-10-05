@@ -666,6 +666,37 @@ main {
   }
 }
 
+/* ---------- community ---------- */
+
+.community__lead {
+  margin: -14px 0 22px;
+  max-width: 60ch;
+  color: var(--on-surface-variant);
+}
+
+/* Reads as a destination rather than a button: this is one of three links in
+   the section's reading order, and an outlined control next to the download
+   dial would compete with the one action the page actually wants. */
+.community__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--outline-variant);
+  background: var(--surface-container);
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.community__link:hover,
+.community__link:focus-visible {
+  border-color: var(--primary);
+  background: var(--primary-tint);
+}
+
 /* ---------- footer ---------- */
 
 .site-footer {
