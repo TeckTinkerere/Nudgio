@@ -2,6 +2,7 @@ package com.aslam.mediareminder.media
 
 import android.content.Context
 import android.net.Uri
+import android.os.storage.StorageManager
 import androidx.core.content.FileProvider
 import com.aslam.mediareminder.data.media.MediaKinds
 import java.io.File
@@ -75,6 +76,31 @@ class MediaStorage(private val context: Context) {
     /** Free space on the volume holding the media directory, for the MR-09 reserve check. */
     fun usableSpaceBytes(): Long = mediaDir().usableSpace
 
+    /**
+     * MR-09 reserve check against the space the system would actually give
+     * this app, not only what is free this instant.
+     *
+     * `File.usableSpace` excludes other apps' clearable cache, which on a
+     * well-used phone can be gigabytes — Settings counts it as free, so a
+     * check against `usableSpace` alone can refuse an import the user can
+     * see room for. When the plain check fails but [StorageManager]'s
+     * allocatable figure passes, `allocateBytes` asks the system to clear
+     * that cache now, before the copy needs it (DL-109). Any failure in that
+     * path falls back to the plain answer: refusing is the safe outcome.
+     */
+    fun ensureRoomFor(incomingBytes: Long): Boolean {
+        val dir = mediaDir()
+        val total = dir.totalSpace
+        if (hasRoomFor(incomingBytes, dir.usableSpace, total)) return true
+        return runCatching {
+            val manager = context.getSystemService(StorageManager::class.java) ?: return false
+            val uuid = manager.getUuidForPath(dir)
+            if (!hasRoomFor(incomingBytes, manager.getAllocatableBytes(uuid), total)) return false
+            manager.allocateBytes(uuid, incomingBytes + reserveFor(total))
+            true
+        }.getOrDefault(false)
+    }
+
     companion object {
         private const val MEDIA_DIR_NAME = "media"
         private const val THUMBNAILS_DIR_NAME = "thumbnails"
@@ -83,9 +109,15 @@ class MediaStorage(private val context: Context) {
         /** MR-09 "Storage limits": individual asset hard limit for v1. */
         const val MAX_ASSET_BYTES = 2L * 1024 * 1024 * 1024
 
-        /** MR-09: maintain 250 MB or 5% free-storage reserve, whichever is greater. */
+        /**
+         * MR-09: maintain 250 MB or 5% free-storage reserve, whichever is
+         * greater — with the 5% share capped at [MAX_FREE_RESERVE_BYTES]
+         * (DL-109). Uncapped, 5% of a 256 GB phone is 12.8 GB, so a phone
+         * with 8 GB free refused every import while the error said 250 MB.
+         */
         const val MIN_FREE_RESERVE_BYTES = 250L * 1024 * 1024
         const val MIN_FREE_RESERVE_FRACTION = 0.05
+        const val MAX_FREE_RESERVE_BYTES = 1L * 1024 * 1024 * 1024
 
         /**
          * Streaming buffer. 64 KB keeps peak memory flat regardless of asset
@@ -94,19 +126,19 @@ class MediaStorage(private val context: Context) {
          */
         const val COPY_BUFFER_BYTES = 64 * 1024
 
+        /** The free space that must remain on a volume of [totalBytes] after a write. */
+        fun reserveFor(totalBytes: Long): Long = maxOf(
+            MIN_FREE_RESERVE_BYTES,
+            minOf((totalBytes * MIN_FREE_RESERVE_FRACTION).toLong(), MAX_FREE_RESERVE_BYTES),
+        )
+
         /**
          * Reserve required before starting a copy of [incomingBytes].
          *
-         * Pure so the rule is unit-testable: the reserve is the greater of the
-         * absolute floor and 5% of the volume, and it must remain free *after*
-         * the incoming file is written.
+         * Pure so the rule is unit-testable: the reserve is [reserveFor] the
+         * volume, and it must remain free *after* the incoming file is written.
          */
-        fun hasRoomFor(incomingBytes: Long, usableBytes: Long, totalBytes: Long): Boolean {
-            val reserve = maxOf(
-                MIN_FREE_RESERVE_BYTES,
-                (totalBytes * MIN_FREE_RESERVE_FRACTION).toLong(),
-            )
-            return usableBytes - incomingBytes >= reserve
-        }
+        fun hasRoomFor(incomingBytes: Long, usableBytes: Long, totalBytes: Long): Boolean =
+            usableBytes - incomingBytes >= reserveFor(totalBytes)
     }
 }

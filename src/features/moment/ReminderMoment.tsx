@@ -18,7 +18,7 @@
  * Missing or unreadable media never blocks the moment: the words and the
  * action still show, with a plain explanation where the media would be.
  */
-import {useState} from 'react';
+import {useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -30,7 +30,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import ReactVideo from 'react-native-video';
+import ReactVideo, {type VideoRef} from 'react-native-video';
 
 import {useSessionStore} from '../../core/state/sessionStore';
 import {Button, Icon, Text, neutral, useTheme} from '../../design-system';
@@ -133,7 +133,11 @@ function MomentContent({reminderId, fallbackMediaId, onClose}: MomentContentProp
           {loading ? (
             <CenteredSpinner label={t('moment.loading')} />
           ) : (
-            <MomentMedia media={media.data} unavailable={mediaId === undefined || media.isError} />
+            <MomentMedia
+              media={media.data}
+              unavailable={mediaId === undefined || media.isError}
+              startMs={reminder.data?.mediaStartMs ?? null}
+            />
           )}
           <Pressable
             onPress={onClose}
@@ -216,6 +220,8 @@ function CenteredSpinner({label}: {readonly label: string}) {
 interface MomentMediaProps {
   readonly media: MediaDetail | undefined;
   readonly unavailable: boolean;
+  /** DL-110: the reminder's chosen start point, in ms. */
+  readonly startMs: number | null;
 }
 
 /**
@@ -223,10 +229,16 @@ interface MomentMediaProps {
  * "not available" state as a missing row, so a moved/corrupted file reads
  * the same as a deleted one.
  */
-function MomentMedia({media, unavailable}: MomentMediaProps) {
+function MomentMedia({media, unavailable, startMs}: MomentMediaProps) {
   const theme = useTheme();
   const [failed, setFailed] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
+  const player = useRef<VideoRef>(null);
+  const seekToStart = () => {
+    if (startMs) {
+      player.current?.seek(startMs / 1000);
+    }
+  };
 
   const broken =
     unavailable || failed || !media || media.integrity === 'missing' || media.integrity === 'unsupported';
@@ -262,7 +274,11 @@ function MomentMedia({media, unavailable}: MomentMediaProps) {
           style={StyleSheet.absoluteFill}
           controls
           resizeMode="contain"
-          onLoad={() => setVideoReady(true)}
+          ref={player}
+          onLoad={() => {
+            setVideoReady(true);
+            seekToStart();
+          }}
           onError={() => setFailed(true)}
         />
         {!videoReady ? (
@@ -291,6 +307,8 @@ function MomentMedia({media, unavailable}: MomentMediaProps) {
           source={source}
           style={media_.audioControls}
           controls
+          ref={player}
+          onLoad={seekToStart}
           onError={() => setFailed(true)}
         />
       </View>

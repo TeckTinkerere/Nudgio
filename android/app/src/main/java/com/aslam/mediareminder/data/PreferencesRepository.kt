@@ -6,12 +6,14 @@ import android.net.Uri
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
 import kotlinx.coroutines.flow.first
+import java.time.Instant
 
 /**
  * Preferences storage (MR-07: "Theme and lightweight preferences" -> DataStore,
@@ -40,6 +42,7 @@ class PreferencesRepository(private val context: Context) {
         val HAS_COMPLETED_ONBOARDING = booleanPreferencesKey("has_completed_onboarding")
         val DEFAULT_SNOOZE_MINUTES = intPreferencesKey("default_snooze_minutes")
         val ALARM_RINGTONE_URI = stringPreferencesKey("alarm_ringtone_uri")
+        val PAUSED_UNTIL_EPOCH_MS = longPreferencesKey("paused_until_epoch_ms")
     }
 
     /** Matches `defaultPreferences` in `src/core/storage/PreferencesStore.ts`. */
@@ -48,6 +51,11 @@ class PreferencesRepository(private val context: Context) {
         const val USE_MATERIAL_YOU = false
         const val HAS_COMPLETED_ONBOARDING = false
         const val DEFAULT_SNOOZE_MINUTES = 10
+    }
+
+    companion object {
+        /** "Until I resume": far enough ahead to never arrive, and still a valid `Instant` to serialise. */
+        val INDEFINITE_PAUSE: Instant = Instant.parse("9999-12-31T23:59:59Z")
     }
 
     /** Plain-Kotlin counterpart to [read] — used by callers (the backup engine) that must not depend on the RN bridge's `WritableMap`. */
@@ -92,6 +100,29 @@ class PreferencesRepository(private val context: Context) {
             val ringtoneUri = snapshot.alarmRingtoneUri
             if (ringtoneUri == null) putNull("alarmRingtoneUri") else putString("alarmRingtoneUri", ringtoneUri)
             putString("alarmRingtoneTitle", resolveRingtoneTitle(ringtoneUri))
+            val pausedUntil = readPausedUntil()
+            if (pausedUntil == null) putNull("pausedUntil") else putString("pausedUntil", pausedUntil.toString())
+        }
+    }
+
+    /**
+     * "Pause all" (DL-110): no reminder rings before this instant. Null when
+     * not paused, including once a past pause has simply run out — an
+     * expired value is never reported, so nothing has to clear it on time.
+     * [INDEFINITE_PAUSE] means "until I resume".
+     *
+     * Not part of [Snapshot] on purpose: a pause is about this phone this
+     * week, and restoring a backup should not silence someone's alarms.
+     */
+    suspend fun readPausedUntil(now: Instant = Instant.now()): Instant? {
+        val epochMs = context.preferencesDataStore.data.first()[Keys.PAUSED_UNTIL_EPOCH_MS] ?: return null
+        return Instant.ofEpochMilli(epochMs).takeIf { it.isAfter(now) }
+    }
+
+    /** Written only through `MediaReminderModule.setPausedUntil`, which reschedules straight after. */
+    suspend fun writePausedUntil(until: Instant?) {
+        context.preferencesDataStore.edit { prefs ->
+            if (until == null) prefs.remove(Keys.PAUSED_UNTIL_EPOCH_MS) else prefs[Keys.PAUSED_UNTIL_EPOCH_MS] = until.toEpochMilli()
         }
     }
 

@@ -110,4 +110,18 @@ class BackupMediaAssetCodecTest {
         json.remove("sha256")
         assertThrows(BackupFormatException::class.java) { BackupMediaAssetCodec.fromJson(json) }
     }
+
+    @Test
+    fun `a losslessly compressed asset keeps its original digest through a backup`() {
+        val original = "b".repeat(64)
+        val restored = BackupMediaAssetCodec.fromJson(BackupMediaAssetCodec.toJson(asset().copy(sourceSha256 = original)))
+        assertEquals(original, restored.sourceSha256)
+    }
+
+    @Test
+    fun `an archive without a source digest, or with a malformed one, restores it as null`() {
+        assertNull(BackupMediaAssetCodec.fromJson(BackupMediaAssetCodec.toJson(asset())).sourceSha256)
+        val json = BackupMediaAssetCodec.toJson(asset()).apply { put("sourceSha256", "../../etc") }
+        assertNull(BackupMediaAssetCodec.fromJson(json).sourceSha256)
+    }
 }

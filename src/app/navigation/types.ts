@@ -12,7 +12,8 @@ import type {UUID} from '../../native-client/types';
 
 export type TabParamList = {
   [tabRoutes.home]: undefined;
-  [tabRoutes.library]: undefined;
+  /** `filter: 'unused'` opens on media no reminder uses (Settings' storage cleanup, DL-110). */
+  [tabRoutes.library]: {readonly filter?: 'unused'} | undefined;
   [tabRoutes.settings]: undefined;
 };
 

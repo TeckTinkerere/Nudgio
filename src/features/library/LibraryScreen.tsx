@@ -17,7 +17,7 @@
  * (`specs/Markdown/04_Visual_Design_System.md` "Medium: ... two-pane
  * Library detail").
  */
-import {useIsFocused, useNavigation} from '@react-navigation/native';
+import {useIsFocused, useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useInfiniteQuery} from '@tanstack/react-query';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
@@ -32,6 +32,7 @@ import {
 
 import {AlbumPickerSheet} from './AlbumPickerSheet';
 import {AlbumTile} from './AlbumTile';
+import {ImportProgress, ImportPrompts} from './ImportProgress';
 import {subAlbumsOf, topLevelAlbums, type Album} from './libraryAlbums';
 import {LibraryGridBody} from './LibraryGridBody';
 import {MediaDetailContent} from './MediaDetailContent';
@@ -39,10 +40,10 @@ import {useAlbumDetail} from './useAlbumDetail';
 import {useLibraryAlbums} from './useLibraryAlbums';
 import {useLibrarySelection} from './useLibrarySelection';
 import {useAppContainer} from '../../app/di';
-import type {RootStackParamList} from '../../app/navigation/types';
+import type {RootStackParamList, TabParamList} from '../../app/navigation/types';
 import {useToast} from '../../app/toast/ToastProvider';
 import {testIds} from '../../constants';
-import {rootRoutes} from '../../constants/routes';
+import {rootRoutes, type tabRoutes} from '../../constants/routes';
 import {queryKeys, unwrapResult} from '../../core/state';
 import {
   AppBar,
@@ -56,7 +57,6 @@ import {
   ListRow,
   LoadingState,
   MediaTile,
-  ProgressBar,
   Screen,
   Sheet,
   Stack,
@@ -66,13 +66,7 @@ import {
   useResponsive,
   useTheme,
 } from '../../design-system';
-import {
-  importErrorCopy,
-  importPhaseLabelKey,
-  importProgressFraction,
-  STORAGE_INSUFFICIENT_MIN_MB,
-  useImportMedia,
-} from '../../hooks';
+import {importErrorCopy, useImportMedia} from '../../hooks';
 import {formatEnglishUnit, useTranslation, type TranslationKey} from '../../localization';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import type {MediaKind, MediaQuery, MediaSummary, UUID} from '../../native-client/types';
@@ -80,7 +74,7 @@ import {formatDurationAccessible, formatDurationCompact} from '../../utils';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
-type KindFilter = MediaKind | 'missing';
+type KindFilter = MediaKind | 'missing' | 'unused';
 /** An album id, `UNSORTED`, or `null` for the Library root. */
 type OpenPlace = string | null;
 type NameSheet = {readonly mode: 'create'; readonly parentId: string | null} | {readonly mode: 'rename'; readonly id: string};
@@ -105,6 +99,7 @@ const KIND_FILTERS: readonly {value: KindFilter; labelKey: TranslationKey}[] = [
   {value: 'image', labelKey: 'library.filter.images'},
   {value: 'text', labelKey: 'library.filter.text'},
   {value: 'missing', labelKey: 'library.filter.missing'},
+  {value: 'unused', labelKey: 'library.filter.unused'},
 ];
 
 const SORTS: readonly {value: NonNullable<MediaQuery['sort']>; labelKey: TranslationKey}[] = [
@@ -142,6 +137,15 @@ export function LibraryScreen() {
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeKind, setActiveKind] = useState<KindFilter | null>(null);
+  // Settings' "Not used by any reminder" row lands here with this filter on.
+  const route = useRoute<RouteProp<TabParamList, typeof tabRoutes.library>>();
+  const requestedFilter = route.params?.filter;
+  useEffect(() => {
+    if (requestedFilter === 'unused') {
+      setActiveKind('unused');
+      navigation.setParams({filter: undefined} as never);
+    }
+  }, [requestedFilter, navigation]);
   const [sort, setSort] = useState<NonNullable<MediaQuery['sort']>>('recent');
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [selectedMediaId, setSelectedMediaId] = useState<UUID | null>(null);
@@ -227,8 +231,9 @@ export function LibraryScreen() {
       search: search.length > 0 ? search : undefined,
       location: openPlace === UNSORTED ? 'unsorted' : openPlace ? 'folder' : 'all',
       folderId: openPlace && openPlace !== UNSORTED ? (openPlace as UUID) : undefined,
-      kinds: activeKind && activeKind !== 'missing' ? [activeKind] : undefined,
+      kinds: activeKind && activeKind !== 'missing' && activeKind !== 'unused' ? [activeKind] : undefined,
       onlyMissing: activeKind === 'missing' ? true : undefined,
+      onlyUnused: activeKind === 'unused' ? true : undefined,
       sort,
       offset: 0,
       limit: 50,
@@ -476,19 +481,19 @@ export function LibraryScreen() {
     }
   };
 
-  /** Imports one file and, inside an album, files it there straight away. */
+  /** Imports the picked files and, inside an album, files them there straight away. */
   const importHere = async (mimeTypes: readonly string[]) => {
     setSheet(null);
     try {
       const outcome = await importMedia.importMediaAsync(mimeTypes);
-      if (outcome.status !== 'imported' || !outcome.media) {
+      if (outcome.status !== 'imported' || outcome.items.length === 0) {
         return;
       }
       if (openAlbum) {
         const moved = await run({
           action: 'move',
           destination: openAlbum.id,
-          items: [{id: outcome.media.id, version: outcome.media.entityVersion}],
+          items: outcome.items.map(item => ({id: item.id, version: item.entityVersion})),
         });
         if (!moved) {
           showToast({message: t('library.explorer.importedUnsorted'), tone: 'error'});
@@ -599,12 +604,7 @@ export function LibraryScreen() {
             }} />
         </Stack>
       ) : null}
-      {importMedia.isImporting ? (
-        <ProgressBar
-          progress={importProgressFraction(importMedia.progress)}
-          label={t(importPhaseLabelKey(importMedia.progress?.phase) ?? 'library.import.copying')}
-        />
-      ) : null}
+      <ImportProgress importMedia={importMedia} />
       {lastMove ? (
         <Stack direction="row" align="center" gap="xs"
           style={[styles.snack, {backgroundColor: theme.color.inverseSurface, borderRadius: theme.radius.field, paddingStart: theme.spacing.md}]}>
@@ -871,16 +871,12 @@ export function LibraryScreen() {
         confirm={{label: t('library.selection.delete'), onPress: () => void runDelete()}}
       />
 
+      <ImportPrompts importMedia={importMedia} />
       {importMedia.error && importMedia.error.field !== 'cancelled' ? (
         <Dialog
           visible
           title={t(importErrorCopy(importMedia.error).titleKey)}
-          body={t(
-            importErrorCopy(importMedia.error).bodyKey,
-            importErrorCopy(importMedia.error).bodyKey === 'library.import.errorInsufficientSpace'
-              ? {megabytes: STORAGE_INSUFFICIENT_MIN_MB}
-              : undefined,
-          )}
+          body={t(importErrorCopy(importMedia.error).bodyKey)}
           cancel={{label: t('action.close'), onPress: () => importMedia.reset()}}
         />
       ) : null}

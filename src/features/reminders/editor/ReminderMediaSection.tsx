@@ -13,6 +13,11 @@
  * video" opens the system Photo Picker and "Audio" the document picker, the
  * file is imported and attached here directly. The library is the third
  * option, not the only one.
+ *
+ * Both pickers allow several files (DL-109). A reminder plays one item, so
+ * the first one picked is attached and the rest land in the Library, with a
+ * caption under the stage saying so — importing a handful of clips while
+ * setting up the first reminder should not mean a trip to the Library first.
  */
 import {useState} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
@@ -23,7 +28,6 @@ import {
   Button,
   Icon,
   LoadingState,
-  ProgressBar,
   Stack,
   Text,
   neutral,
@@ -31,9 +35,11 @@ import {
   type IconName,
 } from '../../../design-system';
 import {withAlpha} from '../../../design-system/theme/colorUtils';
-import {importErrorCopy, importPhaseLabelKey, importProgressFraction, useImportMedia} from '../../../hooks';
+import {importErrorCopy, useImportMedia} from '../../../hooks';
 import {useTranslation, type TranslationKey} from '../../../localization';
 import type {MediaKind, MediaSummary, UUID} from '../../../native-client/types';
+import {formatDurationCompact} from '../../../utils';
+import {ImportProgress, ImportPrompts} from '../../library/ImportProgress';
 import {MediaHero} from '../MediaHero';
 import {MediaSelectionPreviewModal} from '../MediaSelectionPreviewModal';
 
@@ -64,6 +70,9 @@ export interface ReminderMediaSectionProps {
   readonly onChooseFromLibrary: () => void;
   /** Shown after a Save attempt with nothing chosen. */
   readonly error?: string;
+  /** DL-110: where playback starts, in ms; null is the beginning. Video/audio only. */
+  readonly startMs?: number | null;
+  readonly onStartChange?: (startMs: number | null) => void;
 }
 
 export function ReminderMediaSection({
@@ -74,15 +83,20 @@ export function ReminderMediaSection({
   onPicked,
   onChooseFromLibrary,
   error,
+  startMs = null,
+  onStartChange,
 }: ReminderMediaSectionProps) {
   const t = useTranslation();
   const theme = useTheme();
   const importMedia = useImportMedia();
   const [previewing, setPreviewing] = useState(false);
   const [choosing, setChoosing] = useState(false);
+  // How many of the last batch went to the Library rather than onto this reminder.
+  const [alsoInLibrary, setAlsoInLibrary] = useState(0);
 
   const pick = (option: SourceOption) => {
     setChoosing(false);
+    setAlsoInLibrary(0);
     if (!option.mimeTypes) {
       onChooseFromLibrary();
       return;
@@ -93,6 +107,7 @@ export function ReminderMediaSection({
       .then(outcome => {
         if (outcome.status === 'imported' && outcome.media) {
           onPicked(outcome.media.id);
+          setAlsoInLibrary(outcome.items.length - 1);
         }
       })
       // The failure is already on `importMedia.error`, rendered below.
@@ -164,10 +179,7 @@ export function ReminderMediaSection({
       <EditorSectionHeading label={t('reminders.editor.mediaSection')} />
 
       {importMedia.isImporting ? (
-        <ProgressBar
-          progress={importProgressFraction(importMedia.progress)}
-          label={t(importPhaseLabelKey(importMedia.progress?.phase) ?? 'library.import.copying')}
-        />
+        <ImportProgress importMedia={importMedia} />
       ) : loading ? (
         <LoadingState label={t('loading.startingUp')} />
       ) : failed ? (
@@ -191,7 +203,10 @@ export function ReminderMediaSection({
             ) : null}
 
             <Pressable
-              onPress={() => setChoosing(true)}
+              onPress={() => {
+                setAlsoInLibrary(0);
+                setChoosing(true);
+              }}
               accessibilityRole="button"
               accessibilityLabel={t('reminders.editor.changeMedia')}
               testID="reminder-media-change"
@@ -208,6 +223,28 @@ export function ReminderMediaSection({
               {media.title}
             </Text>
           </Stack>
+          {/* DL-110: set in the preview, at the playhead. */}
+          {onStartChange && (media.kind === 'video' || media.kind === 'audio') ? (
+            <Stack direction="row" align="center" gap="xs" style={styles.caption}>
+              <Text variant="bodyMedium" tone="variant" style={styles.flex} testID="reminder-media-start">
+                {startMs
+                  ? t('reminders.editor.startsAt', {time: formatDurationCompact(startMs)})
+                  : t('reminders.editor.startsAtBeginning')}
+              </Text>
+              {startMs ? (
+                <Button label={t('reminders.editor.startReset')} variant="text" onPress={() => onStartChange(null)} />
+              ) : (
+                <Button label={t('reminders.editor.startChoose')} variant="text" onPress={() => setPreviewing(true)} />
+              )}
+            </Stack>
+          ) : null}
+          {alsoInLibrary > 0 ? (
+            <Text variant="bodyMedium" tone="variant" testID="reminder-media-also-in-library">
+              {alsoInLibrary === 1
+                ? t('reminders.editor.alsoInLibraryOne')
+                : t('reminders.editor.alsoInLibrary', {count: alsoInLibrary})}
+            </Text>
+          ) : null}
         </View>
       ) : (
         <Stack gap="xs">
@@ -224,14 +261,25 @@ export function ReminderMediaSection({
 
       {error && !media ? <Text variant="bodyMedium" tone="error">{error}</Text> : null}
       {importError && importMedia.error?.field !== 'cancelled' ? (
-        <Banner kind="actionNeeded" title={t(importError.titleKey)} effect={t(importError.bodyKey, {megabytes: 250})} />
+        <Banner kind="actionNeeded" title={t(importError.titleKey)} effect={t(importError.bodyKey)} />
       ) : null}
 
+      <ImportPrompts importMedia={importMedia} />
       <MediaSelectionPreviewModal
         item={previewing && media ? media : null}
         onDismiss={() => setPreviewing(false)}
         closeLabel={t('library.player.close')}
         loadErrorLabel={t('library.player.loadError')}
+        startPoint={onStartChange
+          ? {
+            startMs,
+            label: positionMs => t('reminders.editor.startHere', {time: formatDurationCompact(positionMs)}),
+            onChoose: positionMs => {
+              onStartChange(positionMs >= 1000 ? positionMs : null);
+              setPreviewing(false);
+            },
+          }
+          : undefined}
       />
     </Stack>
   );

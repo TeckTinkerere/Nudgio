@@ -54,13 +54,30 @@ object MediaPicker {
             mimeTypes.isNotEmpty() &&
             mimeTypes.all { it.startsWith("image/") || it.startsWith("video/") }
 
-    fun buildIntent(mimeTypes: List<String>, sdkInt: Int = Build.VERSION.SDK_INT): Intent =
+    /**
+     * Upper bound on one multi-select import batch. Each item is still its
+     * own streamed, journaled import (MR-05); the cap keeps one tap from
+     * queueing an unbounded run of multi-gigabyte copies.
+     */
+    const val MAX_BATCH_ITEMS = 20
+
+    /**
+     * [maxItems] above 1 lets the user pick several files at once; the
+     * result then arrives as `ClipData` (see `MediaReminderModule`'s
+     * `onActivityResult`). Each item is still one row — the bridge imports
+     * them one at a time.
+     */
+    fun buildIntent(mimeTypes: List<String>, sdkInt: Int = Build.VERSION.SDK_INT, maxItems: Int = 1): Intent =
         if (preferSystemPhotoPicker(mimeTypes, sdkInt)) {
-            // Single-select: multi-item import is out of v1 scope (TODO.md
-            // "selected-item export" names the same P1.2 cut for the export
-            // side), and MediaAssetEntity models exactly one row per import.
             Intent(MediaStore.ACTION_PICK_IMAGES).apply {
                 type = if (mimeTypes.size == 1) mimeTypes[0] else "*/*"
+                // The SDK check repeats `preferSystemPhotoPicker`'s for lint,
+                // which cannot see through the `sdkInt` parameter. The extra
+                // must not exceed the platform's own limit, or the picker
+                // refuses to open at all.
+                if (maxItems > 1 && Build.VERSION.SDK_INT >= MIN_SDK_FOR_PHOTO_PICKER) {
+                    putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, minOf(maxItems, MediaStore.getPickImagesMaxLimit()))
+                }
             }
         } else {
             Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -68,6 +85,9 @@ object MediaPicker {
                 type = "*/*"
                 if (mimeTypes.isNotEmpty()) {
                     putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.toTypedArray())
+                }
+                if (maxItems > 1) {
+                    putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
                 }
                 // No FLAG_GRANT_PERSISTABLE_URI_PERMISSION: ADR-011 is explicit
                 // that this app does not keep long-term gallery/document

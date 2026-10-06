@@ -43,6 +43,8 @@ export const appConfig = {
     backupUncompressedHardLimitBytes: 10 * 1024 * 1024 * 1024,
     freeSpaceReserveBytes: 250 * 1024 * 1024,
     freeSpaceReserveFraction: 0.05,
+    /** DL-109: caps the fractional share, so a 256 GB phone is not asked to keep 12.8 GB free. */
+    freeSpaceReserveFractionCapBytes: 1024 * 1024 * 1024,
     thumbnailCacheBytes: 250 * 1024 * 1024,
     diagnosticsRingBufferBytes: 5 * 1024 * 1024,
   },

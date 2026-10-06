@@ -163,6 +163,24 @@ interface OccurrenceDao {
     )
     suspend fun invalidatePendingFollowDeviceOccurrences(): Int
 
+    /** Skipped occurrences still ahead of [nowEpochMs] (DL-110 "Skip next"). */
+    @Query(
+        "SELECT * FROM occurrences WHERE reminder_id IN (:reminderIds) AND state = 'skipped' AND scheduled_at > :nowEpochMs",
+    )
+    suspend fun getFutureSkipped(reminderIds: List<String>, nowEpochMs: Long): List<OccurrenceEntity>
+
+    /** Undoes "Skip next"; also run on every save, since a new schedule makes the old skip meaningless. */
+    @Query("DELETE FROM occurrences WHERE reminder_id = :reminderId AND state = 'skipped' AND scheduled_at > :nowEpochMs")
+    suspend fun deleteFutureSkippedForReminder(reminderId: String, nowEpochMs: Long): Int
+
+    /**
+     * Pause all (DL-110): every unclaimed occurrence except a Preview-style
+     * test, so the next reconcile recomputes from the pause's end. Claimed
+     * rows are spared for the same reason as [deleteUnclaimedPendingForReminder].
+     */
+    @Query("DELETE FROM occurrences WHERE state = 'pending' AND kind != 'test'")
+    suspend fun deleteAllUnclaimedPending(): Int
+
     /** MR-09 "Data retention": occurrence history defaults to 90 days. */
     @Query("DELETE FROM occurrences WHERE resolved_at IS NOT NULL AND resolved_at < :cutoffEpochMs")
     suspend fun deleteResolvedBefore(cutoffEpochMs: Long): Int

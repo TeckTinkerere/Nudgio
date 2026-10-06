@@ -161,6 +161,13 @@ export const createMockNativeModule = (
       return preferences;
     },
 
+    setPausedUntil: async until => {
+      preferences = {...preferences, pausedUntil: until as PreferencesSnapshot['pausedUntil']};
+      return preferences;
+    },
+
+    takeSharedDocuments: async () => [],
+
     getDynamicColorScheme: async () => options.dynamicColor ?? null,
 
     listMedia: async () => ({items: [], total: 0, offset: 0, hasMore: false}),
@@ -173,6 +180,7 @@ export const createMockNativeModule = (
     // `beginMediaImport` below would. A test that needs a picked file uses a
     // Jest mock/spy at a higher level, not this native-module fake.
     pickDocument: async () => null,
+    pickDocuments: async () => [],
 
     // No real ringtone picker in Metro-only dev mode or Jest — null signals
     // "user backed out", which is the safe default for a settings fake.
@@ -220,6 +228,7 @@ export const createMockNativeModule = (
     getReminder: notImplemented('getReminder'),
     saveReminder: notImplemented('saveReminder'),
     setReminderEnabled: notImplemented('setReminderEnabled'),
+    skipNextOccurrence: notImplemented('skipNextOccurrence'),
     deleteReminder: notImplemented('deleteReminder'),
     saveProfile: notImplemented('saveProfile'),
     resetBuiltInProfile: notImplemented('resetBuiltInProfile'),

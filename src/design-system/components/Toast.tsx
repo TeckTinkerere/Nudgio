@@ -14,6 +14,7 @@
  * safe the same way every other motion in this app is (`tokens/motion.ts`'s
  * contract): under `reduceMotion` it just appears/disappears, no slide.
  */
+import {Pressable} from 'react-native';
 import Animated, {SlideInDown, SlideOutUp} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
@@ -24,9 +25,16 @@ import {spacing} from '../tokens';
 
 export type ToastTone = 'success' | 'error' | 'info';
 
+/** One short verb, e.g. "Undo" (DL-110). Pressing it also dismisses the toast. */
+export interface ToastAction {
+  readonly label: string;
+  readonly onPress: () => void;
+}
+
 export interface ToastProps {
   readonly message: string;
   readonly tone?: ToastTone;
+  readonly action?: ToastAction;
   readonly testID?: string;
 }
 
@@ -36,7 +44,7 @@ const ICON_FOR: Record<ToastTone, IconName> = {
   info: 'info',
 };
 
-export function Toast({message, tone = 'info', testID}: ToastProps) {
+export function Toast({message, tone = 'info', action, testID}: ToastProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -72,6 +80,18 @@ export function Toast({message, tone = 'info', testID}: ToastProps) {
         numberOfLines={2}>
         {message}
       </Text>
+      {action ? (
+        <Pressable
+          onPress={action.onPress}
+          accessibilityRole="button"
+          accessibilityLabel={action.label}
+          hitSlop={8}
+          style={({pressed}) => ({opacity: pressed ? 0.7 : 1, paddingVertical: theme.spacing.xxs})}>
+          <Text variant="labelLarge" style={{color: theme.color.inverseOnSurface, textDecorationLine: 'underline'}}>
+            {action.label}
+          </Text>
+        </Pressable>
+      ) : null}
     </Animated.View>
   );
 }

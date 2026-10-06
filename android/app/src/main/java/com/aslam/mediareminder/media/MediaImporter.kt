@@ -67,8 +67,7 @@ class MediaImporter(
             if (declaredSizeBytes > MediaStorage.MAX_ASSET_BYTES) {
                 throw MediaImportException(MediaImportException.TOO_LARGE, "Declared size $declaredSizeBytes exceeds the v1 per-asset limit")
             }
-            val mediaDir = storage.mediaDir()
-            if (!MediaStorage.hasRoomFor(declaredSizeBytes, mediaDir.usableSpace, mediaDir.totalSpace)) {
+            if (!storage.ensureRoomFor(declaredSizeBytes)) {
                 throw MediaImportException(MediaImportException.STORAGE_INSUFFICIENT, "Not enough free space for $declaredSizeBytes bytes")
             }
         }
@@ -160,8 +159,17 @@ class MediaImporter(
         markPhase(operationId, OperationJournalEntity.Phase.MEDIA_PROBING)
         onProgress(ProgressPhase.CHECKING, copiedBytes, copiedBytes)
 
+        // DL-110: a PNG/BMP is re-encoded as lossless WebP when that is
+        // verified pixel-identical and meaningfully smaller; otherwise the
+        // picked bytes are kept exactly. Everything below describes the
+        // stored form, and `sourceSha256` remembers the original's digest so
+        // re-importing it still finds this asset.
+        val normalizedMime = MediaKinds.normalize(mimeType)
+        val stored = losslesslyCompressed(finalFile, kind, normalizedMime)
+            ?: StoredForm(finalFile, storageKey, normalizedMime, copiedBytes, sha256)
+
         // Step 5 (the codec-level half): probe the finished file.
-        val probe = MediaProbe.probe(finalFile, kind)
+        val probe = MediaProbe.probe(stored.file, kind)
 
         onProgress(ProgressPhase.CREATING_PREVIEW, copiedBytes, copiedBytes)
 
@@ -172,7 +180,7 @@ class MediaImporter(
         // doc): the asset below is inserted either way.
         val assetId = UUID.randomUUID().toString()
         val thumbnailFile = storage.thumbnailFileFor(assetId)
-        val thumbnailPath = if (MediaThumbnailer.generate(finalFile, kind, thumbnailFile)) {
+        val thumbnailPath = if (MediaThumbnailer.generate(stored.file, kind, thumbnailFile)) {
             thumbnailFile.name
         } else {
             null
@@ -192,10 +200,11 @@ class MediaImporter(
             kind = kind,
             title = MediaKinds.titleFrom(displayName, kind),
             notes = null,
-            storageKey = storageKey,
-            mimeType = MediaKinds.normalize(mimeType),
-            sizeBytes = copiedBytes,
-            sha256 = sha256,
+            storageKey = stored.storageKey,
+            mimeType = stored.mimeType,
+            sizeBytes = stored.sizeBytes,
+            sha256 = stored.sha256,
+            sourceSha256 = sha256.takeIf { it != stored.sha256 },
             durationMs = probe.durationMs,
             widthPx = probe.widthPx,
             heightPx = probe.heightPx,
@@ -264,8 +273,7 @@ class MediaImporter(
             if (declaredSizeBytes > MediaStorage.MAX_ASSET_BYTES) {
                 throw MediaImportException(MediaImportException.TOO_LARGE, "Declared size $declaredSizeBytes exceeds the v1 per-asset limit")
             }
-            val mediaDir = storage.mediaDir()
-            if (!MediaStorage.hasRoomFor(declaredSizeBytes, mediaDir.usableSpace, mediaDir.totalSpace)) {
+            if (!storage.ensureRoomFor(declaredSizeBytes)) {
                 throw MediaImportException(MediaImportException.STORAGE_INSUFFICIENT, "Not enough free space for $declaredSizeBytes bytes")
             }
         }
@@ -377,14 +385,60 @@ class MediaImporter(
      * identity instead of chaining onto whichever copy came last.
      */
     private suspend fun findReusableDuplicate(sha256: String, sizeBytes: Long): MediaAssetEntity? =
-        mediaDao.getBySha256(sha256)
+        (mediaDao.getBySha256(sha256).filter { it.sizeBytes == sizeBytes } + mediaDao.getBySourceSha256(sha256))
             .filter { candidate ->
-                candidate.sizeBytes == sizeBytes &&
-                    candidate.integrityState != MediaAssetEntity.INTEGRITY_MISSING &&
+                candidate.integrityState != MediaAssetEntity.INTEGRITY_MISSING &&
                     candidate.integrityState != MediaAssetEntity.INTEGRITY_UNSUPPORTED &&
                     storage.fileFor(candidate.storageKey).exists()
             }
             .minByOrNull { it.createdAt }
+
+    /** The file a new asset row describes: the picked bytes, or their lossless re-encoding. */
+    private data class StoredForm(
+        val file: File,
+        val storageKey: String,
+        val mimeType: String,
+        val sizeBytes: Long,
+        val sha256: String,
+    )
+
+    /**
+     * The lossless WebP form of [original] under a fresh storage key, or null
+     * to keep [original] as is. The original is deleted only once the new
+     * file holds its final name, so a failure at any step leaves a complete,
+     * correct file behind.
+     */
+    private fun losslesslyCompressed(original: File, kind: String, mimeType: String): StoredForm? {
+        if (kind != MediaAssetEntity.KIND_IMAGE || !LosslessImageCompressor.isCandidate(mimeType)) return null
+        val key = storage.newStorageKey(WEBP_MIME)
+        val partial = storage.partialFor(key)
+        if (!LosslessImageCompressor.compress(original, mimeType, partial)) return null
+        val target = storage.fileFor(key)
+        if (!partial.renameTo(target)) {
+            partial.delete()
+            return null
+        }
+        val originalBytes = original.length()
+        original.delete()
+        NativeLogger.debug(
+            "media.import.losslessCompressed",
+            mapOf("fromBytes" to originalBytes, "toBytes" to target.length()),
+        )
+        return StoredForm(target, key, WEBP_MIME, target.length(), sha256Of(target))
+    }
+
+    private fun sha256Of(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { stream ->
+            val buffer = ByteArray(MediaStorage.COPY_BUFFER_BYTES)
+            while (true) {
+                val read = stream.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
 
     /** Streams [sourceUri] into [destination], returning the hex SHA-256 of the bytes written. */
     private suspend fun copyAndHash(
@@ -486,6 +540,10 @@ class MediaImporter(
      * inherent to two sides of a wire contract, not the logic duplication the
      * "never duplicate logic" rule is about.
      */
+    private companion object {
+        const val WEBP_MIME = "image/webp"
+    }
+
     private object ProgressPhase {
         const val COPYING = "copying"
         const val CHECKING = "checking"

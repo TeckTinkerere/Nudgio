@@ -44,6 +44,7 @@ import {formatEnglishUnit, useTranslation, type TranslationKey} from '../../loca
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import type {MediaKind, MediaQuery, MediaSummary} from '../../native-client/types';
 import {formatDurationAccessible, formatDurationCompact} from '../../utils';
+import {ImportPrompts} from '../library/ImportProgress';
 import {LibraryGridBody} from '../library/LibraryGridBody';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SelectMedia'>;
@@ -212,6 +213,7 @@ export function SelectMediaScreen({navigation, route}: Props) {
         isFiltered={isFiltered}
         onClearFilters={clearFilters}
       />
+      <ImportPrompts importMedia={importMedia} />
 
       <MediaSelectionPreviewModal
         item={previewItem}

@@ -16,20 +16,19 @@ import type {
   BackupInspection,
   CapabilityKind,
   CapabilitySnapshot,
-  StatisticsSummary,
-  NotificationPermissionResult,
+  DeleteMediaRequest,
   EnableResult,
   ExportRequest,
-  DeleteMediaRequest,
   ExportResult,
   ImportCommitRequest,
   ImportRequest,
+  Instant,
   MediaDetail,
   MediaQuery,
   MediaStorageUsage,
-  ReplaceMediaSourceRequest,
   MediaSummary,
   MutationResult,
+  NotificationPermissionResult,
   Page,
   PendingReminderOpen,
   PickedDocument,
@@ -38,13 +37,15 @@ import type {
   ReminderDetail,
   ReminderProfile,
   ReminderSummary,
+  ReplaceMediaSourceRequest,
   SaveReminderRequest,
   SaveReminderResult,
+  StartupSnapshot,
+  StatisticsSummary,
   TestReminderRequest,
   TestReminderResult,
-  UpdateMediaRequest,
   UUID,
-  StartupSnapshot,
+  UpdateMediaRequest,
 } from '../../native-client/types';
 import type {AppError} from '../errors';
 import type {Result} from '../result/Result';
@@ -62,6 +63,10 @@ export interface MediaRepository {
   get(id: UUID): Promise<Result<MediaDetail, AppError>>;
   /** `ok(null)`, not an error, when the user backed out of the picker with no selection. */
   pickDocument(mimeTypes: readonly string[]): Promise<Result<PickedDocument | null, AppError>>;
+  /** DL-110 "Share to Nudgio": files shared into the app since the last call. Take-once. */
+  takeShared(): Promise<Result<readonly PickedDocument[], AppError>>;
+  /** Multi-select picker; `ok([])`, not an error, when the user backed out. */
+  pickDocuments(mimeTypes: readonly string[], maxItems: number): Promise<Result<readonly PickedDocument[], AppError>>;
   beginImport(request: ImportRequest): Promise<Result<MediaDetail, AppError>>;
   update(request: UpdateMediaRequest): Promise<Result<MediaDetail, AppError>>;
   /** MR-03 "Delete" — see `DeleteMediaRequest`'s doc for the cascade rule. */
@@ -90,6 +95,10 @@ export interface ReminderRepository {
   get(id: UUID): Promise<Result<ReminderDetail, AppError>>;
   save(request: SaveReminderRequest): Promise<Result<SaveReminderResult, AppError>>;
   setEnabled(id: UUID, enabled: boolean): Promise<Result<EnableResult, AppError>>;
+  /** DL-110 "Skip next"; `skip: false` undoes it. */
+  skipNext(id: UUID, skip: boolean): Promise<Result<EnableResult, AppError>>;
+  /** DL-110 "Pause all" until `until`, or resume with `null`. */
+  setPausedUntil(until: Instant | null): Promise<Result<PreferencesSnapshot, AppError>>;
   remove(id: UUID): Promise<Result<MutationResult, AppError>>;
   scheduleTest(request: TestReminderRequest): Promise<Result<TestReminderResult, AppError>>;
   play(sessionId: UUID, nonce: string): Promise<Result<ActionResult, AppError>>;

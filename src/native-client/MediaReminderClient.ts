@@ -19,17 +19,16 @@ import type {
   BackupInspection,
   CapabilityKind,
   CapabilitySnapshot,
-  StatisticsSummary,
   DeleteMediaRequest,
   EnableResult,
   ExportRequest,
   ExportResult,
   ImportCommitRequest,
   ImportRequest,
+  Instant,
   MediaDetail,
   MediaQuery,
   MediaStorageUsage,
-  ReplaceMediaSourceRequest,
   MediaSummary,
   MutationResult,
   NotificationPermissionResult,
@@ -42,13 +41,15 @@ import type {
   ReminderDetail,
   ReminderProfile,
   ReminderSummary,
+  ReplaceMediaSourceRequest,
   SaveReminderRequest,
   SaveReminderResult,
+  StartupSnapshot,
+  StatisticsSummary,
   TestReminderRequest,
   TestReminderResult,
-  UpdateMediaRequest,
   UUID,
-  StartupSnapshot,
+  UpdateMediaRequest,
 } from './types';
 import {appConfig} from '../core/config/appConfig';
 import type {AppError} from '../core/errors';
@@ -87,6 +88,8 @@ export interface MediaReminderClient {
 
   /** `ok(null)`, not an error, when the user backed out of the picker with no selection. */
   pickDocument(mimeTypes: readonly string[]): Promise<Result<PickedDocument | null, AppError>>;
+  /** `ok([])` when the user backed out. */
+  pickDocuments(mimeTypes: readonly string[], maxItems: number): Promise<Result<readonly PickedDocument[], AppError>>;
 
   /** `ok(null)` when the user backed out. `ok({uri: null, title})` when they picked "Default". */
   pickAlarmRingtone(currentUri: string | null): Promise<Result<PickedRingtone | null, AppError>>;
@@ -106,6 +109,9 @@ export interface MediaReminderClient {
   getReminder(id: UUID): Promise<Result<ReminderDetail, AppError>>;
   saveReminder(request: SaveReminderRequest): Promise<Result<SaveReminderResult, AppError>>;
   setReminderEnabled(id: UUID, enabled: boolean): Promise<Result<EnableResult, AppError>>;
+  skipNextOccurrence(id: UUID, skip: boolean): Promise<Result<EnableResult, AppError>>;
+  setPausedUntil(until: Instant | null): Promise<Result<PreferencesSnapshot, AppError>>;
+  takeSharedDocuments(): Promise<Result<readonly PickedDocument[], AppError>>;
   deleteReminder(id: UUID): Promise<Result<MutationResult, AppError>>;
   scheduleTestReminder(request: TestReminderRequest): Promise<Result<TestReminderResult, AppError>>;
 
@@ -256,6 +262,9 @@ export const createMediaReminderClient = (
 
     pickDocument: mimeTypes => call('pickDocument', native => native.pickDocument(mimeTypes)),
 
+    pickDocuments: (mimeTypes, maxItems) =>
+      call('pickDocuments', native => native.pickDocuments(mimeTypes, maxItems)),
+
     pickAlarmRingtone: currentUri =>
       call('pickAlarmRingtone', native => native.pickAlarmRingtone(currentUri)),
 
@@ -307,6 +316,13 @@ export const createMediaReminderClient = (
       call('setReminderEnabled', native => native.setReminderEnabled(id, enabled)),
 
     deleteReminder: id => call('deleteReminder', native => native.deleteReminder(id)),
+
+    skipNextOccurrence: (id, skip) =>
+      call('skipNextOccurrence', native => native.skipNextOccurrence(id, skip)),
+
+    setPausedUntil: until => call('setPausedUntil', native => native.setPausedUntil(until)),
+
+    takeSharedDocuments: () => call('takeSharedDocuments', native => native.takeSharedDocuments()),
 
     scheduleTestReminder: request =>
       call('scheduleTestReminder', native => native.scheduleTestReminder(request)),
