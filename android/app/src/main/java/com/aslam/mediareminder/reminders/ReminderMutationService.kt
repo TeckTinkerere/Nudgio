@@ -5,8 +5,11 @@ import androidx.room.withTransaction
 import com.aslam.mediareminder.alarm.ExactAlarmAccess
 import com.aslam.mediareminder.alarm.ScheduleRuleMapper
 import com.aslam.mediareminder.alarm.SchedulerCoordinator
+import com.aslam.mediareminder.alarm.ScheduleRule
 import com.aslam.mediareminder.alarm.TestAlarmScheduler
+import com.aslam.mediareminder.data.PreferencesRepository
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
+import com.aslam.mediareminder.data.db.entity.OccurrenceEntity
 import com.aslam.mediareminder.data.db.entity.ReminderEntity
 import com.aslam.mediareminder.media.MediaStorage
 import com.facebook.react.bridge.Arguments
@@ -29,6 +32,7 @@ class ReminderMutationService(
     private val storage: MediaStorage = MediaStorage(context),
 ) {
     private val scheduler = SchedulerCoordinator(context, database)
+    private val preferences = PreferencesRepository(context)
 
     sealed class SaveOutcome {
         data class Success(val result: WritableMap) : SaveOutcome()
@@ -43,13 +47,29 @@ class ReminderMutationService(
         object NotFound : EnableOutcome()
     }
 
+    sealed class SkipOutcome {
+        data class Success(val result: WritableMap) : SkipOutcome()
+        object NotFound : SkipOutcome()
+
+        /** One-time reminders cannot skip: their next occurrence is their only one. */
+        object NotRepeating : SkipOutcome()
+
+        /** Nothing is waiting to be skipped (disabled, paused, or already ringing). */
+        object NothingPending : SkipOutcome()
+    }
+
     suspend fun get(id: String): WritableMap? {
         val reminder = database.reminderDao().getById(id) ?: return null
         val rule = database.scheduleRuleDao().getByReminderId(id) ?: return null
         val nextOccurrence = database.occurrenceDao().getPendingForReminder(id)
         val media = database.mediaDao().getById(reminder.mediaId)
-        return ReminderDtoWriter.writeDetail(reminder, rule, nextOccurrence, media, storage)
+        return ReminderDtoWriter.writeDetail(reminder, rule, nextOccurrence, media, storage, skippedFor(id))
     }
+
+    /** The latest future "Skip next" for [reminderId], shown as "Skipping ..." with an undo. */
+    private suspend fun skippedFor(reminderId: String): OccurrenceEntity? =
+        database.occurrenceDao().getFutureSkipped(listOf(reminderId), Instant.now().toEpochMilli())
+            .maxByOrNull { it.scheduledAt }
 
     suspend fun list(): WritableMap {
         val reminders = database.reminderDao().getAll()
@@ -59,6 +79,9 @@ class ReminderMutationService(
         val rulesByReminderId = database.scheduleRuleDao().getByReminderIds(reminderIds).associateBy { it.reminderId }
         val nextOccurrenceByReminderId = database.occurrenceDao().getPendingForReminders(reminderIds).associateBy { it.reminderId }
         val mediaByMediaId = database.mediaDao().getByIds(reminders.map { it.mediaId }.distinct()).associateBy { it.id }
+        val skippedByReminderId = database.occurrenceDao().getFutureSkipped(reminderIds, Instant.now().toEpochMilli())
+            .groupBy { it.reminderId }
+            .mapValues { (_, rows) -> rows.maxBy { it.scheduledAt } }
 
         val items = Arguments.createArray()
         var count = 0
@@ -66,7 +89,9 @@ class ReminderMutationService(
             val rule = rulesByReminderId[reminder.id] ?: continue
             val nextOccurrence = nextOccurrenceByReminderId[reminder.id]
             val media = mediaByMediaId[reminder.mediaId]
-            items.pushMap(ReminderDtoWriter.writeSummary(reminder, rule, nextOccurrence, media, storage))
+            items.pushMap(
+                ReminderDtoWriter.writeSummary(reminder, rule, nextOccurrence, media, storage, skippedByReminderId[reminder.id]),
+            )
             count += 1
         }
         return Arguments.createMap().apply {
@@ -100,6 +125,13 @@ class ReminderMutationService(
         val notes = if (request.hasKey("notes")) request.getString("notes")?.trim()?.takeIf { it.isNotEmpty() } else null
         if (notes != null && notes.length > MAX_MESSAGE_LENGTH) return SaveOutcome.Invalid("notes")
         val requestedHistory = if (request.hasKey("historyEnabled")) request.getBoolean("historyEnabled") else null
+        // Null or 0 both mean "from the beginning"; stored as null.
+        val mediaStartMs = if (request.hasKey("mediaStartMs") && !request.isNull("mediaStartMs")) {
+            request.getDouble("mediaStartMs").toLong().takeIf { it in 0..MAX_MEDIA_START_MS }
+                ?: return SaveOutcome.Invalid("mediaStartMs")
+        } else {
+            null
+        }?.takeIf { it > 0 }
 
         // Absent or null `action` means "no action" — the editor always sends
         // the whole reminder, so this is also how an action is removed.
@@ -147,6 +179,7 @@ class ReminderMutationService(
             actionType = action?.type,
             actionUri = action?.uri,
             actionLabel = action?.label,
+            mediaStartMs = mediaStartMs,
         )
 
         var conflicted = false
@@ -170,6 +203,7 @@ class ReminderMutationService(
                     actionType = entity.actionType,
                     actionUri = entity.actionUri,
                     actionLabel = entity.actionLabel,
+                    mediaStartMs = entity.mediaStartMs,
                     updatedAt = entity.updatedAt,
                     expectedVersion = existing.entityVersion,
                 )
@@ -188,6 +222,9 @@ class ReminderMutationService(
             // the new rule. Only `pending` rows — never one already claimed
             // by an in-flight dispatch (see `deleteUnclaimedPendingForReminder`'s doc).
             database.occurrenceDao().deleteUnclaimedPendingForReminder(reminderId)
+            // A skip was of the old schedule's next time; keeping it would
+            // silently hold back every new-schedule time before it.
+            database.occurrenceDao().deleteFutureSkippedForReminder(reminderId, now)
         }
         if (conflicted) return SaveOutcome.Conflict
 
@@ -229,6 +266,7 @@ class ReminderMutationService(
             if (!enabled) {
                 database.occurrenceDao().deleteUnclaimedPendingForReminder(id)
             }
+            database.occurrenceDao().deleteFutureSkippedForReminder(id, now)
         }
         scheduler.reconcile(if (enabled) "reminder_enabled" else "reminder_disabled")
 
@@ -242,6 +280,56 @@ class ReminderMutationService(
             if (nextOccurrence != null) putMap("nextOccurrence", ReminderDtoWriter.writeOccurrence(nextOccurrence)) else putNull("nextOccurrence")
         }
         return EnableOutcome.Success(result)
+    }
+
+    /**
+     * "Skip next" (DL-110). [skip] resolves the pending occurrence as
+     * `skipped`; its row then keeps the scheduler from choosing that instant
+     * again, and the reconcile computes the one after. `skip = false` undoes
+     * every future skip for this reminder.
+     *
+     * `resolved_at` is the skipped instant, not now, so the 90-day retention
+     * sweep cannot delete a skip of a reminder months ahead before it passes.
+     */
+    suspend fun skipNext(id: String, skip: Boolean): SkipOutcome {
+        val reminder = database.reminderDao().getById(id) ?: return SkipOutcome.NotFound
+        val ruleEntity = database.scheduleRuleDao().getByReminderId(id) ?: return SkipOutcome.NotFound
+        val occurrenceDao = database.occurrenceDao()
+        val now = Instant.now().toEpochMilli()
+        if (skip) {
+            if (ScheduleRuleMapper.toDomain(ruleEntity) is ScheduleRule.Once) return SkipOutcome.NotRepeating
+            val pending = occurrenceDao.getPendingForReminder(id)
+                ?.takeIf { it.state == OccurrenceEntity.STATE_PENDING && it.kind == OccurrenceEntity.KIND_BASE }
+                ?: return SkipOutcome.NothingPending
+            occurrenceDao.resolve(pending.id, OccurrenceEntity.STATE_SKIPPED, action = "skip", resolvedAt = pending.scheduledAt)
+            scheduler.reconcile("reminder_skipped")
+        } else {
+            database.withTransaction {
+                occurrenceDao.deleteFutureSkippedForReminder(id, now)
+                occurrenceDao.deleteUnclaimedPendingForReminder(id)
+            }
+            scheduler.reconcile("reminder_unskipped")
+        }
+
+        val nextOccurrence = occurrenceDao.getPendingForReminder(id)
+        val media = database.mediaDao().getById(reminder.mediaId)
+        val result = Arguments.createMap().apply {
+            putMap("reminder", ReminderDtoWriter.writeSummary(reminder, ruleEntity, nextOccurrence, media, storage, skippedFor(id)))
+            if (nextOccurrence != null) putMap("nextOccurrence", ReminderDtoWriter.writeOccurrence(nextOccurrence)) else putNull("nextOccurrence")
+        }
+        return SkipOutcome.Success(result)
+    }
+
+    /**
+     * "Pause all" (DL-110): stores [until] (null resumes) and drops every
+     * unclaimed occurrence, so the reconcile recomputes each reminder from
+     * the pause's end, or from now on resume. An alarm already ringing is
+     * left to finish.
+     */
+    suspend fun setPausedUntil(until: Instant?) {
+        preferences.writePausedUntil(until)
+        database.occurrenceDao().deleteAllUnclaimedPending()
+        scheduler.reconcile(if (until == null) "pause_ended" else "pause_started")
     }
 
     /** FK `CASCADE` on `schedule_rules`/`occurrences`/`active_alarm_session` does the rest of the cleanup. */
@@ -277,5 +365,8 @@ class ReminderMutationService(
 
         /** Same 4000-character cap MR-09 already sets for media notes. */
         const val MAX_MESSAGE_LENGTH = 4000
+
+        /** DL-110: a start point beyond six hours is a bad value, not a long film. */
+        const val MAX_MEDIA_START_MS = 6L * 60 * 60 * 1000
     }
 }

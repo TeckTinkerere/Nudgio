@@ -34,6 +34,15 @@ export interface MediaSelectionPreviewModalProps {
   readonly closeLabel: string;
   readonly selectLabel?: string;
   readonly loadErrorLabel: string;
+  /**
+   * DL-110: video/audio only. Opens at `startMs` and offers "Start from
+   * here" at the playhead, reporting the choice through `onChoose`.
+   */
+  readonly startPoint?: {
+    readonly startMs: number | null;
+    readonly label: (positionMs: number) => string;
+    readonly onChoose: (positionMs: number) => void;
+  };
 }
 
 export function MediaSelectionPreviewModal({
@@ -43,10 +52,12 @@ export function MediaSelectionPreviewModal({
   closeLabel,
   selectLabel,
   loadErrorLabel,
+  startPoint,
 }: MediaSelectionPreviewModalProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [imageFailed, setImageFailed] = useState(false);
+  const [positionMs, setPositionMs] = useState(startPoint?.startMs ?? 0);
 
   if (!item) {
     return null;
@@ -58,6 +69,15 @@ export function MediaSelectionPreviewModal({
     ) : undefined;
 
   if (item.kind === 'video' || item.kind === 'audio') {
+    const startButton = startPoint ? (
+      <Button
+        label={startPoint.label(positionMs)}
+        icon="play"
+        onPress={() => startPoint.onChoose(positionMs)}
+        fullWidth
+        testID="media-preview-start-here"
+      />
+    ) : undefined;
     return (
       <MediaPreviewPlayer
         visible
@@ -67,7 +87,9 @@ export function MediaSelectionPreviewModal({
         kind={item.kind}
         closeLabel={closeLabel}
         loadErrorLabel={loadErrorLabel}
-        footer={confirmButton}
+        footer={startButton ?? confirmButton}
+        startMs={startPoint?.startMs}
+        onPositionChange={startPoint ? setPositionMs : undefined}
       />
     );
   }

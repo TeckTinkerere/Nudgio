@@ -185,10 +185,11 @@ Defaults, configurable only through build constants:
 - individual asset soft warning at 500 MB;
 - individual asset hard limit at 2 GB for v1 unless large-file tests pass;
 - backup expected uncompressed hard limit at 10 GB or 80% of available space, whichever is lower;
-- maintain 250 MB or 5% free-storage reserve after import/restore, whichever is greater;
+- maintain 250 MB or 5% free-storage reserve after import/restore, whichever is greater, with the 5% share capped at 1 GB (DL-109);
 - text title 160 characters, notes 4000, category/tag 60;
 - diagnostics 5 MB ring buffer;
-- thumbnails cache 250 MB with LRU eviction.
+- thumbnails cache 250 MB with LRU eviction;
+- PNG and BMP images are stored as lossless WebP when that is verified pixel-identical and at least 10% smaller; every other format, and all video and audio, is stored exactly as picked (DL-110).
 
 These values are product protections, not filesystem capabilities. The UI displays estimates before copy.
 

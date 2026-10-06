@@ -13,10 +13,10 @@ export {
   importErrorCopy,
   importPhaseLabelKey,
   importProgressFraction,
-  STORAGE_INSUFFICIENT_MIN_MB,
+  MAX_IMPORT_BATCH,
   useImportMedia,
 } from './useImportMedia';
-export type {ImportMediaOutcome} from './useImportMedia';
+export type {ImportBatchPosition, ImportMediaOutcome} from './useImportMedia';
 export {useMediaList} from './useMediaList';
 export {useMotionDuration} from './useReduceMotion';
 export {useOpenCapabilitySettings} from './useOpenCapabilitySettings';

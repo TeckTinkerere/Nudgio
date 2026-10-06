@@ -39,6 +39,7 @@ object ReminderDtoWriter {
         nextOccurrence: OccurrenceEntity?,
         media: MediaAssetEntity?,
         storage: MediaStorage,
+        skipped: OccurrenceEntity? = null,
     ): WritableMap = Arguments.createMap().apply {
         putString("id", reminder.id)
         putString("label", reminder.label)
@@ -87,6 +88,12 @@ object ReminderDtoWriter {
         // would be a round trip per visible reminder.
         val notes = reminder.notes
         if (notes != null) putString("notes", notes) else putNull("notes")
+        // DL-110. `skippedAt` is the time "Skip next" passed over, shown with
+        // an undo; `mediaStartMs` is on the summary because the moment that
+        // plays the media is opened from list data.
+        if (skipped != null) putString("skippedAt", Instant.ofEpochMilli(skipped.scheduledAt).toString()) else putNull("skippedAt")
+        val startMs = reminder.mediaStartMs
+        if (startMs != null) putDouble("mediaStartMs", startMs.toDouble()) else putNull("mediaStartMs")
     }
 
     /** `null` for "no action"; the three columns are only ever written together (`ReminderActionRules`). */
@@ -108,8 +115,9 @@ object ReminderDtoWriter {
         nextOccurrence: OccurrenceEntity?,
         media: MediaAssetEntity?,
         storage: MediaStorage,
+        skipped: OccurrenceEntity? = null,
     ): WritableMap {
-        val map = writeSummary(reminder, ruleEntity, nextOccurrence, media, storage)
+        val map = writeSummary(reminder, ruleEntity, nextOccurrence, media, storage, skipped)
         map.putMap(
             "snooze",
             Arguments.createMap().apply {

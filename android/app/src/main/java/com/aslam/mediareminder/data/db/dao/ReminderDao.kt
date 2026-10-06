@@ -54,6 +54,7 @@ interface ReminderDao {
             action_type = :actionType,
             action_uri = :actionUri,
             action_label = :actionLabel,
+            media_start_ms = :mediaStartMs,
             updated_at = :updatedAt,
             entity_version = entity_version + 1
         WHERE id = :id AND entity_version = :expectedVersion
@@ -75,6 +76,7 @@ interface ReminderDao {
         actionType: String?,
         actionUri: String?,
         actionLabel: String?,
+        mediaStartMs: Long?,
         updatedAt: Long,
         expectedVersion: Int,
     ): Int

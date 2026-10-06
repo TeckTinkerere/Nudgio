@@ -14,6 +14,7 @@ import {StartupGate} from './bootstrap';
 import {createAppContainer} from './di';
 import {ErrorBoundaryText} from './ErrorBoundaryText';
 import {InAppDueCard} from './InAppDueCard';
+import {IncomingShares} from './IncomingShares';
 import {RootNavigator} from './navigation';
 import {usePendingMediaOpen} from './usePendingMediaOpen';
 import {useReminderDueEvents} from './useReminderDueEvents';
@@ -29,6 +30,8 @@ function AppShellOverlays() {
   return (
     <>
       <InAppDueCard />
+      {/* Files shared in from other apps (DL-110). */}
+      <IncomingShares />
       {/*
         The moment: rendered at the shell, not inside a screen, because the
         app may have cold-started straight from the lock screen with no

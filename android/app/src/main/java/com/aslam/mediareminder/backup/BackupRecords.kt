@@ -102,6 +102,8 @@ object BackupReminderCodec {
                 },
             )
         }
+        // Additive and optional (DL-110), same rule as `action` above.
+        if (entity.mediaStartMs != null) put("mediaStartMs", entity.mediaStartMs)
     }
 
     fun fromJson(json: JSONObject): ReminderEntity =
@@ -139,6 +141,13 @@ object BackupReminderCodec {
                 actionType = action?.type,
                 actionUri = action?.uri,
                 actionLabel = action?.label,
+                mediaStartMs = if (json.has("mediaStartMs") && !json.isNull("mediaStartMs")) {
+                    json.getLong("mediaStartMs").also {
+                        if (it < 0) throw BackupFormatException("reminder_record_malformed", "Negative mediaStartMs")
+                    }
+                } else {
+                    null
+                },
             )
         }
 }
@@ -188,6 +197,8 @@ object BackupSettingsCodec {
  * exporting phone proves nothing about whether its bytes survived the trip.
  */
 object BackupMediaAssetCodec {
+    private val SHA256_HEX = Regex("^[0-9a-f]{64}$")
+
     fun toJson(entity: MediaAssetEntity): JSONObject = JSONObject().apply {
         put("id", entity.id)
         put("kind", entity.kind)
@@ -197,6 +208,8 @@ object BackupMediaAssetCodec {
         put("mimeType", entity.mimeType)
         put("sizeBytes", entity.sizeBytes.toString())
         put("sha256", entity.sha256)
+        // Optional (DL-110): present only for a losslessly re-encoded asset.
+        if (entity.sourceSha256 != null) put("sourceSha256", entity.sourceSha256)
         put("durationMs", entity.durationMs ?: JSONObject.NULL)
         put("widthPx", entity.widthPx ?: JSONObject.NULL)
         put("heightPx", entity.heightPx ?: JSONObject.NULL)
@@ -227,6 +240,7 @@ object BackupMediaAssetCodec {
                 mimeType = json.getString("mimeType"),
                 sizeBytes = json.getString("sizeBytes").toLong(),
                 sha256 = json.getString("sha256"),
+                sourceSha256 = json.optString("sourceSha256").takeIf { SHA256_HEX.matches(it) },
                 durationMs = if (json.isNull("durationMs")) null else json.getLong("durationMs"),
                 widthPx = if (json.isNull("widthPx")) null else json.getInt("widthPx"),
                 heightPx = if (json.isNull("heightPx")) null else json.getInt("heightPx"),

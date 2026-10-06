@@ -35,6 +35,7 @@ import androidx.room.PrimaryKey
     indices = [
         Index(value = ["storage_key"], unique = true),
         Index(value = ["sha256"]),
+        Index(value = ["source_sha256"]),
         Index(value = ["category_id", "updated_at"]),
     ],
 )
@@ -105,6 +106,14 @@ data class MediaAssetEntity(
      */
     @ColumnInfo(name = "thumbnail_path")
     val thumbnailPath: String? = null,
+
+    /**
+     * Digest of the picked bytes when the stored file differs from them
+     * (lossless compression, DL-110), else null. [sha256] always describes
+     * the stored file; this exists only for duplicate detection.
+     */
+    @ColumnInfo(name = "source_sha256")
+    val sourceSha256: String? = null,
 ) {
     companion object {
         const val KIND_VIDEO = "video"

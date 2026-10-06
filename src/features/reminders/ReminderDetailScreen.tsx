@@ -22,6 +22,7 @@ import {useDeleteReminder} from './useDeleteReminder';
 import {useOpenReminderAction} from './useOpenReminderAction';
 import {useReminderDetail} from './useReminderDetail';
 import {useSetReminderEnabled} from './useSetReminderEnabled';
+import {useSkipNext} from './useSkipNext';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {rootRoutes} from '../../constants/routes';
 import {useSessionStore} from '../../core/state/sessionStore';
@@ -55,6 +56,7 @@ export function ReminderDetailScreen({navigation, route}: Props) {
   const reminderQuery = useReminderDetail(route.params.reminderId);
   const profiles = useProfiles();
   const setEnabled = useSetReminderEnabled();
+  const skipNext = useSkipNext();
   const deleteReminder = useDeleteReminder();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const appBar = useFloatingAppBar();
@@ -182,6 +184,36 @@ export function ReminderDetailScreen({navigation, route}: Props) {
               />
             )}
           </Stack>
+          {/*
+            DL-110 "Skip next": repeating reminders only — a one-time
+            reminder's next time is its only one, so it has the toggle.
+          */}
+          {reminder.skippedAt ? (
+            <Stack direction="row" align="center" gap="sm" style={styles.skipRow}>
+              <Icon name="skip" size="sm" color={theme.color.onSurfaceVariant} />
+              <Text variant="bodyMedium" tone="variant" style={styles.flexFill} testID="reminder-skipped-note">
+                {t('reminders.skip.skipped', {
+                  when: describeStatus({kind: 'next', at: new Date(reminder.skippedAt)}, now, use24Hour, t),
+                })}
+              </Text>
+              <Button
+                label={t('reminders.skip.undo')}
+                variant="text"
+                disabled={skipNext.isPending}
+                onPress={() => skipNext.mutate({id: reminder.id, skip: false})}
+              />
+            </Stack>
+          ) : reminder.schedule.type !== 'once' && status.kind === 'next' ? (
+            <Button
+              label={t('reminders.skip.action')}
+              variant="text"
+              icon="skip"
+              disabled={skipNext.isPending}
+              onPress={() => skipNext.mutate({id: reminder.id, skip: true})}
+              testID="reminder-skip-next"
+              style={styles.skipButton}
+            />
+          ) : null}
         </Card>
 
         <Stack gap="xxs">
@@ -277,5 +309,7 @@ export function ReminderDetailScreen({navigation, route}: Props) {
 
 const styles = StyleSheet.create({
   flexFill: {flex: 1},
+  skipRow: {paddingTop: 8},
+  skipButton: {alignSelf: 'flex-start', marginTop: 4},
   grow: {flexGrow: 1, flexBasis: 140},
 });

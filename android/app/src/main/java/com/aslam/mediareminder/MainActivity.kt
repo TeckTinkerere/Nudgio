@@ -1,6 +1,8 @@
 package com.aslam.mediareminder
 
+import android.content.Intent
 import android.os.Bundle
+import com.aslam.mediareminder.media.IncomingShare
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -37,5 +39,19 @@ class MainActivity : ReactActivity() {
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(null)
+        // "Share to Nudgio" (DL-110). Only on a fresh launch: a recreated
+        // Activity carries the same intent again, and the share was already
+        // taken the first time.
+        if (savedInstanceState == null) captureShare(intent)
+    }
+
+    /** `singleTask`: a share while the app is already open arrives here. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        captureShare(intent)
+    }
+
+    private fun captureShare(intent: Intent?) {
+        IncomingShare.capture(intent, ownAuthority = "$packageName.fileprovider")
     }
 }

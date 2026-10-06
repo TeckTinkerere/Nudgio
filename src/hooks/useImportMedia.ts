@@ -1,13 +1,25 @@
 /**
- * "Import media" end to end: pick a file, then stream it in.
+ * "Import media" end to end: pick one or more files, then stream each in.
+ *
+ * Multi-select (DL-109): the picker returns up to `MAX_IMPORT_BATCH` files
+ * and they are imported one after another, each its own native import with
+ * its own journal entry and progress — never one combined copy, so one bad
+ * file cannot take the others with it.
+ *
+ * Files shared in from another app (DL-110 "Share to Nudgio") take the same
+ * path with the picker step skipped: pass `{documents}` instead of MIME types.
+ *
+ * MR-09's 500 MB soft warning is finally shown (DL-110): when any chosen file
+ * is over it, `largeFilePrompt` holds the batch until the user confirms, and
+ * `ImportPrompts` renders the question.
  *
  * Two bridge calls chained into one mutation because they are one user
  * action ("Import media" — MR-03 "Import flow" steps 1-2 happen inside
- * `pickDocument`, steps 3-5 inside `beginMediaImport`), and because a picker
+ * `pickDocuments`, steps 3-5 inside `beginMediaImport`), and because a picker
  * cancellation has to be distinguishable from an import failure: backing out
- * of the system picker is `PickedDocument | null` resolving `null` (MR-08 —
- * not an error), while every real failure after that point is a thrown
- * `AppError` `unwrapResult` surfaces as the mutation's `error`.
+ * of the system picker resolves an empty list (MR-08 — not an error), while
+ * every real failure after that point is a thrown `AppError` `unwrapResult`
+ * surfaces as the mutation's `error`.
  *
  * `operationId` is learned from the first `operationProgress` event, the
  * same pattern `BackupScreen` already established for export — the id is not
@@ -18,17 +30,18 @@
  * an "Import media" entry point, and this is the bridge-level use case
  * behind both, not a Library-screen-specific concern.
  */
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 
 import {useAppMutation} from './useAppMutation';
 import {useAppQueryClient} from './useAppQueryClient';
 import {useOperationProgress} from './useOperationProgress';
 import {useAppContainer} from '../app/di';
 import {useToast} from '../app/toast/ToastProvider';
+import {appConfig} from '../core/config/appConfig';
 import type {AppError} from '../core/errors';
 import {queryKeys, unwrapResult} from '../core/state';
 import {useTranslation, type TranslationKey} from '../localization';
-import type {MediaDetail, UUID} from '../native-client/types';
+import type {MediaDetail, PickedDocument, UUID} from '../native-client/types';
 
 /**
  * MR-08 progress phase -> the exact MR-03 copy keys already seeded in
@@ -69,6 +82,14 @@ export const importProgressFraction = (
 };
 
 /**
+ * Native reports an over-2 GB file under `MR_STORAGE_INSUFFICIENT` too, with
+ * this reason code as `field` (`MediaReminderModule.mediaImportErrorEnvelope`).
+ * It needs its own copy: "free up space" is no help for a file that can never
+ * fit, and was the wrong advice every time a long 4K video was picked.
+ */
+const TOO_LARGE_FIELD = 'media_import_too_large';
+
+/**
  * MR-03's exact listed import error copy, keyed by the MR-08 wire code
  * `beginMediaImport`'s rejection carries. `field === 'cancelled'` is checked
  * first because Kotlin reports a user cancellation as `MR_VALIDATION_FAILED`
@@ -83,6 +104,12 @@ export const importErrorCopy = (
     return {
       titleKey: 'error.unexpected.title',
       bodyKey: 'library.import.errorCancelled',
+    };
+  }
+  if (error.field === TOO_LARGE_FIELD) {
+    return {
+      titleKey: 'error.unexpected.title',
+      bodyKey: 'library.import.errorTooLarge',
     };
   }
   switch (error.code) {
@@ -106,20 +133,47 @@ export const importErrorCopy = (
   }
 };
 
-/**
- * MR-09 "Storage limits": "maintain 250 MB... whichever is greater" is the
- * one number in that rule guaranteed to be a true lower bound regardless of
- * the file or the 5%-of-total floor, so it is what `errorInsufficientSpace`'s
- * `{megabytes}` interpolates — not a computed "exactly this many MB", which
- * this layer has no way to know (the native rejection carries a reason code,
- * not a byte count).
- */
-export const STORAGE_INSUFFICIENT_MIN_MB = 250;
+/** Mirrors native `MediaPicker.MAX_BATCH_ITEMS`; native clamps to it either way. */
+export const MAX_IMPORT_BATCH = 20;
 
 export interface ImportMediaOutcome {
   readonly status: 'imported' | 'noSelection';
+  /** The first file imported — what a caller holding one item (the reminder editor) attaches. */
   readonly media?: MediaDetail;
+  /** Every file imported, in the order the picker returned them. */
+  readonly items: readonly MediaDetail[];
+  /** Picked files that were not added, including any skipped after the batch stopped. */
+  readonly failedCount: number;
 }
+
+/** What to import: MIME types to open the picker with, or files already in hand (a share). */
+export type ImportMediaRequest = readonly string[] | {readonly documents: readonly PickedDocument[]} | void;
+
+/** A batch waiting on "these files are large — import anyway?". */
+export interface LargeFilePrompt {
+  readonly count: number;
+  readonly largestBytes: number;
+  readonly confirm: () => void;
+  readonly decline: () => void;
+}
+
+/** Files over MR-09's soft warning size. Unknown sizes are not guessed at. */
+export const largeFiles = (documents: readonly PickedDocument[]): readonly PickedDocument[] =>
+  documents.filter(document => Number(document.sizeBytes ?? 0) > appConfig.storage.assetSoftWarningBytes);
+
+/** Position within a multi-file import, 1-based for display. */
+export interface ImportBatchPosition {
+  readonly current: number;
+  readonly total: number;
+}
+
+/**
+ * Stop the batch rather than try the next file: a user cancel, or no space —
+ * the next file would only fail the same way.
+ */
+const endsBatch = (error: AppError): boolean =>
+  error.field === 'cancelled' ||
+  (error.code === 'MR_STORAGE_INSUFFICIENT' && error.field !== TOO_LARGE_FIELD);
 
 /**
  * MR-05's import table lists Photo Picker as the mechanism for video/image;
@@ -136,24 +190,75 @@ export const useImportMedia = () => {
   const {showToast} = useToast();
   const t = useTranslation();
   const [operationId, setOperationId] = useState<UUID | null>(null);
+  const [batch, setBatch] = useState<ImportBatchPosition | null>(null);
+  const [largeFilePrompt, setLargeFilePrompt] = useState<LargeFilePrompt | null>(null);
+  // A ref, not state: the loop below reads it between files, inside one
+  // mutation run that would otherwise only ever see its first render's value.
+  const stopRequested = useRef(false);
 
-  const mutation = useAppMutation<ImportMediaOutcome, readonly string[] | void>({
-    mutationFn: async mimeTypes => {
-      const picked = await unwrapResult(() =>
-        repositories.media.pickDocument(mimeTypes ?? DEFAULT_MIME_TYPES),
-      );
-      if (picked === null) {
-        return {status: 'noSelection'};
+  /** Resolves true to import, false to back out; the dialog is `ImportPrompts`. */
+  const confirmLargeFiles = (large: readonly PickedDocument[]) =>
+    new Promise<boolean>(resolve => {
+      const settle = (proceed: boolean) => {
+        setLargeFilePrompt(null);
+        resolve(proceed);
+      };
+      setLargeFilePrompt({
+        count: large.length,
+        largestBytes: Math.max(...large.map(document => Number(document.sizeBytes ?? 0))),
+        confirm: () => settle(true),
+        decline: () => settle(false),
+      });
+    });
+
+  const mutation = useAppMutation<ImportMediaOutcome, ImportMediaRequest>({
+    mutationFn: async request => {
+      stopRequested.current = false;
+      const picked = request && 'documents' in request
+        ? request.documents.slice(0, MAX_IMPORT_BATCH)
+        : await unwrapResult(() =>
+          repositories.media.pickDocuments(request ?? DEFAULT_MIME_TYPES, MAX_IMPORT_BATCH),
+        );
+      if (picked.length === 0) {
+        return {status: 'noSelection', items: [], failedCount: 0};
       }
-      const media = await unwrapResult(() =>
-        repositories.media.beginImport({
-          sourceUri: picked.uriToken,
-          displayName: picked.displayName,
-          mimeType: picked.mimeType,
-          sizeBytes: picked.sizeBytes,
-        }),
-      );
-      return {status: 'imported', media};
+      const large = largeFiles(picked);
+      if (large.length > 0 && !(await confirmLargeFiles(large))) {
+        return {status: 'noSelection', items: [], failedCount: 0};
+      }
+
+      const items: MediaDetail[] = [];
+      let firstError: AppError | undefined;
+      for (const [index, document] of picked.entries()) {
+        if (stopRequested.current) {
+          break;
+        }
+        setBatch({current: index + 1, total: picked.length});
+        try {
+          items.push(
+            await unwrapResult(() =>
+              repositories.media.beginImport({
+                sourceUri: document.uriToken,
+                displayName: document.displayName,
+                mimeType: document.mimeType,
+                sizeBytes: document.sizeBytes,
+              }),
+            ),
+          );
+        } catch (error) {
+          const appError = error as AppError;
+          firstError ??= appError;
+          if (endsBatch(appError)) {
+            break;
+          }
+        }
+      }
+
+      // Nothing landed: surface the reason exactly as a single import would.
+      if (items.length === 0) {
+        throw firstError;
+      }
+      return {status: 'imported', media: items[0], items, failedCount: picked.length - items.length};
     },
     onSuccess: outcome => {
       if (outcome.status !== 'imported') {
@@ -166,11 +271,20 @@ export const useImportMedia = () => {
       void queryClient.invalidateQueries({queryKey: queryKeys.media.all()});
       // eslint-disable-next-line no-void
       void queryClient.invalidateQueries({queryKey: queryKeys.startup()});
-      // Every call imports exactly one file (see module doc comment) — the
-      // `{count}` form matches the same "N assets ... successfully" wording
-      // Library's bulk export/delete toasts already use.
-      showToast({message: t('library.import.success', {count: 1}), tone: 'success'});
+      const count = outcome.items.length;
+      if (outcome.failedCount > 0) {
+        showToast({
+          message: t('library.import.partial', {imported: count, failed: outcome.failedCount}),
+          tone: 'error',
+        });
+        return;
+      }
+      showToast({
+        message: count === 1 ? t('library.import.successOne') : t('library.import.success', {count}),
+        tone: 'success',
+      });
     },
+    onSettled: () => setBatch(null),
   });
 
   const progress = useOperationProgress('import', mutation.isPending);
@@ -186,6 +300,7 @@ export const useImportMedia = () => {
   }, [mutation.isPending, progress?.operationId]);
 
   const cancel = () => {
+    stopRequested.current = true;
     if (operationId) {
       // Fire-and-forget: the running copy loop checks cancellation
       // cooperatively (MR-10) and the mutation itself settles from the
@@ -195,11 +310,27 @@ export const useImportMedia = () => {
     }
   };
 
+  // One bar for the whole batch: finished files count whole, the current one
+  // by its own byte fraction. A single file of unknown size stays indeterminate.
+  const itemFraction = importProgressFraction(progress);
+  const multiple = batch !== null && batch.total > 1;
+  const progressFraction = multiple
+    ? (batch.current - 1 + (itemFraction ?? 0)) / batch.total
+    : itemFraction;
+  const phaseLabel = t(importPhaseLabelKey(progress?.phase) ?? 'library.import.copying');
+  const progressLabel = multiple
+    ? t('library.import.batchProgress', {phase: phaseLabel, current: batch.current, total: batch.total})
+    : phaseLabel;
+
   return {
     importMedia: mutation.mutate,
     importMediaAsync: mutation.mutateAsync,
     isImporting: mutation.isPending,
     progress,
+    progressFraction,
+    progressLabel,
+    batch,
+    largeFilePrompt,
     cancel,
     error: mutation.error,
     reset: mutation.reset,
