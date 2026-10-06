@@ -19,7 +19,7 @@ import {useAppContainer} from '../../app/di';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {useToast} from '../../app/toast/ToastProvider';
 import {testIds} from '../../constants';
-import {rootRoutes} from '../../constants/routes';
+import {rootRoutes, tabRoutes} from '../../constants/routes';
 import {appConfig} from '../../core/config/appConfig';
 import type {AppError} from '../../core/errors';
 import {unwrapResult} from '../../core/state';
@@ -54,6 +54,7 @@ import {formatStorageSize, useTranslation, type TranslationKey} from '../../loca
 import {isBuiltInProfileNameKey} from '../../native-client/reminderProfileNameKeys';
 import type {ReminderProfile, UUID} from '../../native-client/types';
 import {statusKindFor, statusLabelKeyFor} from '../home/capabilityStatus';
+import {describePauseEnd, PauseAllSheet, usePauseAll} from '../home/PauseAll';
 import {PROFILE_DESCRIPTION_KEY, PROFILE_ICON} from '../reminders/profileDisplay';
 import {useScheduleTestReminder} from '../reminders/useScheduleTestReminder';
 
@@ -124,6 +125,8 @@ export function SettingsScreen() {
   const profiles = useProfiles();
   const capability = useCapabilitySnapshot();
   const storageUsage = useMediaStorageUsage();
+  const pauseAll = usePauseAll();
+  const [pauseSheetOpen, setPauseSheetOpen] = useState(false);
   // `undefined` while the first read is in flight, so the row shows its
   // title and explainer with no subtitle rather than flashing "Nothing
   // imported yet" at a user who has a full library.
@@ -327,6 +330,24 @@ export function SettingsScreen() {
             onPress={() => navigation.navigate(rootRoutes.health)}
             trailing={<Icon name="chevronRight" color={theme.color.onSurfaceVariant} />}
           />
+          {/* DL-110 "Pause all": a holiday without switching every reminder off. */}
+          <ListRow
+            title={t('pause.row')}
+            subtitle={pauseAll.end
+              ? describePauseEnd(pauseAll.end, t, preferences.data?.use24HourTime ?? null)
+              : t('pause.row.subtitle')}
+            leading={<SettingsRowIcon name="pause" />}
+            onPress={pauseAll.end ? undefined : () => setPauseSheetOpen(true)}
+            trailing={pauseAll.end
+              ? <Button label={t('pause.resume')} variant="text" disabled={pauseAll.isPending} onPress={pauseAll.resume} />
+              : <Icon name="chevronRight" color={theme.color.onSurfaceVariant} />}
+            testID="settings-pause-all"
+          />
+          <PauseAllSheet
+            visible={pauseSheetOpen}
+            onDismiss={() => setPauseSheetOpen(false)}
+            onChoose={pauseAll.pause}
+          />
           {capability.data && <Stack gap="xxs">
             <StatusPill kind={statusKindFor(capability.data.overall)} label={t(statusLabelKeyFor(capability.data.overall))} />
             <Text variant="bodyMedium" tone="variant">{t(capability.data.overall === 'ok'
@@ -518,6 +539,20 @@ export function SettingsScreen() {
             subtitle={storageSubtitle}
             leading={<SettingsRowIcon name="image" />}
           />
+          {/* DL-110 storage cleanup: the one storage number a user can act on. */}
+          {storageUsage.data?.unusedCount ? (
+            <ListRow
+              title={t('settings.row.storage.unused')}
+              subtitle={t('settings.row.storage.unusedSubtitle', {
+                count: storageUsage.data.unusedCount,
+                size: formatStorageSize(storageUsage.data.unusedBytes ?? 0),
+              })}
+              leading={<SettingsRowIcon name="delete" />}
+              onPress={() => navigation.navigate(rootRoutes.tabs, {screen: tabRoutes.library, params: {filter: 'unused'}})}
+              trailing={<Icon name="chevronRight" color={theme.color.onSurfaceVariant} />}
+              testID="settings-unused-media"
+            />
+          ) : null}
           <Stack paddingHorizontal="md">
             <Text variant="bodyMedium" tone="variant">
               {t('settings.storage.explainer')}

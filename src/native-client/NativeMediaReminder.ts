@@ -107,6 +107,7 @@ export interface MediaQueryWire {
   readonly kinds?: readonly string[];
   readonly categoryId?: string;
   readonly onlyMissing?: boolean;
+  readonly onlyUnused?: boolean;
   readonly sort?: 'recent' | 'name' | 'mostScheduled' | 'size';
   readonly offset?: number;
   readonly limit?: number;
@@ -214,6 +215,10 @@ export interface ReminderSummaryWire {
   readonly notes?: string;
   readonly schedule: ScheduleRuleWire;
   readonly action?: ReminderActionWire | null;
+  /** DL-110: the time "Skip next" passed over, still ahead. */
+  readonly skippedAt?: string | null;
+  /** DL-110: where playback starts, in ms. Null/absent is the beginning. */
+  readonly mediaStartMs?: number | null;
 }
 
 export interface ReminderDetailWire {
@@ -235,6 +240,8 @@ export interface ReminderDetailWire {
   readonly updatedAt: string;
   readonly entityVersion: number;
   readonly action?: ReminderActionWire | null;
+  readonly skippedAt?: string | null;
+  readonly mediaStartMs?: number | null;
 }
 
 export interface ReminderPageWire {
@@ -256,6 +263,7 @@ export interface SaveReminderRequestWire {
   readonly enabledIntent: boolean;
   readonly historyEnabled?: boolean;
   readonly action?: ReminderActionWire | null;
+  readonly mediaStartMs?: number | null;
 }
 
 export interface CapabilityEvaluationWire {
@@ -290,6 +298,9 @@ export interface MediaStorageUsageWire {
   readonly totalBytes: string;
   /** Assets whose row exists but whose bytes are gone — see `MediaStorageUsage`. */
   readonly unavailableCount: number;
+  /** DL-110: assets no reminder refers to. Absent on older builds. */
+  readonly unusedCount?: number;
+  readonly unusedBytes?: string;
 }
 
 export interface MutationResultWire {
@@ -435,6 +446,8 @@ export interface PreferencesSnapshotWire {
   readonly defaultSnoozeMinutes: number;
   readonly alarmRingtoneUri: string | null;
   readonly alarmRingtoneTitle: string;
+  /** DL-110 "Pause all": ISO instant, or null when not paused. Set only through `setPausedUntil`. */
+  readonly pausedUntil?: string | null;
 }
 
 /**
@@ -500,6 +513,13 @@ export interface Spec extends TurboModule {
   pickDocument(mimeTypes: readonly string[]): Promise<PickedDocumentWire | null>;
 
   /**
+   * Multi-select `pickDocument`: every file chosen, in picker order, or an
+   * empty array when the user backs out. Native clamps `maxItems` to its
+   * batch cap (`MediaPicker.MAX_BATCH_ITEMS`).
+   */
+  pickDocuments(mimeTypes: readonly string[], maxItems: number): Promise<readonly PickedDocumentWire[]>;
+
+  /**
    * Launches the system ringtone picker pre-filtered to TYPE_ALARM tones.
    * `currentUri` pre-selects the currently saved tone. Resolves with
    * `{uri, title}` or `null` when the user backs out.
@@ -521,6 +541,12 @@ export interface Spec extends TurboModule {
   getReminder(id: string): Promise<ReminderDetailWire>;
   saveReminder(request: SaveReminderRequestWire): Promise<SaveReminderResultWire>;
   setReminderEnabled(id: string, enabled: boolean): Promise<EnableResultWire>;
+  /** DL-110 "Skip next" (`skip: false` undoes it). Same result shape as `setReminderEnabled`. */
+  skipNextOccurrence(id: string, skip: boolean): Promise<EnableResultWire>;
+  /** DL-110 "Pause all" until an ISO instant, or `null` to resume. */
+  setPausedUntil(until: string | null): Promise<PreferencesSnapshotWire>;
+  /** DL-110 "Share to Nudgio": files shared in since the last call; empty when none. Take-once. */
+  takeSharedDocuments(): Promise<readonly PickedDocumentWire[]>;
   deleteReminder(id: string): Promise<MutationResultWire>;
   scheduleTestReminder(request: Object): Promise<TestReminderResultWire>;
 

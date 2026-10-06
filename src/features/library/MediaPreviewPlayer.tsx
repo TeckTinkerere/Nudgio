@@ -13,10 +13,10 @@
  * hand-built scrubber — the close button and loading/error framing around it
  * are this component's own.
  */
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Modal, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import ReactVideo from 'react-native-video';
+import ReactVideo, {type VideoRef} from 'react-native-video';
 
 import {MediaViewerHeader, mediaViewerStyles} from './MediaViewerChrome';
 import {Text} from '../../design-system/components/Text';
@@ -37,6 +37,10 @@ export interface MediaPreviewPlayerProps {
   readonly loadErrorLabel: string;
   /** Optional persistent bottom bar (e.g. the reminder-editor picker's "Use this" confirm button). Omit for a plain preview. */
   readonly footer?: React.ReactNode;
+  /** DL-110: begin here, in ms, once the media has loaded. */
+  readonly startMs?: number | null;
+  /** DL-110: the playhead, in ms, as it moves — for "Start from here". */
+  readonly onPositionChange?: (positionMs: number) => void;
   readonly testID?: string;
 }
 
@@ -51,11 +55,14 @@ export function MediaPreviewPlayer({
   closeLabel,
   loadErrorLabel,
   footer,
+  startMs,
+  onPositionChange,
   testID,
 }: MediaPreviewPlayerProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [status, setStatus] = useState<Status>('loading');
+  const player = useRef<VideoRef>(null);
 
   // A fresh open (possibly of a different item) always starts from
   // "loading" — without this, re-opening after a previous item errored
@@ -111,7 +118,15 @@ export function MediaPreviewPlayer({
               controls
               paused={!visible}
               resizeMode="contain"
-              onLoad={() => setStatus('ready')}
+              ref={player}
+              onLoad={() => {
+                setStatus('ready');
+                if (startMs) {
+                  player.current?.seek(startMs / 1000);
+                }
+              }}
+              progressUpdateInterval={250}
+              onProgress={onPositionChange ? event => onPositionChange(Math.round(event.currentTime * 1000)) : undefined}
               onError={() => setStatus('error')}
             />
           )}

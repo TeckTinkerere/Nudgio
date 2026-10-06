@@ -35,6 +35,8 @@ object MediaQuerySql {
         val kinds: List<String> = emptyList(),
         val categoryId: String? = null,
         val onlyMissing: Boolean = false,
+        /** DL-110 storage cleanup: media no reminder refers to, so deleting it changes no reminder. */
+        val onlyUnused: Boolean = false,
         val sort: String = SORT_RECENT,
         val offset: Int = 0,
         val limit: Int = DEFAULT_LIMIT,
@@ -133,6 +135,12 @@ object MediaQuerySql {
             args += MediaAssetEntity.INTEGRITY_MISSING
             args += MediaAssetEntity.INTEGRITY_CHANGED
             args += MediaAssetEntity.INTEGRITY_UNSUPPORTED
+        }
+
+        if (criteria.onlyUnused) {
+            // Any reminder counts, paused or finished included: "unused" has
+            // to mean deleting it cannot touch a reminder.
+            clauses += "id NOT IN (SELECT media_id FROM reminders)"
         }
 
         val sql = if (clauses.isEmpty()) "" else "WHERE ${clauses.joinToString(" AND ")}"

@@ -54,6 +54,10 @@ interface MediaDao {
     @Query("SELECT * FROM media_assets WHERE sha256 = :sha256")
     suspend fun getBySha256(sha256: String): List<MediaAssetEntity>
 
+    /** Assets stored in a different form from the bytes picked (DL-110), found by the original's digest. */
+    @Query("SELECT * FROM media_assets WHERE source_sha256 = :sha256")
+    suspend fun getBySourceSha256(sha256: String): List<MediaAssetEntity>
+
     @Query("SELECT COUNT(*) FROM media_assets")
     suspend fun count(): Int
 
@@ -85,6 +89,12 @@ interface MediaDao {
      */
     @Query("SELECT COUNT(*) AS items, SUM(size_bytes) AS bytes FROM media_assets")
     suspend fun storageTotals(): MediaStorageTotals
+
+    /** DL-110 storage cleanup: media no reminder refers to (same rule as `MediaQuerySql`'s `onlyUnused`). */
+    @Query(
+        "SELECT COUNT(*) AS items, SUM(size_bytes) AS bytes FROM media_assets WHERE id NOT IN (SELECT media_id FROM reminders)",
+    )
+    suspend fun unusedTotals(): MediaStorageTotals
 
     /** Projection row for [storageTotals]. */
     data class MediaStorageTotals(val items: Int, val bytes: Long?)

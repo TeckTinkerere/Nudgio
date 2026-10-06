@@ -16,7 +16,7 @@
  * form marks what is missing and names the first problem.
  */
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 
 import {ReminderActionSection, actionFromDraft, draftFromAction, type ActionDraft} from './editor/ReminderActionSection';
 import {ReminderAlertSection} from './editor/ReminderAlertSection';
@@ -252,6 +252,16 @@ function ReminderEditorForm({
   // Resolve the selected item directly, even beyond the first library page.
   const mediaDetail = useMediaDetail(mediaId);
   const [label, setLabel] = useState(seed?.label ?? '');
+  // DL-110: a start point belongs to the media it was chosen in; picking
+  // different media starts from the beginning again.
+  const [mediaStartMs, setMediaStartMs] = useState<number | null>(seed?.mediaStartMs ?? null);
+  const startMediaId = useRef(mediaId);
+  useEffect(() => {
+    if (startMediaId.current !== mediaId) {
+      startMediaId.current = mediaId;
+      setMediaStartMs(null);
+    }
+  }, [mediaId]);
   const [notes, setNotes] = useState(seed?.notes ?? '');
   const [repeatType, setRepeatType] = useState<RepeatType>(seed?.schedule.type ?? 'daily');
   const [time, setTime] = useState<TimeOfDayValue>(() => initialTimeFromSchedule(seed?.schedule));
@@ -404,6 +414,7 @@ function ReminderEditorForm({
         enabledIntent: existing?.enabledIntent ?? true,
         historyEnabled,
         action,
+        mediaStartMs,
       },
       {onSuccess: () => navigation.goBack()},
     );
@@ -470,6 +481,8 @@ function ReminderEditorForm({
           onPicked={setMediaId}
           onChooseFromLibrary={() => navigation.navigate(rootRoutes.selectMedia, {selectedMediaId: mediaId})}
           error={saveAttempted ? t('reminders.editor.validationMediaRequired') : undefined}
+          startMs={mediaStartMs}
+          onStartChange={setMediaStartMs}
         />
 
         {/* What it says, under the thing it is about. */}

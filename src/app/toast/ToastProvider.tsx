@@ -18,7 +18,7 @@ import {createContext, useCallback, useContext, useEffect, useRef, useState} fro
 import type {PropsWithChildren} from 'react';
 
 import type {HapticPattern} from '../../core/services';
-import {Toast, type ToastTone} from '../../design-system';
+import {Toast, type ToastAction, type ToastTone} from '../../design-system';
 // Direct file import, not the `../../hooks` barrel: several hooks behind
 // that barrel (e.g. `useImportMedia`, `useSaveReminder`) call `useToast`
 // themselves, and importing the barrel here would make this module part of
@@ -28,6 +28,8 @@ import {useHaptics} from '../../hooks/useHaptics';
 export interface ShowToastRequest {
   readonly message: string;
   readonly tone?: ToastTone;
+  /** An "Undo"-style action; the toast then stays up longer, so it can be reached. */
+  readonly action?: ToastAction;
   readonly durationMs?: number;
   /** Fired once, when this toast becomes the visible one — not repeated for its whole duration. */
   readonly haptic?: HapticPattern;
@@ -44,6 +46,8 @@ export interface ToastContextValue {
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 const DEFAULT_DURATION_MS = 3000;
+/** Long enough to read the message, find the button and press it. */
+const ACTION_DURATION_MS = 6000;
 
 export function useToast(): ToastContextValue {
   const ctx = useContext(ToastContext);
@@ -74,7 +78,7 @@ export function ToastProvider({children}: PropsWithChildren) {
     }
     const timeout = setTimeout(() => {
       setQueue(q => q.slice(1));
-    }, current.durationMs ?? DEFAULT_DURATION_MS);
+    }, current.durationMs ?? (current.action ? ACTION_DURATION_MS : DEFAULT_DURATION_MS));
     return () => clearTimeout(timeout);
     // Only `current.id` should retrigger this — `haptics` is a stable
     // control object, and re-running on every queue mutation would replay
@@ -85,7 +89,22 @@ export function ToastProvider({children}: PropsWithChildren) {
   return (
     <ToastContext.Provider value={{showToast}}>
       {children}
-      {current ? <Toast key={current.id} message={current.message} tone={current.tone} /> : null}
+      {current ? (
+        <Toast
+          key={current.id}
+          message={current.message}
+          tone={current.tone}
+          action={current.action
+            ? {
+              label: current.action.label,
+              onPress: () => {
+                setQueue(q => q.slice(1));
+                current.action?.onPress();
+              },
+            }
+            : undefined}
+        />
+      ) : null}
     </ToastContext.Provider>
   );
 }

@@ -1,5 +1,6 @@
 package com.aslam.mediareminder.media
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -38,26 +39,46 @@ class MediaStorageCompanionTest {
 
     @Test
     fun `rejects when remaining space would fall below the 5 percent-of-total reserve`() {
-        // Large volume: 5% of total (500 GB) dwarfs the 250 MB floor, so the
-        // percentage is the binding constraint here, not the absolute floor.
-        val total = 500L * oneGb // 5% = 25 GB
-        val usable = 26L * oneGb
-        val incoming = 2L * oneGb // leaves ~24 GB free, under the 25 GB requirement
+        // Mid-size volume: 5% of 16 GB (~819 MB) is above the 250 MB floor
+        // and below the 1 GB cap, so the percentage is the binding constraint.
+        val total = 16L * oneGb
+        val usable = 2L * oneGb
+        val incoming = 1_300L * 1024 * 1024 // leaves ~748 MB, under ~819 MB
 
         assertFalse(MediaStorage.hasRoomFor(incoming, usable, total))
     }
 
     @Test
     fun `reserve is the greater of the two floors, not their sum`() {
-        val total = 500L * oneGb // 5% = 25 GB
-        val usable = 26L * oneGb
-        // Leaves exactly 25 GB free — satisfies the percentage floor exactly,
-        // and 25 GB is already far above the 250 MB absolute floor, so this
-        // must pass. A bug that summed both reserves instead of taking the
-        // max would reject this.
-        val incoming = 1L * oneGb
+        val total = 16L * oneGb
+        val reserve = (total * MediaStorage.MIN_FREE_RESERVE_FRACTION).toLong()
+        val usable = 2L * oneGb
+        // Leaves exactly the 5% reserve free. A bug that summed both floors
+        // instead of taking the max would reject this.
+        val incoming = usable - reserve
 
         assertTrue(MediaStorage.hasRoomFor(incoming, usable, total))
+    }
+
+    @Test
+    fun `a large phone is not asked to keep gigabytes free`() {
+        // DL-109, the reported case: 5% of 256 GB is 12.8 GB, so 8 GB free
+        // refused every import. The 5% share is capped at 1 GB.
+        val total = 256L * oneGb
+        val usable = 8L * oneGb
+        val incoming = 2L * oneGb
+
+        assertTrue(MediaStorage.hasRoomFor(incoming, usable, total))
+        assertEquals(MediaStorage.MAX_FREE_RESERVE_BYTES, MediaStorage.reserveFor(total))
+    }
+
+    @Test
+    fun `the cap still keeps a gigabyte free on a large phone`() {
+        val total = 256L * oneGb
+        val usable = 3L * oneGb
+        val incoming = 2L * oneGb + 1 // leaves just under 1 GB
+
+        assertFalse(MediaStorage.hasRoomFor(incoming, usable, total))
     }
 
     @Test

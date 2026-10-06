@@ -99,6 +99,10 @@ data class ReminderEntity(
 
     @ColumnInfo(name = "action_label")
     val actionLabel: String? = null,
+
+    /** Where playback starts when opened, or null for the beginning (`MIGRATION_7_8`, DL-110). */
+    @ColumnInfo(name = "media_start_ms")
+    val mediaStartMs: Long? = null,
 ) {
     companion object {
         const val STATE_DISABLED = "disabled"

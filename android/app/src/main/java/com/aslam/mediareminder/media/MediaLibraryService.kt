@@ -49,6 +49,7 @@ class MediaLibraryService(private val database: MediaReminderDatabase, private v
             kinds = kinds,
             categoryId = query.takeIf { it.hasKey("categoryId") }?.getString("categoryId"),
             onlyMissing = query.hasKey("onlyMissing") && query.getBoolean("onlyMissing"),
+            onlyUnused = query.hasKey("onlyUnused") && query.getBoolean("onlyUnused"),
             sort = query.takeIf { it.hasKey("sort") }?.getString("sort")
                 ?: MediaQuerySql.SORT_RECENT,
             offset = if (query.hasKey("offset")) query.getInt("offset") else 0,
@@ -291,14 +292,23 @@ class MediaLibraryService(private val database: MediaReminderDatabase, private v
     suspend fun storageUsage(): StorageUsage {
         val totals = mediaDao.storageTotals()
         val unavailable = mediaDao.getAll().count { !storage.fileFor(it.storageKey).exists() }
+        val unused = mediaDao.unusedTotals()
         return StorageUsage(
             itemCount = totals.items,
             totalBytes = totals.bytes ?: 0L,
             unavailableCount = unavailable,
+            unusedCount = unused.items,
+            unusedBytes = unused.bytes ?: 0L,
         )
     }
 
-    data class StorageUsage(val itemCount: Int, val totalBytes: Long, val unavailableCount: Int)
+    data class StorageUsage(
+        val itemCount: Int,
+        val totalBytes: Long,
+        val unavailableCount: Int,
+        val unusedCount: Int = 0,
+        val unusedBytes: Long = 0,
+    )
 
     private suspend fun activeReminderCounts(items: List<MediaAssetEntity>): Map<String, Int> {
         if (items.isEmpty()) return emptyMap()

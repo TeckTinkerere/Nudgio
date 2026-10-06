@@ -3169,3 +3169,106 @@ the primer; previously it reported "Exact timing is off" for every
 actually decline — and stayed hidden until a reminder existed, so the
 explanation arrived after the decision it explained. Its action deep-links to
 notification settings rather than the in-app Health screen.
+
+## DL-109 — "Not enough space" on a phone with 8 GB free, and multi-select import
+
+**Date:** 2026-10-06
+**Context:** A tester was refused every image and video import with "Free at
+least 250 MB" while their phone showed over 8 GB free. MR-09's reserve is
+"250 MB or 5% of the volume, whichever is greater", and `MediaStorage.hasRoomFor`
+implemented exactly that — so on a 256 GB phone the reserve was 12.8 GB, and
+any phone more than 95% full refused imports outright. The copy only ever
+named the 250 MB floor, so the message and the rule disagreed by fifty times.
+A unit test asserted the behaviour (26 GB free on a 500 GB volume must refuse).
+Two smaller faults made it worse: the check used `File.usableSpace`, which
+excludes other apps' clearable cache that Settings counts as free; and an
+over-2 GB file was reported as the same "free up space" error, which no amount
+of freeing could fix.
+**Decision:**
+- **Cap the 5% share at 1 GB.** The reserve is now
+  `max(250 MB, min(5% of volume, 1 GB))`: small phones keep the percentage, a
+  large phone keeps a gigabyte. Android's own low-storage threshold is capped
+  the same way (5%, at most 500 MB); 1 GB stays more conservative than the OS.
+  MR-09 is amended rather than worked around.
+- **Ask the system for cache space before refusing.** `ensureRoomFor` tries the
+  plain check first; when it fails but `StorageManager.getAllocatableBytes`
+  passes, `allocateBytes` has the OS clear other apps' cache now. Any failure
+  in that path falls back to refusing. This closes the TODO lint warning.
+- **Separate copy for "too large".** Native already sends the reason code as
+  `field`; `importErrorCopy` uses it. The space copy no longer quotes a number
+  the rule does not guarantee.
+- **Multi-select import.** `pickDocuments` (new bridge method) opens the Photo
+  Picker with `EXTRA_PICK_IMAGES_MAX` or SAF with `EXTRA_ALLOW_MULTIPLE`, capped
+  at 20. JS imports the results one at a time, each a normal streamed,
+  journaled import — never one combined copy, so a bad file is skipped and
+  counted rather than failing the rest. A cancel or a storage refusal ends the
+  batch; files already imported stay. In the reminder editor the first file is
+  attached and the rest go to the Library, with a caption saying so; a
+  reminder still plays one item (no schema change). Inside an album, Library
+  files the whole batch into it.
+- **Cancel is finally on screen.** `useImportMedia().cancel` had no caller; a
+  shared `ImportProgress` row now shows Cancel beside the bar everywhere.
+**Consequence:** No permission, schema or archive change. `pickDocument`
+(single) remains for backup import and Replace source.
+
+## DL-110 — Share to Nudgio, lossless image storage, and five smaller usability gaps
+
+**Date:** 2026-10-06
+**Context:** The suggestions list after DL-109, approved together with a request
+for "file compression without quality loss".
+
+**Lossless compression — what is honest.** Video and audio cannot be
+compressed further without re-encoding, and every re-encode of them is lossy;
+JPEG, HEIC and WebP are the same. The only real lossless saving on a phone is
+images stored without lossy compression: PNG (screenshots, graphics) and BMP.
+`LosslessImageCompressor` re-encodes those as lossless WebP and keeps the
+result only when (a) it decodes back **pixel-identical** to the original
+(`Bitmap.sameAs`, decoded unpremultiplied so semi-transparent pixels are
+compared exactly), (b) the image is 8-bit sRGB (16-bit PNGs and other colour
+profiles are left alone), and (c) it is at least 10% smaller. Bounded at 16 MP
+and by free heap; API 30+ (`WEBP_LOSSLESS`). Anything else keeps the picked
+bytes, so the feature can never lower quality. `sha256` still describes the
+stored file (backups and the integrity sweep verify it); new
+`media_assets.source_sha256` remembers the original's digest so re-importing
+the same PNG still reuses the asset (DL-099). Visually lossless video
+transcoding (HEVC) was considered and not built: it is not lossless, and it
+would need Media3 Transformer, a new dependency.
+
+**Share to Nudgio.** `MainActivity` gains `SEND`/`SEND_MULTIPLE` filters for
+`image/*`, `video/*`, `audio/*` — no new permission: the read grant arrives with
+the share. `IncomingShare` holds the URIs in a take-once slot (the
+`PendingMediaOpen` pattern) and accepts only `content://` URIs that are not this
+app's own FileProvider: a `file://` or self-authority share is how a hostile
+app would get Nudgio to "import", then export or back up, its own private
+database. JS drains the slot on mount and resume (`IncomingShares` at the
+shell) and runs the normal batch import, with a floating progress card.
+
+**Smaller gaps.**
+- **Large-file warning.** MR-09's 500 MB soft warning existed only as a config
+  value. Picking any file over it now asks before copying.
+- **Undo delete.** The reminder is read before it is deleted; the toast's Undo
+  saves that copy again as a new reminder. Native delete stays a real delete
+  (its history cascades), so this is a restore, not a soft delete. Toasts
+  gained an optional action and stay up 6 s when they have one.
+- **Skip next.** New occurrence state `skipped`. The row is kept so its
+  `occurrence_key` stops the scheduler choosing that instant again, and the
+  scheduler starts its search after the latest future skip. `resolved_at` is
+  the skipped instant so retention cannot delete a far-ahead skip early.
+  Saving or toggling a reminder clears its skip. One-time reminders cannot
+  skip (their next time is their only one).
+- **Pause all.** `pausedUntil` preference, written only by `setPausedUntil`,
+  which drops unclaimed occurrences and reconciles; the scheduler then searches
+  from the pause's end, so the first alarm after it is already registered and
+  nothing has to wake up to resume. "Until I turn them back on" is a far-future
+  instant and schedules nothing. One-time reminders inside a pause are held,
+  not archived, so resuming early restores them. Not backed up.
+- **Video start point.** `reminders.media_start_ms`, chosen in the editor's
+  preview at the playhead ("Start from here"), honoured by the moment. Reset
+  when the reminder's media changes. Carried in backups as an optional key.
+- **Storage cleanup.** "Not used by any reminder" in Settings (count and size)
+  opens Library on a new matching filter. Any reminder counts as a use, paused
+  or finished included, so deleting from that view can never touch a reminder.
+
+**Schema:** `MIGRATION_7_8` — two nullable columns and one index, additive.
+Backup records gain two optional keys (`mediaStartMs`, `sourceSha256`);
+archives without them read as before.

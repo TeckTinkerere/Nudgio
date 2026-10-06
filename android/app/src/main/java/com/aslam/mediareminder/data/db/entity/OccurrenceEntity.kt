@@ -100,6 +100,14 @@ data class OccurrenceEntity(
         const val STATE_TIMED_OUT = "timed_out"
         const val STATE_FAILED_SAFE = "failed_safe"
 
+        /**
+         * The user chose "Skip next" (DL-110). Kept as a row rather than
+         * deleted: its `occurrence_key` is what stops the scheduler from
+         * computing the same instant again, and `SchedulerCoordinator` starts
+         * the next search after it.
+         */
+        const val STATE_SKIPPED = "skipped"
+
         /** MR-09-derived: the deterministic dedup/skip-completed key. */
         fun occurrenceKeyFor(kind: String, scheduledAtEpochMs: Long): String =
             "$kind:$scheduledAtEpochMs"

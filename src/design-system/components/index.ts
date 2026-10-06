@@ -51,7 +51,7 @@ export type {StatusKind, StatusPillProps} from './StatusPill';
 export {Text} from './Text';
 export type {TextProps, TextTone} from './Text';
 export {Toast} from './Toast';
-export type {ToastProps, ToastTone} from './Toast';
+export type {ToastAction, ToastProps, ToastTone} from './Toast';
 export {TextField} from './TextField';
 export type {TextFieldProps} from './TextField';
 export {Toggle} from './Toggle';
