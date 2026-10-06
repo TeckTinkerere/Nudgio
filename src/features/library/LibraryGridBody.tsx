@@ -15,10 +15,10 @@
  */
 import {StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent} from 'react-native';
 
+import {ImportProgress} from './ImportProgress';
 import {testIds} from '../../constants';
-import {EmptyState, ErrorState, LoadingState, ProgressBar, VirtualizedList} from '../../design-system';
+import {EmptyState, ErrorState, LoadingState, VirtualizedList} from '../../design-system';
 import type {useImportMedia, useMediaList} from '../../hooks';
-import {importPhaseLabelKey, importProgressFraction} from '../../hooks';
 import {useTranslation} from '../../localization';
 import type {MediaSummary} from '../../native-client/types';
 
@@ -136,10 +136,7 @@ export function LibraryGridBody({
       testID={testIds.library.grid}
       data={entries}
       ListHeaderComponent={<View>
-        {importMedia.isImporting && <ProgressBar
-          progress={importProgressFraction(importMedia.progress)}
-          label={t(importPhaseLabelKey(importMedia.progress?.phase) ?? 'library.import.copying')}
-        />}
+        <ImportProgress importMedia={importMedia} />
         {header}
       </View>}
       ListFooterComponent={media.isError ? <ErrorState

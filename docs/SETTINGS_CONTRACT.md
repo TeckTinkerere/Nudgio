@@ -19,6 +19,7 @@ not finished.
 | `use24HourTime` | Settings → Reminder defaults, toggle | `formatLocalTime` (Upcoming), `formatTimeParts` (Reminders list) | Works — control added 2026-08-24; the Reminders list separately hardcoded `hour12: true` and ignored it until the same pass |
 | `defaultSnoozeMinutes` | Settings → Reminder defaults, chips | `ReminderEditorScreen` seeds a new reminder's snooze from it | Works — until 2026-08-24 the editor seeded from `appConfig.snooze.presetMinutes[1]`, so this control changed nothing |
 | `hasCompletedOnboarding` | Not user-facing (written by Onboarding) | `RootNavigator` initial route | Works |
+| `pausedUntil` | Settings → Reminders and alerts → Pause all reminders; Home banner's Resume | `SchedulerCoordinator` (searches for each reminder's next time from the pause's end) | Works (DL-110). Read-only in `setPreferences`: written only by `setPausedUntil`, which reschedules. Not in backups, on purpose |
 | `languageTag` | **No control** | `Intl.DateTimeFormat` calls across Upcoming/editor | Intentionally unexposed: only `en` exists in `src/localization/resources/`. Add the control with the second locale, not before |
 
 ## View state (local, not native preferences)

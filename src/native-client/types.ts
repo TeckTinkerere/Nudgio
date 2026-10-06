@@ -116,6 +116,8 @@ export interface MediaQuery {
   readonly kinds?: readonly MediaKind[];
   readonly categoryId?: UUID;
   readonly onlyMissing?: boolean;
+  /** DL-110: only media no reminder refers to. */
+  readonly onlyUnused?: boolean;
   readonly sort?: 'recent' | 'name' | 'mostScheduled' | 'size';
   readonly offset?: number;
   readonly limit?: number;
@@ -292,6 +294,13 @@ export interface ReminderSummary {
    * notification says, so a list must not need a detail fetch per row.
    */
   readonly notes?: string;
+  /**
+   * DL-110 "Skip next": the occurrence the user skipped, still ahead.
+   * `nextOccurrence` is already the one after it.
+   */
+  readonly skippedAt?: Instant | null;
+  /** DL-110: where playback starts when the reminder is opened, in ms. Absent/null is the beginning. */
+  readonly mediaStartMs?: number | null;
 }
 
 export interface ReminderDetail extends ReminderSummary {
@@ -322,6 +331,8 @@ export interface SaveReminderRequest {
   readonly historyEnabled?: boolean;
   /** Omitted or `null` means "no action" — the editor always sends the whole reminder, so this also clears one. */
   readonly action?: ReminderActionDto | null;
+  /** DL-110: playback start in ms; `null`/0 is the beginning. */
+  readonly mediaStartMs?: number | null;
 }
 
 /**
@@ -610,6 +621,9 @@ export interface MediaStorageUsage {
   readonly itemCount: number;
   readonly totalBytes: ByteCount;
   readonly unavailableCount: number;
+  /** DL-110 storage cleanup: media no reminder refers to. */
+  readonly unusedCount?: number;
+  readonly unusedBytes?: ByteCount;
 }
 
 export interface MutationResult {
@@ -653,6 +667,12 @@ export interface PreferencesSnapshot {
   readonly defaultSnoozeMinutes: number;
   readonly alarmRingtoneUri: string | null;
   readonly alarmRingtoneTitle: string;
+  /**
+   * DL-110 "Pause all": no reminder rings before this instant. Null when not
+   * paused. Read-only here — change it with `reminders.setPausedUntil`, which
+   * reschedules. Compare against now: an expired pause can still be cached.
+   */
+  readonly pausedUntil?: Instant | null;
 }
 
 export interface PickedRingtone {
@@ -660,4 +680,4 @@ export interface PickedRingtone {
   readonly title: string;
 }
 
-export type PreferencePatch = Partial<PreferencesSnapshot>;
+export type PreferencePatch = Partial<Omit<PreferencesSnapshot, 'pausedUntil'>>;

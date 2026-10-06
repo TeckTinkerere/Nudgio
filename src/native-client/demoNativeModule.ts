@@ -291,6 +291,22 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
       };
     },
 
+    // Two files, so the batch path (progress "1 of 2", the summary toast)
+    // is exercisable without a device, for the same reason as above.
+    pickDocuments: async (
+      mimeTypes: readonly string[],
+      maxItems: number,
+    ): Promise<readonly PickedDocument[]> => {
+      const kind = kindFromMimeType(mimeTypes[0] ?? 'video/mp4');
+      const {extension, mimeType} = DEMO_FILE_BY_KIND[kind];
+      return Array.from({length: Math.min(2, maxItems)}, (_, index) => ({
+        uriToken: `demo://picked/${randomId()}.${extension}`,
+        displayName: `Demo import ${index + 1}.${extension}`,
+        mimeType,
+        sizeBytes: String(4_200_000) as ByteCount,
+      }));
+    },
+
     pickAlarmRingtone: async (_currentUri: string | null) => ({
       uri: null,
       title: 'Default alarm',
@@ -482,6 +498,21 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
           : null,
         updatedAt: new Date().toISOString() as Instant,
         entityVersion: existing.entityVersion + 1,
+      };
+      reminders.set(reminderId, updated);
+      return {reminder: toSummary(updated), nextOccurrence: updated.nextOccurrence};
+    },
+
+    // Marks the skip only; the demo does not re-derive the time after it.
+    skipNextOccurrence: async (id, skip): Promise<EnableResult> => {
+      const reminderId = id as UUID;
+      const existing = reminders.get(reminderId);
+      if (!existing) {
+        return notFound('demo-skipNextOccurrence');
+      }
+      const updated: ReminderDetail = {
+        ...existing,
+        skippedAt: skip ? existing.nextOccurrence?.scheduledAt ?? null : null,
       };
       reminders.set(reminderId, updated);
       return {reminder: toSummary(updated), nextOccurrence: updated.nextOccurrence};

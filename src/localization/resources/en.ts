@@ -214,6 +214,7 @@ export const en = {
   'library.filter.images': 'Images',
   'library.filter.text': 'Text',
   'library.filter.missing': 'Missing',
+  'library.filter.unused': 'Not in a reminder',
   'library.filters.more': 'More filters',
   'library.filters.fewer': 'Fewer filters',
   // The two `library.empty.*` states cover different causes: a genuinely
@@ -236,12 +237,27 @@ export const en = {
   'library.import.errorUnsupportedType': 'This file type is not supported.',
   'library.import.errorUnreadable':
     'The file could not be read. It may have moved or be damaged.',
-  // Translator note: {megabytes} is a localized number, already formatted.
   'library.import.errorInsufficientSpace':
-    'Not enough free space. Free at least {megabytes} MB and try again.',
+    'Your phone is too full to keep a copy of this file. Free up some space and try again.',
+  'library.import.errorTooLarge':
+    'This file is over 2 GB, the largest Nudgio can keep. Try a shorter or smaller version.',
   'library.import.errorCancelled': 'Import was cancelled. No file was added.',
-  // Translator note: {count} is a plain integer, always 1 today (imports are one file at a time).
-  'library.import.success': '{count} assets imported successfully.',
+  // Translator note: {count} is a plain integer, 2 or more.
+  'library.import.success': '{count} items imported.',
+  'library.import.successOne': '1 item imported.',
+  // Translator note: {imported} and {failed} are plain integers.
+  'library.import.partial': '{imported} imported. {failed} could not be added.',
+  'library.import.sharedTitle': 'Adding to your Library',
+  'library.import.largeTitle': 'Large files',
+  // Translator note: {size} is a formatted size such as "1.4 GB".
+  'library.import.largeBodyOne':
+    'This file is {size}. Nudgio keeps its own copy, so it will use that much space on your phone.',
+  // Translator note: {count} is a plain integer, 2 or more; {size} is the largest file's formatted size.
+  'library.import.largeBody':
+    '{count} of these files are over 500 MB, the largest {size}. Nudgio keeps its own copies, so they will use that much space on your phone.',
+  'library.import.largeConfirm': 'Import anyway',
+  // Translator note: {phase} is an import step label ("Copying"); {current} and {total} are plain integers.
+  'library.import.batchProgress': '{phase} · {current} of {total}',
   // Translator note: {count} is a plain integer.
   'library.grid.itemCount': '{count} items',
   'library.kind.video': 'Video',
@@ -337,6 +353,16 @@ export const en = {
   'reminders.editor.mediaSection': 'Media',
   'reminders.editor.mediaEmptyTitle': 'Add a photo, video or sound',
   'reminders.editor.changeMedia': 'Change media',
+  // Translator note: {time} is a playback position such as "1:23".
+  'reminders.editor.startsAt': 'Starts at {time}',
+  'reminders.editor.startsAtBeginning': 'Plays from the beginning',
+  'reminders.editor.startChoose': 'Choose start',
+  'reminders.editor.startReset': 'From the beginning',
+  // Translator note: {time} is a playback position such as "1:23".
+  'reminders.editor.startHere': 'Start from here ({time})',
+  'reminders.editor.alsoInLibraryOne': 'Using the first one here. The other one is in your Library.',
+  // Translator note: {count} is a plain integer, 2 or more.
+  'reminders.editor.alsoInLibrary': 'Using the first one here. The other {count} are in your Library.',
   'reminders.editor.chooseMedia': 'Choose media',
   'reminders.selectMedia.title': 'Select media',
   'reminders.selectMedia.useThis': 'Use this',
@@ -386,8 +412,32 @@ export const en = {
   'reminders.detail.noAction': 'Nothing. Done just closes the reminder.',
   'reminders.detail.deleteConfirmTitle': 'Delete this reminder?',
   'reminders.detail.deleteConfirmBody': 'The media itself is not deleted.',
-  'reminders.detail.deleteSuccess': 'Reminder deleted successfully.',
+  'reminders.detail.deleteSuccess': 'Reminder deleted.',
   'reminders.detail.deleteError': "Couldn't delete the reminder. Try again.",
+  'pause.row': 'Pause all reminders',
+  'pause.row.subtitle': 'For a holiday or a day off. Nothing rings until it ends.',
+  'pause.title': 'Pause all reminders',
+  'pause.explainer':
+    'Nothing will ring until the pause ends. Repeating reminders carry on from then. One-time reminders that fall inside the pause will not ring.',
+  'pause.choice.tomorrowMorning': 'Until tomorrow morning',
+  'pause.choice.threeDays': 'For 3 days',
+  'pause.choice.week': 'For a week',
+  'pause.choice.indefinite': 'Until I turn them back on',
+  'pause.bannerTitle': 'Reminders are paused',
+  // Translator note: {when} is a short date and time, e.g. "Mon 7 Oct, 6:00 AM".
+  'pause.until': 'Paused until {when}.',
+  'pause.untilResumed': 'Paused until you turn them back on.',
+  'pause.resume': 'Resume',
+  'pause.started': 'Reminders paused.',
+  'pause.ended': 'Reminders are back on.',
+  'pause.error': "Couldn't change the pause. Try again.",
+  'reminders.skip.action': 'Skip next',
+  // Translator note: {when} is a phrase such as "Tomorrow at 9:00 AM".
+  'reminders.skip.skipped': 'Skipped: {when}',
+  'reminders.skip.undo': 'Undo skip',
+  'reminders.skip.error': "Couldn't change the next time. Try again.",
+  'reminders.detail.restored': 'Reminder restored.',
+  'reminders.detail.restoreError': "Couldn't restore the reminder.",
   'reminders.toggle.enableError': "Couldn't enable the reminder. Try again.",
 
   // --- Reminder actions (DL-080) ----------------------------------------------
@@ -611,6 +661,9 @@ export const en = {
   'settings.row.storage': 'Nudgio media',
   'settings.row.storage.subtitle': '{items} · {size}',
   'settings.row.storage.empty': 'Nothing imported yet',
+  'settings.row.storage.unused': 'Not used by any reminder',
+  // Translator note: {count} is a plain integer; {size} a formatted size such as "1.2 GB".
+  'settings.row.storage.unusedSubtitle': '{count} · {size}. Review and free up space',
   'settings.row.storage.unavailable': '{count} unavailable',
   'settings.row.storage.item': 'item',
   'settings.row.storage.items': 'items',

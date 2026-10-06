@@ -107,6 +107,9 @@ class MediaReminderModule(
      * a place to find the right promise when [onActivityResult] fires.
      */
     private val pendingPickers = ConcurrentHashMap<Int, Promise>()
+
+    /** [pickDocuments]' promises; same request-code space as [pendingPickers], which is why they share a counter. */
+    private val pendingMultiPickers = ConcurrentHashMap<Int, Promise>()
     private val nextPickerRequestCode = AtomicInteger(PICKER_REQUEST_CODE_BASE)
 
     private val pendingRingtonePickers = ConcurrentHashMap<Int, Promise>()
@@ -418,6 +421,29 @@ class MediaReminderModule(
      */
     @ReactMethod
     fun pickDocument(mimeTypes: ReadableArray, promise: Promise) {
+        launchPicker(mimeTypes, maxItems = 1, pending = pendingPickers, promise = promise)
+    }
+
+    /**
+     * Multi-select form of [pickDocument]: resolves with every file chosen,
+     * in the order the picker reports them, or an empty array when the user
+     * backs out. `maxItems` is clamped to [MediaPicker.MAX_BATCH_ITEMS].
+     * Picking stays separate from importing for the same reason as
+     * [pickDocument]; the caller imports the results one at a time, so each
+     * file keeps its own journal entry, progress and failure.
+     */
+    @ReactMethod
+    fun pickDocuments(mimeTypes: ReadableArray, maxItems: Double, promise: Promise) {
+        val limit = maxItems.toInt().coerceIn(1, MediaPicker.MAX_BATCH_ITEMS)
+        launchPicker(mimeTypes, maxItems = limit, pending = pendingMultiPickers, promise = promise)
+    }
+
+    private fun launchPicker(
+        mimeTypes: ReadableArray,
+        maxItems: Int,
+        pending: ConcurrentHashMap<Int, Promise>,
+        promise: Promise,
+    ) {
         val activity = reactApplicationContext.currentActivity
         if (activity == null) {
             NativeErrorEnvelope.reject(
@@ -428,13 +454,13 @@ class MediaReminderModule(
         }
 
         val types = (0 until mimeTypes.size()).mapNotNull { mimeTypes.getString(it) }
-        val intent = MediaPicker.buildIntent(types)
+        val intent = MediaPicker.buildIntent(types, maxItems = maxItems)
         val requestCode = nextPickerRequestCode.getAndIncrement()
-        pendingPickers[requestCode] = promise
+        pending[requestCode] = promise
         try {
             activity.startActivityForResult(intent, requestCode)
         } catch (error: Exception) {
-            pendingPickers.remove(requestCode)
+            pending.remove(requestCode)
             NativeErrorEnvelope.reject(
                 promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
                 NativeErrorEnvelope.Category.MEDIA, field = "picker",
@@ -891,6 +917,8 @@ class MediaReminderModule(
                             // relying on a double staying under 2^53.
                             putString("totalBytes", usage.totalBytes.toString())
                             putInt("unavailableCount", usage.unavailableCount)
+                            putInt("unusedCount", usage.unusedCount)
+                            putString("unusedBytes", usage.unusedBytes.toString())
                         },
                     )
                 }
@@ -1000,6 +1028,75 @@ class MediaReminderModule(
                 }
                 .onFailure { failSafe(promise, it, "setReminderEnabled") }
         }
+    }
+
+    /** DL-110 "Skip next" / its undo. Resolves the same `{reminder, nextOccurrence}` shape as [setReminderEnabled]. */
+    @ReactMethod
+    fun skipNextOccurrence(id: String, skip: Boolean, promise: Promise) {
+        moduleScope.launch {
+            runCatching { reminderMutations.skipNext(id, skip) }
+                .onSuccess { outcome ->
+                    when (outcome) {
+                        is ReminderMutationService.SkipOutcome.Success -> promise.resolve(outcome.result)
+                        ReminderMutationService.SkipOutcome.NotFound -> NativeErrorEnvelope.reject(
+                            promise, "MR_VALIDATION_FAILED", "error.unexpected",
+                            NativeErrorEnvelope.Category.VALIDATION, field = "id",
+                        )
+                        ReminderMutationService.SkipOutcome.NotRepeating -> NativeErrorEnvelope.reject(
+                            promise, "MR_VALIDATION_FAILED", "error.validationFailed",
+                            NativeErrorEnvelope.Category.VALIDATION, field = "notRepeating",
+                        )
+                        ReminderMutationService.SkipOutcome.NothingPending -> NativeErrorEnvelope.reject(
+                            promise, "MR_VALIDATION_FAILED", "error.validationFailed",
+                            NativeErrorEnvelope.Category.VALIDATION, field = "nothingPending",
+                        )
+                    }
+                }
+                .onFailure { failSafe(promise, it, "skipNextOccurrence") }
+        }
+    }
+
+    /**
+     * DL-110 "Pause all". `until` is an ISO-8601 instant, or null to resume;
+     * an instant in the past is treated as resume. Resolves the updated
+     * preferences, which carry `pausedUntil`.
+     */
+    @ReactMethod
+    fun setPausedUntil(until: String?, promise: Promise) {
+        moduleScope.launch {
+            val instant = if (until == null) {
+                null
+            } else {
+                runCatching { java.time.Instant.parse(until) }.getOrNull() ?: run {
+                    NativeErrorEnvelope.reject(
+                        promise, "MR_VALIDATION_FAILED", "error.validationFailed",
+                        NativeErrorEnvelope.Category.VALIDATION, field = "until",
+                    )
+                    return@launch
+                }
+            }
+            runCatching {
+                reminderMutations.setPausedUntil(instant?.takeIf { it.isAfter(java.time.Instant.now()) })
+                preferences.read()
+            }
+                .onSuccess { promise.resolve(it) }
+                .onFailure { failSafe(promise, it, "setPausedUntil") }
+        }
+    }
+
+    /**
+     * DL-110 "Share to Nudgio": the files shared into the app since the last
+     * call, as [pickDocuments] would return them, or an empty array. JS polls
+     * this on mount and on every resume, like [takePendingMediaOpen].
+     */
+    @ReactMethod
+    fun takeSharedDocuments(promise: Promise) {
+        val uris = com.aslam.mediareminder.media.IncomingShare.take()
+        promise.resolve(
+            Arguments.createArray().apply {
+                uris.forEach { uri -> runCatching { pickedDocument(uri) }.onSuccess { pushMap(it) } }
+            },
+        )
     }
 
     @ReactMethod
@@ -1546,6 +1643,24 @@ class MediaReminderModule(
             return
         }
 
+        pendingMultiPickers.remove(requestCode)?.let { promise ->
+            // Several files arrive as ClipData; a picker that allowed many but
+            // got one may still report it on `data` alone. Backing out is an
+            // empty array — the same "not a failure" rule as below.
+            val uris = if (resultCode != Activity.RESULT_OK || data == null) {
+                emptyList()
+            } else {
+                data.clipData?.let { clip -> (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri } }
+                    ?: listOfNotNull(data.data)
+            }
+            promise.resolve(
+                Arguments.createArray().apply {
+                    uris.distinct().take(MediaPicker.MAX_BATCH_ITEMS).forEach { pushMap(pickedDocument(it)) }
+                },
+            )
+            return
+        }
+
         val promise = pendingPickers.remove(requestCode) ?: return
 
         if (resultCode != Activity.RESULT_OK || data?.data == null) {
@@ -1556,17 +1671,18 @@ class MediaReminderModule(
             return
         }
 
-        val uri = data.data!!
+        promise.resolve(pickedDocument(data.data!!))
+    }
+
+    private fun pickedDocument(uri: Uri): WritableMap {
         val resolver = reactApplicationContext.contentResolver
         val (displayName, sizeBytes) = queryDisplayNameAndSize(resolver, uri)
-        promise.resolve(
-            Arguments.createMap().apply {
-                putString("uriToken", uri.toString())
-                if (displayName != null) putString("displayName", displayName) else putNull("displayName")
-                putString("mimeType", resolver.getType(uri) ?: "application/octet-stream")
-                if (sizeBytes != null) putString("sizeBytes", sizeBytes.toString()) else putNull("sizeBytes")
-            },
-        )
+        return Arguments.createMap().apply {
+            putString("uriToken", uri.toString())
+            if (displayName != null) putString("displayName", displayName) else putNull("displayName")
+            putString("mimeType", resolver.getType(uri) ?: "application/octet-stream")
+            if (sizeBytes != null) putString("sizeBytes", sizeBytes.toString()) else putNull("sizeBytes")
+        }
     }
 
     override fun onNewIntent(intent: Intent) = Unit

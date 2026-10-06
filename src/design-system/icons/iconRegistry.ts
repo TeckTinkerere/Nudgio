@@ -33,6 +33,8 @@ export const iconRegistry = {
   /** Filled play arrow. Never mirrored: it is a transport control. */
   play: {paths: ['M8 5.14v13.72a1 1 0 0 0 1.54.84l10.3-6.86a1 1 0 0 0 0-1.68L9.54 4.3A1 1 0 0 0 8 5.14z']},
   pause: {paths: ['M7 5h3.5v14H7zM13.5 5H17v14h-3.5z']},
+  /** Skip next (DL-110): play-forward to a bar. Mirrored with reading direction, like an arrow. */
+  skip: {paths: ['M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z'], mirrorInRtl: true},
   /** Snooze: a clock face with a plus, paired with a visible text label. */
   snooze: {
     paths: [

@@ -39,6 +39,7 @@ import type {ListRenderItem} from 'react-native';
 import {CapabilityBanner} from './CapabilityBanner';
 import {statusKindFor, statusLabelKeyFor} from './capabilityStatus';
 import {NextMomentCard} from './NextMomentCard';
+import {PausedBanner} from './PauseAll';
 import type {RootStackParamList} from '../../app/navigation/types';
 import {testIds} from '../../constants';
 import {rootRoutes} from '../../constants/routes';
@@ -245,6 +246,7 @@ export function HomeScreen() {
         capability={startup.data.capability}
         hasAnyReminder={hasAnyReminder}
       />
+      <PausedBanner />
 
       {next ? (
         <Stack gap="xs">

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.room.withTransaction
 import com.aslam.mediareminder.MainActivity
+import com.aslam.mediareminder.data.PreferencesRepository
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.data.db.entity.OccurrenceEntity
 import com.aslam.mediareminder.data.db.entity.ReminderEntity
@@ -49,6 +50,7 @@ class SchedulerCoordinator(
 ) {
     private val mutex = Mutex()
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    private val preferences = PreferencesRepository(context)
 
     /**
      * Recomputes and re-registers the single global alarm. Safe to call from
@@ -76,7 +78,12 @@ class SchedulerCoordinator(
         val now = Instant.now()
 
         resolveAbandonedAlarms(now)
-        ensurePendingOccurrencesExist(zoneId, now)
+        // An unreadable preference must never stop reminders being scheduled:
+        // ringing during a pause is the lesser failure than not ringing at all.
+        val pausedUntil = runCatching { preferences.readPausedUntil(now) }
+            .onFailure { NativeLogger.error("scheduler.pauseUnreadable", cause = it) }
+            .getOrNull()
+        ensurePendingOccurrencesExist(zoneId, now, pausedUntil)
 
         val earliest = database.occurrenceDao().getEarliestEligible()
         applyToAlarmManager(earliest, now, reason)
@@ -167,8 +174,17 @@ class SchedulerCoordinator(
      * A `once` reminder whose instant has already passed produces no next
      * occurrence ([OccurrenceCalculator] returns `null`); such a reminder is
      * archived here rather than left silently un-rescheduled forever.
+     *
+     * DL-110 moves where the search for "next" starts, never what a rule
+     * means: it starts after the latest future *skipped* occurrence ("Skip
+     * next"), and after [pausedUntil] ("Pause all"). A one-time reminder
+     * inside a pause never rings; it is held while its moment is still
+     * ahead (so resuming early restores it) and archived once it passes —
+     * the pause dialog says so. An indefinite pause
+     * computes nothing at all; resuming starts from now.
      */
-    private suspend fun ensurePendingOccurrencesExist(zoneId: ZoneId, now: Instant) {
+    private suspend fun ensurePendingOccurrencesExist(zoneId: ZoneId, now: Instant, pausedUntil: Instant?) {
+        if (pausedUntil != null && !pausedUntil.isBefore(PreferencesRepository.INDEFINITE_PAUSE)) return
         database.withTransaction {
             val reminderDao = database.reminderDao()
             val scheduleRuleDao = database.scheduleRuleDao()
@@ -185,6 +201,9 @@ class SchedulerCoordinator(
             val activeReminderIds = activeReminders.map { it.id }
             val rulesByReminderId = scheduleRuleDao.getByReminderIds(activeReminderIds).associateBy { it.reminderId }
             val reminderIdsWithPending = occurrenceDao.getReminderIdsWithPendingOccurrence(activeReminderIds).toSet()
+            val latestSkipByReminderId = occurrenceDao.getFutureSkipped(activeReminderIds, now.toEpochMilli())
+                .groupBy { it.reminderId }
+                .mapValues { (_, rows) -> Instant.ofEpochMilli(rows.maxOf { it.scheduledAt }) }
 
             for (reminder in activeReminders) {
                 if (reminder.id in reminderIdsWithPending) {
@@ -192,8 +211,15 @@ class SchedulerCoordinator(
                 }
                 val ruleEntity = rulesByReminderId[reminder.id] ?: continue
                 val rule = ScheduleRuleMapper.toDomain(ruleEntity)
-                val nextInstant = OccurrenceCalculator.nextOccurrence(rule, zoneId, now)
+                val searchFrom = listOfNotNull(now, pausedUntil, latestSkipByReminderId[reminder.id]).max()
+                val nextInstant = OccurrenceCalculator.nextOccurrence(rule, zoneId, searchFrom)
 
+                // A one-time reminder that falls inside a pause is held, not
+                // archived: resuming early must bring it back. Once its
+                // moment has passed, the next reconcile archives it as usual.
+                if (nextInstant == null && rule is ScheduleRule.Once && rule.instant.isAfter(now)) {
+                    continue
+                }
                 if (nextInstant == null) {
                     // `once` already elapsed with nothing left to schedule.
                     // Archiving (not deleting) preserves it for Today/history
