@@ -10,7 +10,7 @@
  * A visible close control is always rendered, because dismissing by tapping
  * outside is not reachable by switch access.
  */
-import {Modal, Pressable, ScrollView, View} from 'react-native';
+import {KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {IconButton} from './IconButton';
@@ -52,7 +52,13 @@ export function Sheet({
       onRequestClose={onDismiss}
       animationType={theme.a11y.reduceMotion ? 'none' : 'slide'}
       statusBarTranslucent>
-      <View style={{flex: 1, justifyContent: 'flex-end'}} testID={testID}>
+      <KeyboardAvoidingView
+        style={{flex: 1, justifyContent: 'flex-end'}}
+        testID={testID}
+        // Android's Modal opens its own window, which does not pick up the
+        // Activity's adjustResize — without this the keyboard covers the
+        // sheet instead of pushing it up.
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <Pressable
           style={{flex: 1, backgroundColor: theme.color.scrim}}
           onPress={onDismiss}
@@ -101,7 +107,7 @@ export function Sheet({
           </ScrollView> : <View style={{flex: 1, paddingHorizontal: theme.layout.dialogPadding,
             paddingBottom: theme.spacing.md, gap: theme.spacing.sm}}>{children}</View>}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

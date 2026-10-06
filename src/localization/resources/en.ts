@@ -545,7 +545,7 @@ export const en = {
     'Reminders will show as a notification instead of taking over the screen, even when it is locked.',
   'capability.batteryEnvironment.ready': 'Background alerts are not restricted.',
   'capability.batteryEnvironment.limited':
-    'Your battery settings may delay background alerts. This is expected — Nudgio never asks to be exempted.',
+    "This is expected, and reminders are unaffected. Nudgio doesn't run continuously in the background — each reminder sets a single system alarm, so it uses almost no battery or processing power, and never asks to be exempted from battery optimization.",
   'capability.batteryEnvironment.unknown':
     "This device doesn't report battery-restriction status.",
   'capability.scheduler.ready': 'The next reminder is registered with Android.',
