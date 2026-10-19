@@ -3272,3 +3272,44 @@ shell) and runs the normal batch import, with a floating progress card.
 **Schema:** `MIGRATION_7_8` — two nullable columns and one index, additive.
 Backup records gain two optional keys (`mediaStartMs`, `sourceSha256`);
 archives without them read as before.
+
+## DL-112 — Backup hardening: private exports, bounded media restore, mandatory media checksums
+
+**Date:** 2026-10-19
+**Status:** Accepted. From the 2026-10-19 security audit (SEC-01, SEC-02,
+SEC-04); [`docs/security/2026-10-19-security-audit.md`](security/2026-10-19-security-audit.md).
+**Context:** Three weaknesses in the backup path, none needing a format change.
+
+**Decisions.**
+- **Exports live in `filesDir/backups` (SEC-01).** They were written to
+  `getExternalFilesDir(null)/backups`, which other apps holding
+  `READ_EXTERNAL_STORAGE` can read on Android 8-9 (and legacy-storage apps on
+  10), and which a computer sees over USB. An archive is unencrypted and holds
+  every media file, so it now stays in internal storage. `file_paths.xml`
+  `backups` is a `files-path` and sharing still goes through
+  `MediaReminderFileProvider`. Only the newest export is kept: a successful
+  export deletes the rest, and the old external `backups/` folder, so archives
+  written by earlier versions are removed on the first export after update.
+  Passphrase encryption (the audit's optional step) stays on the MR-10
+  roadmap.
+- **Media restore is bounded by the stream (SEC-02).** `promoteMediaFiles`
+  used to copy to EOF. `BackupMediaStream.copyBounded` now stops, and the
+  `.part` file is deleted, once the bytes written pass the entry's declared
+  size or `MAX_MEDIA_ENTRY_BYTES` (`media_entry_oversize`). The structural
+  validator only checks the sizes the archive declares, so the real stream
+  needs its own limit. Before commit, the declared size of the files still
+  owed is checked with `MediaStorage.ensureRoomFor` (the DL-109 reserve rule).
+  The check is inside the Room transaction, so refusing
+  (`media_storage_insufficient`) rolls the restored rows back instead of
+  leaving rows with no bytes.
+- **Missing media checksum is corrupt (SEC-04).** A media entry with no line in
+  `checksums.sha256` is `media_entry_corrupt`, the same as a mismatch, matching
+  how the JSON entries were already treated. The checksum file is not
+  authenticated: it detects corruption, not tampering (documented in MR-10).
+
+**Schema/format:** none. Archives are unchanged; archives from earlier
+versions that listed every media file in `checksums.sha256` (all exports from
+this app do) restore as before.
+
+**Tests:** `BackupMediaStreamTest`.
+
