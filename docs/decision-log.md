@@ -3272,3 +3272,50 @@ shell) and runs the normal batch import, with a floating progress card.
 **Schema:** `MIGRATION_7_8` — two nullable columns and one index, additive.
 Backup records gain two optional keys (`mediaStartMs`, `sourceSha256`);
 archives without them read as before.
+
+## DL-111 — Proposed: move the UI to Flutter so iPhone users can use Nudgio
+
+**Date:** 2026-10-19
+**Status:** Proposed. Binding only once ADR-023 is accepted; until then
+ADR-IOS-001 and the approved iPhone plan stand. Full plan:
+[`docs/plans/2026-10-19-flutter-migration-plan.md`](plans/2026-10-19-flutter-migration-plan.md).
+**Context:** Nudgio is Android-only. People with an iPhone, including the
+friends and family of current users, cannot install it at all. The owner asked
+for a plan to move to Flutter so the same app ships on both Android and iPhone.
+
+**Why it needs to be done.**
+- **iPhone users are shut out today.** There is no iOS build. The only iOS
+  code is an uncompiled AlarmKit feasibility target (ADR-IOS-001).
+- **One UI for both phones.** Flutter draws the same screens on Android and
+  iPhone from one Dart codebase. New features, fixes and design changes land
+  on both at once instead of being built twice or drifting apart.
+- **Less native glue to keep alive.** The RN UI depends on seven npm packages
+  that each carry their own Android *and* iOS native code. In Flutter,
+  navigation, gestures, animation and SVG are pure Dart; only video needs a
+  first-party plugin.
+- **One typed bridge for Kotlin and Swift.** Pigeon generates the Dart, Kotlin
+  and Swift sides of the existing 44-method `NativeMediaReminder` contract from
+  one schema, replacing RN Codegen plus an Objective-C++ adapter on iOS.
+- **Smaller toolchain attack surface.** 62 of the 63 `npm audit` advisories
+  (security audit SEC-09) come from Metro/Jest/RN CLI tooling that Flutter
+  removes.
+
+**What it is not.** The alarm engine cannot be shared. Android's
+`AlarmManager` + full-screen intent and iOS's AlarmKit are different OS
+services, and alarms must work with no UI engine running. So the Kotlin core
+stays exactly as is on Android (same package, signing key and Room v8 schema,
+so existing users upgrade with **no data migration**), and iPhone gets a Swift
+core implementing the same contract.
+
+**Trade-off accepted knowingly.** React Native can also run on iOS, and the
+approved RN + Swift path was estimated at 9–12 weeks to iPhone after Mac
+access. Flutter means rewriting ~25k lines of TypeScript UI and tests, about
+20–27 weeks in total, with Android v3.0.0 shipping on Flutter before the
+iPhone build. The gain is a single UI codebase and toolchain for the life of
+the product. Mac access, an Apple Developer account and iOS 26 (AlarmKit) are
+needed either way.
+
+**Consequences if accepted:** ADR-023 added to MR-17; ADR-003 superseded;
+ADR-IOS-001's "React Native remains the chosen production UI" amended; every
+new pub.dev dependency recorded here; security-audit fixes SEC-01/02/04 land in
+Kotlin first so both editions inherit them.
