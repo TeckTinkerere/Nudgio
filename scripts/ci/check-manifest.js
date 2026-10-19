@@ -14,6 +14,7 @@
  *
  *   node scripts/ci/check-manifest.js <path-to-AndroidManifest.xml> [...]
  */
+/* eslint-disable no-console -- a CLI: printing results is its output. */
 const fs = require('fs');
 
 const ALLOWED_EXPORTED = /(^|\.)MainActivity$/;
