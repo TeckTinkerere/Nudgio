@@ -33,7 +33,8 @@ The waitlist form posts to `api/waitlist.js`, a Vercel serverless
 function backed by **Upstash Redis** — a single Redis *set* of emails.
 There's no separate counter to keep in sync: the "people on the list"
 count is just `SCARD` (set size), which also means duplicate signups
-never inflate the number. A per-IP rate limit (5 requests/hour) and a
+never inflate the number. A per-IP rate limit (10 POSTs/hour, counting invalid ones; the IP comes
+from Vercel's `x-real-ip`) and a
 hidden honeypot field guard the public POST endpoint from casual abuse.
 
 To wire it up:
@@ -51,7 +52,10 @@ To wire it up:
 3. For local development, copy `.env.example` to `.env.local` and fill
    in the same two values.
 4. Redeploy. `GET /api/waitlist` returns `{ count }`; `POST /api/waitlist`
-   with `{ "email": "..." }` adds the email and returns the updated count.
+   with `{ "email": "..." }` adds the email and returns `{ ok: true, count }`.
+   The reply is identical for a new and a repeat address, so the endpoint
+   cannot be used to check whether someone is on the list. `GET` is cached
+   at the CDN for 60 seconds.
 
 ## Deploying to Vercel
 
