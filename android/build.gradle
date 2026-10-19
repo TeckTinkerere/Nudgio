@@ -48,3 +48,21 @@ allprojects {
         mavenCentral()
     }
 }
+
+/*
+ * `./gradlew lintDebug` runs in every module, including the React Native
+ * libraries under node_modules. Those are third-party code we cannot fix:
+ * react-native-video fails a WrongThread error in its own Java, and
+ * worklets/reanimated crash lint's build-script analysis. They sink the whole
+ * build before :app is judged, so only :app, the code this repo owns, is
+ * linted (DL-113). :app's lint does not need the libraries' lint output.
+ */
+subprojects { subproject ->
+    if (subproject.path != ':app') {
+        subproject.tasks.configureEach { task ->
+            if (task.name.startsWith('lint')) {
+                task.enabled = false
+            }
+        }
+    }
+}
