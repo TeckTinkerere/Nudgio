@@ -271,7 +271,8 @@ Baseline configurable limits:
 - 20,000 ZIP entries;
 - 10 GB expected uncompressed or available-space policy, whichever is lower;
 - 2 GB per media entry for v1;
-- 100 MB maximum aggregate JSON (far above normal use but bounded);
+- 100 MB maximum aggregate JSON, shared by every JSON and manifest entry in the archive, and 25 MB for any single JSON entry (both far above normal use but bounded; enforced on the decompressed stream, not on the declared size);
+- every media `storageKey` must match `<lowercase uuid>.<1-8 lowercase alphanumerics>`, the only shape the app writes, or the archive is rejected (`media_storage_key_invalid`);
 - compression ratio warning at 100:1 and rejection at a security-reviewed threshold;
 - nesting is irrelevant because entries are flat; nested ZIP media is treated as opaque unsupported media, not recursively extracted.
 
