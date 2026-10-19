@@ -176,10 +176,9 @@
         .then(function (data) {
           form.reset();
           showWaitlistCount(data.count);
-          setWaitlistStatus(
-            data.alreadyJoined ? 'You’re already on the list.' : 'You’re in — thanks!',
-            'success'
-          );
+          // One message for new and repeat signups: the server no longer says
+          // which it was, so this form cannot be used to check who is listed.
+          setWaitlistStatus('You’re on the list — thanks!', 'success');
         })
         .catch(function (err) {
           setWaitlistStatus(err.message || 'Something went wrong. Try again in a bit.', 'error');

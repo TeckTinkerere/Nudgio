@@ -49,7 +49,9 @@ object BackupSemanticValidator {
         val entriesByName = structural.entries.associateBy { it.name }
         val warnings = structural.warnings.toMutableList()
 
-        val manifestBytes = readEntryBytes(zipFile, BackupFormat.ENTRY_MANIFEST, entriesByName)
+        // One budget for every JSON/manifest entry in this archive (SEC-06).
+        val jsonBudget = BackupJsonBudget()
+        val manifestBytes = readEntryBytes(zipFile, BackupFormat.ENTRY_MANIFEST, entriesByName, jsonBudget)
         val manifest = try {
             BackupManifest.fromJson(JSONObject(String(manifestBytes, Charsets.UTF_8)))
         } catch (error: org.json.JSONException) {
@@ -66,7 +68,7 @@ object BackupSemanticValidator {
         // `too_new`, not this validator throwing and losing the manifest
         // entirely. `too_new` is returned, not thrown.
 
-        val checksumBytes = readEntryBytes(zipFile, BackupFormat.ENTRY_CHECKSUMS, entriesByName)
+        val checksumBytes = readEntryBytes(zipFile, BackupFormat.ENTRY_CHECKSUMS, entriesByName, jsonBudget)
         val declaredChecksums = BackupChecksums.parseChecksumFile(checksumBytes)
         var checksumStatus = "valid"
 
@@ -79,7 +81,7 @@ object BackupSemanticValidator {
         }
 
         fun readAndVerify(name: String): ByteArray {
-            val bytes = readEntryBytes(zipFile, name, entriesByName)
+            val bytes = readEntryBytes(zipFile, name, entriesByName, jsonBudget)
             verifyAgainstDeclared(name, bytes)
             return bytes
         }
@@ -136,6 +138,8 @@ object BackupSemanticValidator {
         }
 
         val declaredMedia = parseJsonArray(mediaJson) { BackupMediaAssetCodec.fromJson(it) }
+        // SEC-10: checked directly, not left to the entry-name rules of another class.
+        declaredMedia.forEach { BackupStorageKey.require(it.storageKey) }
         requireUnique(declaredMedia.map { it.id }, "media")
         requireUnique(declaredMedia.map { it.storageKey }, "media storage key")
 
@@ -254,19 +258,25 @@ object BackupSemanticValidator {
     }
 
     /**
-     * Reads at most [BackupFormat.MAX_AGGREGATE_JSON_BYTES] regardless of
-     * what the central directory *declares* — a hostile archive's declared
+     * Reads at most [BackupFormat.MAX_JSON_ENTRY_BYTES] for this entry, and
+     * at most what is left of [budget] across the whole archive, regardless
+     * of what the central directory *declares* — a hostile archive's declared
      * `size` is not trusted on its own (that check already happened in
      * [BackupZipStructuralValidator]); this is the live, can't-be-lied-to
      * bound on the actual decompressed byte stream.
      */
-    private fun readEntryBytes(zipFile: ZipFile, name: String, entries: Map<String, BackupZipStructuralValidator.ValidatedEntry>): ByteArray {
+    internal fun readEntryBytes(
+        zipFile: ZipFile,
+        name: String,
+        entries: Map<String, BackupZipStructuralValidator.ValidatedEntry>,
+        budget: BackupJsonBudget,
+    ): ByteArray {
         val validated = entries[name] ?: throw BackupFormatException("zip_required_entry_missing", "Archive is missing required entry: $name")
-        if (validated.uncompressedSize > BackupFormat.MAX_AGGREGATE_JSON_BYTES) {
+        if (validated.uncompressedSize > BackupFormat.MAX_JSON_ENTRY_BYTES) {
             throw BackupFormatException("zip_entry_too_large", "Entry $name exceeds the maximum size for a JSON/manifest entry")
         }
         val zipEntry = zipFile.getEntry(name) ?: throw BackupFormatException("zip_required_entry_missing", "Archive is missing required entry: $name")
-        val limit = BackupFormat.MAX_AGGREGATE_JSON_BYTES
+        val limit = BackupFormat.MAX_JSON_ENTRY_BYTES
         val buffer = java.io.ByteArrayOutputStream()
         zipFile.getInputStream(zipEntry).use { input ->
             val chunk = ByteArray(64 * 1024)
@@ -278,6 +288,7 @@ object BackupSemanticValidator {
                 if (total > limit) {
                     throw BackupFormatException("zip_entry_stream_exceeded_declared_size", "Entry $name decompressed beyond its declared size")
                 }
+                budget.charge(name, read.toLong())
                 buffer.write(chunk, 0, read)
             }
         }

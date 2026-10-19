@@ -20,15 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <script>
-    /* Applied before first paint so a chosen theme never flashes the other
-       one. Anything unrecognised — including nothing stored — falls through
-       to "system", which is what the CSS already does on its own. */
-    try {
-      var t = localStorage.getItem('nudgio-theme');
-      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
-    } catch (e) {}
-  </script>
+  <script src="theme-init.js"></script>
   <script src="theme.js" defer></script>
   <link rel="stylesheet" href="styles.css" />
 </head>
