@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  js:
+    name: Typecheck, lint, Jest, npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      # Critical advisories fail the build. The remaining highs are in dev
+      # tooling (Metro, Jest, RN CLI) that needs breaking upgrades; Dependabot
+      # raises those as PRs instead.
+      - run: npm audit --audit-level=critical
+      - name: Audit the website function
+        working-directory: web
+        run: npm ci && npm audit --audit-level=high
+
+  android:
+    name: Gradle test, lintDebug, release manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - name: Unit tests and lint
+        working-directory: android
+        run: ./gradlew test lintDebug --console=plain
+      - name: Merge the release manifest
+        working-directory: android
+        run: ./gradlew :app:processReleaseMainManifest --console=plain
+      # No INTERNET, nothing exported but MainActivity (and library receivers
+      # behind the DUMP permission), allowBackup off. Runs on the merged
+      # manifest so a library that adds a component or permission is caught.
+      - name: Assert release manifest
+        run: >
+          node scripts/ci/check-manifest.js
+          android/app/src/main/AndroidManifest.xml
+          android/app/build/intermediates/merged_manifest/release/processReleaseMainManifest/AndroidManifest.xml

@@ -3378,3 +3378,56 @@ because `compress()` already returned early below API 30.
 **Revisit:** if a library upgrade makes its lint pass, nothing needs undoing.
 Library lint can be turned back on per module by removing it from the filter.
 
+## DL-114 — Security audit follow-ups: waitlist, restore limits, site headers, CI
+
+**Date:** 2026-10-20
+**Status:** Accepted. Remaining items from the 2026-10-19 security audit
+([`docs/security/2026-10-19-security-audit.md`](security/2026-10-19-security-audit.md));
+SEC-01, SEC-02 and SEC-04 were DL-112.
+
+**Decisions.**
+- **SEC-09, npm advisories.** `npm audit fix` fails on a peer conflict between
+  `react-native-reanimated` and `react-native-worklets`, and `--force` would
+  downgrade React Native, so the transitive packages were updated in place
+  (`npm update shell-quote compression nanoid joi js-yaml qs brace-expansion`,
+  patch/minor only). 63 advisories became 59, with the one critical
+  (`shell-quote`) gone. The rest sit in Jest 29, Metro and the RN CLI and need
+  Jest 30 or React Native 0.88; Dependabot will propose them.
+- **SEC-03 / SEC-05, waitlist.** A POST gets the same `{ ok: true, count }`
+  whether or not the address was already listed, so the endpoint cannot be used
+  to check membership; the page shows one message for both. Emails over 254
+  characters are refused. The rate limit (now 10 POSTs/hour) runs first and
+  counts invalid and honeypot requests too, keyed on `x-real-ip`, not the
+  caller-controlled first `x-forwarded-for` hop. `GET` is CDN-cached for 60 s.
+  Bad JSON is a 400 and a Redis failure a 503 with no detail. Cost: the
+  "already on the list" message is gone. If it is wanted back, send it by
+  email, not in the HTTP reply.
+- **SEC-10, SEC-06, restore.** A media record's `storageKey` must match
+  `<lowercase uuid>.<1-8 lowercase alphanumerics>` or the archive is rejected
+  (`media_storage_key_invalid`). All JSON and manifest entries now share one
+  100 MB budget, and any single entry is capped at 25 MB (new
+  `MAX_JSON_ENTRY_BYTES`), both enforced on the decompressed stream. MR-10
+  updated.
+- **SEC-12, site headers.** `web/vercel.json` adds a Content-Security-Policy
+  (`script-src 'self'`; styles and fonts from Google Fonts only; `connect-src`
+  self and `api.github.com`), `nosniff`, `Referrer-Policy`, `Permissions-Policy`
+  and HSTS. The inline theme snippet moved to `theme-init.js`, still loaded
+  synchronously in `<head>`, so there is no flash and no `'unsafe-inline'`.
+- **SEC-08, CI.** `.github/workflows/ci.yml` runs `npm run verify`, an npm
+  audit gate (critical for the app, high for `web/`), `./gradlew test lintDebug`
+  and `scripts/ci/check-manifest.js` on the source and merged release
+  manifests. `.github/dependabot.yml` covers npm (root and `web/`), Gradle and
+  Actions weekly. The workflow has not run on GitHub yet; it was checked for
+  YAML validity and its commands were run locally.
+
+**Correction to the audit.** It said `MainActivity` is the only exported
+component. In the *merged* release manifest there is a second:
+`androidx.profileinstaller.ProfileInstallReceiver`, which AndroidX adds. It is
+exported but requires `android.permission.DUMP`, which only the system and
+`adb shell` hold, so no installed app can call it. The manifest check allows
+exported components only if they are `MainActivity` or protected by `DUMP`, so
+any other library component that becomes exported will fail CI.
+
+**Not done.** SEC-07 (publish the signing-certificate fingerprint) needs the
+release keystore's SHA-256, which is not in the repo. SEC-11 (ZIP symlinks)
+stays a known gap per DL-031; the Flutter/iOS reader must reject them.
