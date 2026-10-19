@@ -3360,3 +3360,21 @@ this app do) restore as before.
 
 **Tests:** `BackupMediaStreamTest`.
 
+## DL-113 — Lint only the app module
+
+**Date:** 2026-10-19
+**Status:** Accepted.
+**Context:** `./gradlew test lintDebug` failed on a clean checkout before
+`:app` was judged. `lintDebug` runs in every module, including the React
+Native libraries in `node_modules`: react-native-video reports a `WrongThread`
+error in its own Java, and react-native-worklets and react-native-reanimated
+crash lint's build-script analysis. None of that is code this repo owns.
+**Decision:** `android/build.gradle` disables the `lint*` tasks in every module
+except `:app`. `:app` is still linted in full with the same rules, and does not
+need the libraries' lint output. Also marked
+`LosslessImageCompressor.encodeVerified` `@RequiresApi(30)` with an explicit
+`SDK_INT` guard so `:app`'s `NewApi` check passes; behaviour is unchanged
+because `compress()` already returned early below API 30.
+**Revisit:** if a library upgrade makes its lint pass, nothing needs undoing.
+Library lint can be turned back on per module by removing it from the filter.
+
