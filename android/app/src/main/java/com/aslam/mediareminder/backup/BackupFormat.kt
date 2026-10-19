@@ -50,7 +50,8 @@ object BackupFormat {
     const val MAX_ZIP_ENTRIES = 20_000
     const val MAX_UNCOMPRESSED_TOTAL_BYTES = 10L * 1024 * 1024 * 1024 // 10 GB
     const val MAX_MEDIA_ENTRY_BYTES = 2L * 1024 * 1024 * 1024 // 2 GB
-    const val MAX_AGGREGATE_JSON_BYTES = 100L * 1024 * 1024 // 100 MB
+    const val MAX_AGGREGATE_JSON_BYTES = 100L * 1024 * 1024 // 100 MB, shared by all JSON entries together
+    const val MAX_JSON_ENTRY_BYTES = 25L * 1024 * 1024 // 25 MB for any one JSON entry (real archives are far smaller)
     const val COMPRESSION_RATIO_WARNING = 100
     const val COMPRESSION_RATIO_REJECT = 300
 }
