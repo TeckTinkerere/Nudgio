@@ -209,6 +209,10 @@ class BackupImporter(
             // immediately, where the reverse order would leave a window in
             // which every restored reminder read as "Media unavailable".
             mediaToPromote = restoreMediaRows(validated)
+            // SEC-02: refuse before any byte is written when the files this
+            // restore still owes cannot fit under the DL-109 reserve. Inside
+            // the transaction, so refusing rolls the rows back with it.
+            requireRoomForMedia(stagedFile, mediaToPromote)
 
             affectedCount = when (mode) {
                 "replace" -> commitReplace(validated)
@@ -416,6 +420,27 @@ class BackupImporter(
     }
 
     /**
+     * Sums the declared size of every entry about to be extracted and asks
+     * [MediaStorage.ensureRoomFor] (the MR-09 / DL-109 reserve rule the
+     * ordinary import uses) whether it fits.
+     */
+    private fun requireRoomForMedia(archive: File, assets: List<MediaAssetEntity>) {
+        if (assets.isEmpty()) return
+        val declaredTotal = ZipFile(archive).use { zip ->
+            assets.sumOf { asset ->
+                val size = zip.getEntry(BackupFormat.MEDIA_DIR_PREFIX + asset.storageKey)?.size ?: 0L
+                size.coerceIn(0L, BackupFormat.MAX_MEDIA_ENTRY_BYTES)
+            }
+        }
+        if (!MediaStorage(context).ensureRoomFor(declaredTotal)) {
+            throw BackupFormatException(
+                "media_storage_insufficient",
+                "Not enough free space to restore $declaredTotal bytes of media",
+            )
+        }
+    }
+
+    /**
      * Streams each restored asset's bytes out of the archive, verifying as it
      * goes. Returns how many landed.
      *
@@ -449,20 +474,17 @@ class BackupImporter(
                 val outcome = runCatching {
                     zip.getInputStream(entry).use { input ->
                         partial.outputStream().use { output ->
-                            val buffer = ByteArray(MediaStorage.COPY_BUFFER_BYTES)
-                            while (true) {
-                                val read = input.read(buffer)
-                                if (read < 0) break
-                                output.write(buffer, 0, read)
-                                digest.update(buffer, 0, read)
-                            }
+                            // SEC-02: bounded by the size the entry declares,
+                            // not by EOF, so a crafted DEFLATE stream cannot
+                            // fill the disk before the checksum is compared.
+                            BackupMediaStream.copyBounded(
+                                input, output, digest, entry.size, path, MediaStorage.COPY_BUFFER_BYTES,
+                            )
                         }
                     }
                     val actual = digest.digest().joinToString("") { "%02x".format(it) }
-                    val declared = validated.declaredChecksums[path]
-                    if (declared != null && !declared.equals(actual, ignoreCase = true)) {
-                        throw BackupFormatException("media_entry_corrupt", "Media entry failed verification: " + path)
-                    }
+                    // SEC-04: no checksum line is as bad as a wrong one.
+                    BackupMediaStream.requireMatchingChecksum(path, validated.declaredChecksums[path], actual)
                     if (!partial.renameTo(storage.fileFor(asset.storageKey))) {
                         throw BackupFormatException("media_entry_write_failed", "Could not finalize restored media: " + path)
                     }

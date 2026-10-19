@@ -152,7 +152,7 @@ Example media record:
 
 # Checksums
 
-`checksums.sha256` contains SHA-256 for every file except itself, using a canonical two-space separator and relative POSIX path. It includes `manifest.json`, README, each data file and every media file. Export closes entries before writing the checksum file. Import recalculates while streaming and rejects mismatch.
+`checksums.sha256` contains SHA-256 for every file except itself, using a canonical two-space separator and relative POSIX path. It includes `manifest.json`, README, each data file and every media file. Export closes entries before writing the checksum file. Import recalculates while streaming and rejects mismatch. A media entry with no checksum line is rejected as `media_entry_corrupt`, like a mismatch. `checksums.sha256` is not authenticated: it detects corruption, not deliberate tampering, because anyone who edits the archive can rewrite it.
 
 A separate SHA-256 for the completed archive is displayed after export and may be published beside release fixtures; it is not stored within itself.
 
@@ -199,6 +199,7 @@ Before extraction:
 - resolve every foreign key;
 - compare declared counts/sizes to actual;
 - verify every checksum and media header/probe;
+- copy each media entry with a running byte cap at its declared size (and 2 GB), aborting and deleting the partial on overrun, after checking the declared total against the free-space reserve;
 - estimate final disk needs including staging and rollback;
 - create conflict plan without modifying current data.
 
@@ -261,7 +262,7 @@ Plain ZIP v1 is intentional for portability and transparent recovery. The export
 
 # Sharing and privacy
 
-Completed private exports shared through another app use FileProvider with read-only temporary URI permission. The app never grants a whole directory. Share chooser copy says that the selected destination controls the file after sharing. Export history stores no destination path by default.
+Completed private exports shared through another app use FileProvider with read-only temporary URI permission. The app never grants a whole directory. Private temporary exports are written to app-internal storage (`filesDir/backups`), never external app storage, which other apps can read on Android 8-9 and which is visible over USB. Only the newest private export is kept; older ones are deleted when a new export completes. Share chooser copy says that the selected destination controls the file after sharing. Export history stores no destination path by default.
 
 # Validation limits
 
