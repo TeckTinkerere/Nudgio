@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ColorSpace
 import android.os.Build
+import androidx.annotation.RequiresApi
 import java.io.File
 
 /**
@@ -56,7 +57,7 @@ object LosslessImageCompressor {
      * original should be kept.
      */
     fun compress(source: File, mimeType: String, destination: File): Boolean {
-        if (!isCandidate(mimeType) || Build.VERSION.SDK_INT < MIN_SDK) return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || !isCandidate(mimeType)) return false
         return try {
             val written = encodeVerified(source, destination)
             if (!written) destination.delete()
@@ -68,6 +69,7 @@ object LosslessImageCompressor {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.R)
     private fun encodeVerified(source: File, destination: File): Boolean {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(source.path, bounds)
