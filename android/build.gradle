@@ -20,13 +20,13 @@ buildscript {
         minSdkVersion = 26
         compileSdkVersion = 36
         targetSdkVersion = 36
-        kotlinVersion = "2.1.20"
+        kotlinVersion = "2.4.21"
         ndkVersion = "27.1.12297006"
         // Room's Kotlin symbol processor. Must track `kotlinVersion` — KSP
         // releases as `<kotlin-version>-<ksp-version>`; confirm the exact pin
         // against the installed Kotlin plugin before the first build (same
         // "refresh from MR-22, don't assume" rule as the rest of this file).
-        kspVersion = "2.1.20-2.0.1"
+        kspVersion = "2.3.12"
         roomVersion = "2.7.1"
     }
     repositories {

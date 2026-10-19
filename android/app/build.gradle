@@ -166,16 +166,16 @@ dependencies {
     implementation("com.facebook.react:hermes-android")
 
     // AndroidX baseline the design system and startup snapshot rely on today.
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.core:core-ktx:1.19.1")
+    implementation("androidx.appcompat:appcompat:1.8.0")
     // MR-06 presentation slice: `AlarmActivity`'s Material buttons and the
     // `Theme.Material3.*` parent `styles.xml` already declares. Made
     // explicit rather than relying on it arriving transitively through
     // `react-android`.
-    implementation("com.google.android.material:material:1.12.0")
+    implementation("com.google.android.material:material:1.14.0")
     // MR-07: "Theme and lightweight preferences" -> DataStore, not Room.
     implementation("androidx.datastore:datastore-preferences:1.1.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     // MR-09: Room is the logical source of truth for reminders/schedules/
     // occurrences (ADR-004). `room-ktx` brings the coroutine `suspend` DAO
@@ -190,7 +190,7 @@ dependencies {
     // docs/decision-log.md for the explicit scope cut.
 
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     // android.jar's org.json classes are stubs ("Stub!") on the plain JVM
     // unit-test classpath — the backup module's manifest/record codecs use
     // org.json directly, so JVM tests need a real implementation. Test-only
