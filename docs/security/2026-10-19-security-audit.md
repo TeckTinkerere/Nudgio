@@ -149,3 +149,26 @@ Already documented in DL-031, `docs/KNOWN_ISSUES.md` and `TODO.md`. `java.util.z
 6. SEC-06, SEC-10, SEC-12: hardening.
 
 All of these fixes are needed in the Flutter version too. The Kotlin core is kept (see `docs/plans/2026-10-19-flutter-migration-plan.md`), so fixing them now fixes them for both.
+
+## Remediation status (updated 20 October 2026)
+
+| ID | Status | Where |
+|---|---|---|
+| SEC-01 | Fixed | DL-112; exports in `filesDir/backups`, newest only |
+| SEC-02 | Fixed | DL-112; bounded copy and free-space check |
+| SEC-03 | Fixed | DL-114; identical reply for new and repeat signups |
+| SEC-04 | Fixed | DL-112; missing media checksum is `media_entry_corrupt` |
+| SEC-05 | Fixed | DL-114; length cap, rate limit on every POST, `x-real-ip`, cached GET, 400/503 |
+| SEC-06 | Fixed | DL-114; one shared 100 MB budget, 25 MB per entry |
+| SEC-07 | Open | Needs the release keystore's SHA-256 fingerprint to publish |
+| SEC-08 | Fixed, unproven on GitHub | DL-114; CI and Dependabot added, workflow not yet run remotely |
+| SEC-09 | Partly fixed | DL-114; 63 to 59 advisories, 0 critical. The rest need Jest 30 or React Native 0.88 |
+| SEC-10 | Fixed | DL-114; `storageKey` shape enforced |
+| SEC-11 | Known gap | DL-031; the Flutter/iOS reader must reject symlinks |
+| SEC-12 | Fixed | DL-114; `web/vercel.json` headers, inline script removed |
+
+**Correction:** "exported components = MainActivity only" holds for the source
+manifest. The merged release manifest also contains AndroidX's
+`ProfileInstallReceiver`, exported but protected by `android.permission.DUMP`
+(system and `adb shell` only). Judged safe; `scripts/ci/check-manifest.js`
+allows it explicitly and fails on any other exported component.
