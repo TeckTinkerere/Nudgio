@@ -74,6 +74,10 @@ class BackupExporter(
 ) {
     private val filenameFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss").withZone(ZoneId.systemDefault())
 
+    private companion object {
+        const val EXPORT_DIR_NAME = "backups"
+    }
+
     suspend fun export(
         onProgress: suspend (BackupProgress) -> Unit,
         isCancelled: suspend () -> Boolean,
@@ -197,6 +201,7 @@ class BackupExporter(
         verifyZip(destinationFile)
 
         val archiveHash = destinationFile.inputStream().use { BackupChecksums.sha256HexStreaming(it) }
+        deleteOlderExports(keep = destinationFile)
 
         return ExportOutcome(
             file = destinationFile,
@@ -208,12 +213,42 @@ class BackupExporter(
         )
     }
 
-    /** App-private, no permission required (`getExternalFilesDir` is app-scoped on API 26+, cleared with the app, never visible to other apps without a `content://` grant). Sharing a finished export uses `MediaReminderFileProvider`, never a raw path. */
+    /**
+     * Internal app storage (`filesDir/backups`): no permission, sandboxed from
+     * other apps on every Android version, and not visible over USB/MTP.
+     * `getExternalFilesDir` is not: on Android 8-9 any app holding
+     * `READ_EXTERNAL_STORAGE` can read it, as can legacy-storage apps on 10,
+     * and a connected computer sees it everywhere (SEC-01). An archive holds
+     * every reminder and every media file unencrypted, so it stays inside the
+     * sandbox. Sharing a finished export uses `MediaReminderFileProvider`,
+     * never a raw path.
+     */
     private fun exportDirectory(): File {
-        val base = context.getExternalFilesDir(null) ?: context.filesDir
-        val dir = File(base, "backups")
+        val dir = File(context.filesDir, EXPORT_DIR_NAME)
         dir.mkdirs()
         return dir
+    }
+
+    /**
+     * Keeps only [keep], the newest export, so plaintext archives do not pile
+     * up (SEC-01). Also clears the folder earlier versions wrote to under
+     * `getExternalFilesDir`, where those archives were readable by other apps.
+     * Best-effort: a file that will not delete is retried on the next export.
+     */
+    private fun deleteOlderExports(keep: File) {
+        runCatching {
+            File(context.filesDir, EXPORT_DIR_NAME).listFiles()
+                ?.filter { it.isFile && it != keep }
+                ?.forEach { it.delete() }
+        }
+        runCatching {
+            context.getExternalFilesDir(null)?.let { File(it, EXPORT_DIR_NAME) }
+                ?.takeIf { it.isDirectory }
+                ?.let { legacy ->
+                    legacy.listFiles()?.forEach { it.delete() }
+                    legacy.delete()
+                }
+        }
     }
 
     /**
@@ -225,8 +260,8 @@ class BackupExporter(
      * there is exactly one file. `fileName` is looked up by name inside the
      * one directory this class ever writes to, never a caller-supplied path,
      * so this cannot be used to share an arbitrary file. `null` means the
-     * named export no longer exists (e.g. cleared by OS storage pressure
-     * between the export finishing and the user tapping Share).
+     * named export no longer exists (e.g. a newer export replaced it, since
+     * only the latest is kept, or the user cleared app storage).
      */
     fun buildShareIntent(fileName: String): Intent? {
         val dir = exportDirectory()
