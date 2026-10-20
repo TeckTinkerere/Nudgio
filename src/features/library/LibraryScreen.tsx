@@ -159,8 +159,15 @@ export function LibraryScreen() {
   const [lastMove, setLastMove] = useState<{readonly count: number; readonly place: string} | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const {selectionMode, selectedIds, enterSelection, exitSelection, toggleSelected, handleBulkAction} =
-    useLibrarySelection();
+  const {
+    selectionMode,
+    selectedIds,
+    enterSelection,
+    exitSelection,
+    toggleSelected,
+    handleBulkAction,
+    handleSaveToGallery,
+  } = useLibrarySelection();
 
   // --- Where we are ------------------------------------------------------------
   const albumsById = useMemo(() => new Map(library.albums.map(album => [album.id as string, album])), [library.albums]);
@@ -481,6 +488,28 @@ export function LibraryScreen() {
     }
   };
 
+  /**
+   * Share and Save to gallery take the whole selection: media and albums
+   * (folders). Several files or any album are zipped natively with the album
+   * structure kept; one file goes as is. A failure keeps the selection so the
+   * user can retry.
+   */
+  const runSelectionAction = async (
+    action: (folderIds: readonly UUID[]) => Promise<boolean>,
+  ) => {
+    if (busy) {
+      return;
+    }
+    setBusy(true);
+    try {
+      if (await action(Array.from(selectedAlbums) as UUID[])) {
+        setSelectedAlbums(new Set());
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   /** Imports the picked files and, inside an album, files them there straight away. */
   const importHere = async (mimeTypes: readonly string[]) => {
     setSheet(null);
@@ -769,10 +798,10 @@ export function LibraryScreen() {
           style={{backgroundColor: theme.color.surfaceContainer, borderTopWidth: theme.layout.borderWidth, borderTopColor: theme.color.outlineVariant}}>
           <Button label={t('library.explorer.move')} variant="tonal" icon="folder" disabled={selectedCount === 0 || busy}
             onPress={openMove} style={styles.grow} />
-          {selectedAlbums.size === 0 ? (
-            <Button label={t('library.albums.export')} variant="tonal" icon="share" disabled={selectedIds.size === 0 || busy}
-              onPress={() => void handleBulkAction('export')} style={styles.grow} />
-          ) : null}
+          <Button label={t('library.albums.export')} variant="tonal" icon="share" disabled={selectedCount === 0 || busy}
+            onPress={() => void runSelectionAction(folderIds => handleBulkAction('export', folderIds))} style={styles.grow} />
+          <Button label={t('library.selection.saveToGallery')} variant="tonal" icon="download" disabled={selectedCount === 0 || busy}
+            onPress={() => void runSelectionAction(folderIds => handleSaveToGallery(folderIds))} style={styles.grow} />
           <Button label={t('library.selection.delete')} variant="destructive" icon="delete" disabled={selectedCount === 0 || busy}
             onPress={() => setDeletePrompt(true)} style={styles.grow} />
         </Stack>

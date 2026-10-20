@@ -11,8 +11,14 @@
   `files-path name="media"` mirrors `MediaStorage.mediaDir()`
   (`filesDir/media/`) for the Library's "Export selected" action — same
   read-only, single-folder grant shape as the backups entry above.
+
+  `cache-path name="share"` is `cacheDir/share/`, where Library "Share" builds
+  the zip for a multi-file or folder selection (`LibrarySelectionActions`).
+  Internal cache, not external storage, for the same reason as backups; only
+  the newest zip is kept.
 -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <files-path name="backups" path="backups/" />
     <files-path name="media" path="media/" />
+    <cache-path name="share" path="share/" />
 </paths>

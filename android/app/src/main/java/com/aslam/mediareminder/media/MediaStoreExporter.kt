@@ -75,14 +75,16 @@ object MediaStoreExporter {
      * instrumentation concern; what the JVM test can check is which kinds
      * have a destination at all.
      */
-    fun relativePathFor(kind: String): String? {
+    fun relativePathFor(kind: String, folderPath: List<String> = emptyList()): String? {
         val base = when (kind) {
             MediaAssetEntity.KIND_IMAGE -> Environment.DIRECTORY_PICTURES
             MediaAssetEntity.KIND_VIDEO -> Environment.DIRECTORY_MOVIES
             MediaAssetEntity.KIND_AUDIO -> Environment.DIRECTORY_MUSIC
             else -> return null
         }
-        return "$base/$ALBUM_NAME"
+        // [folderPath] is already sanitised (SelectionPlanner.nameFiles), so a
+        // Library folder becomes `Pictures/Nudgio/<Folder>/<Sub>`.
+        return "$base/$ALBUM_NAME" + folderPath.joinToString("") { "/$it" }
     }
 
     /**
@@ -102,13 +104,7 @@ object MediaStoreExporter {
      */
     fun displayNameFor(title: String, storageKey: String): String {
         val extension = storageKey.substringAfterLast('.', "")
-        val stem = title
-            .map { if (it.isLetterOrDigit() || it in SAFE_PUNCTUATION) it else '-' }
-            .joinToString("")
-            .trim()
-            .trim('.', '-')
-            .take(MAX_NAME_STEM)
-            .ifBlank { ALBUM_NAME }
+        val stem = SafeNames.segment(title, ALBUM_NAME)
         return if (extension.isBlank()) stem else "$stem.$extension"
     }
 
@@ -126,15 +122,21 @@ object MediaStoreExporter {
      * A failure part-way deletes the pending row, so a cancelled or failed
      * save never leaves a truncated item behind in the user's gallery.
      */
-    fun saveCopy(context: Context, entity: MediaAssetEntity, source: File): Uri? {
+    fun saveCopy(
+        context: Context,
+        entity: MediaAssetEntity,
+        source: File,
+        folderPath: List<String> = emptyList(),
+        displayName: String = displayNameFor(entity.title, entity.storageKey),
+    ): Uri? {
         if (!isSupported()) return null
         val collection = collectionFor(entity.kind) ?: return null
-        val relativePath = relativePathFor(entity.kind) ?: return null
+        val relativePath = relativePathFor(entity.kind, folderPath) ?: return null
         if (!source.exists()) return null
 
         val resolver = context.contentResolver
         val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, displayNameFor(entity.title, entity.storageKey))
+            put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
             put(MediaStore.MediaColumns.MIME_TYPE, entity.mimeType)
             put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
             put(MediaStore.MediaColumns.IS_PENDING, 1)
@@ -165,15 +167,23 @@ object MediaStoreExporter {
     }
 
     /**
-     * Punctuation kept verbatim in an exported filename.
-     *
-     * Legal on every filesystem Android writes to and none of it is a path
-     * separator, a traversal character or a wildcard. The comma earns its
-     * place: without it a title like "Photo - Oct 2, 2026" exported as
-     * "Photo - Oct 2- 2026", which reads like a typo in the user's gallery.
+     * True when this app already put a file of this name and size at this
+     * place in the gallery, so saving a selection twice does not pile up
+     * `name (1).jpg` copies. Only items this app created are visible to the
+     * query without a media permission, which is exactly the set that matters.
+     * Any failure answers false: a duplicate is harmless, a skipped file is not.
      */
-    private val SAFE_PUNCTUATION = setOf(' ', '-', '_', ',', '(', ')')
-
-    /** Conservative cap: long enough to stay recognisable, short of any filesystem limit. */
-    private const val MAX_NAME_STEM = 80
+    fun alreadySaved(context: Context, entity: MediaAssetEntity, folderPath: List<String>, displayName: String, sizeBytes: Long): Boolean {
+        val collection = collectionFor(entity.kind) ?: return false
+        val relativePath = relativePathFor(entity.kind, folderPath) ?: return false
+        return runCatching {
+            context.contentResolver.query(
+                collection,
+                arrayOf(MediaStore.MediaColumns._ID),
+                "${MediaStore.MediaColumns.RELATIVE_PATH} = ? AND ${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${MediaStore.MediaColumns.SIZE} = ?",
+                arrayOf("$relativePath/", displayName, sizeBytes.toString()),
+                null,
+            )?.use { it.moveToFirst() } ?: false
+        }.getOrDefault(false)
+    }
 }

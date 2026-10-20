@@ -41,6 +41,7 @@ import com.aslam.mediareminder.data.PreferencesRepository
 import com.aslam.mediareminder.data.ReminderProfileSeed
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.diagnostics.NativeLogger
+import com.aslam.mediareminder.media.LibrarySelectionActions
 import com.aslam.mediareminder.media.MediaDtoWriter
 import com.aslam.mediareminder.media.MediaImportCancelledException
 import com.aslam.mediareminder.media.MediaImportException
@@ -93,6 +94,7 @@ class MediaReminderModule(
     /** Hoisted so the library service and the startup partial-file sweep share one instance. */
     private val mediaStorage = MediaStorage(reactContext)
     private val mediaLibrary = MediaLibraryService(database, mediaStorage)
+    private val selectionActions = LibrarySelectionActions(reactContext, database, mediaStorage)
     private val libraryService = MediaStorage(reactContext).let { storage ->
         LibraryService(database) { media -> com.aslam.mediareminder.media.MediaThumbnailUri.resolveThumbnail(media, storage) }
     }
@@ -193,6 +195,7 @@ class MediaReminderModule(
         moduleScope.launch {
             runCatching {
                 val swept = mediaStorage.sweepPartials()
+                selectionActions.sweepShareZips()
                 val outcome = mediaLibrary.sweepIntegrity()
                 for (mediaId in outcome.newlyMissing) {
                     for (reminderId in mediaLibrary.attachedReminderIds(mediaId)) {
@@ -927,14 +930,35 @@ class MediaReminderModule(
     }
 
     /**
-     * Library "Export selected" — see `MediaLibraryService.buildExportIntent`'s
-     * doc for why this opens the OS share sheet rather than writing an
-     * archive. Needs `currentActivity` the same way `pickDocument` does, but
-     * fire-and-forget (`startActivity`, not `startActivityForResult`): unlike
-     * a picker, nothing meaningful comes back from a share chooser to await.
+     * Share by media id alone (the detail screen's "Export this item"); same
+     * behaviour as [shareLibrarySelection] with no folders, so several ids
+     * are zipped too. See `LibrarySelectionActions` for why this opens the OS
+     * share sheet rather than writing a backup archive. Needs `currentActivity`
+     * the same way `pickDocument` does, but fire-and-forget (`startActivity`,
+     * not `startActivityForResult`): unlike a picker, nothing meaningful comes
+     * back from a share chooser to await.
      */
     @ReactMethod
     fun exportMediaAssets(ids: ReadableArray, promise: Promise) {
+        launchShare(readStrings(ids), emptyList(), promise, "exportMediaAssets")
+    }
+
+    /**
+     * Library "Share" for a selection of media and whole folders. One file on
+     * its own is shared as is; two or more files, or any folder, are zipped
+     * first with the folder structure kept (`LibrarySelectionActions`). Resolves
+     * once the chooser is open; `affectedCount` is the number of files shared.
+     * [folderIds] may include `"unsorted"`, the virtual Unsorted album.
+     */
+    @ReactMethod
+    fun shareLibrarySelection(mediaIds: ReadableArray, folderIds: ReadableArray, promise: Promise) {
+        launchShare(readStrings(mediaIds), readStrings(folderIds), promise, "shareLibrarySelection")
+    }
+
+    private fun readStrings(array: ReadableArray): List<String> =
+        (0 until array.size()).mapNotNull { array.getString(it) }
+
+    private fun launchShare(mediaIds: List<String>, folderIds: List<String>, promise: Promise, operation: String) {
         val activity = reactApplicationContext.currentActivity
         if (activity == null) {
             NativeErrorEnvelope.reject(
@@ -944,30 +968,65 @@ class MediaReminderModule(
             return
         }
 
-        val idList = (0 until ids.size()).mapNotNull { ids.getString(it) }
         moduleScope.launch {
-            runCatching { mediaLibrary.buildExportIntent(idList) }
-                .onSuccess { intent ->
-                    if (intent == null) {
-                        NativeErrorEnvelope.reject(
+            runCatching { selectionActions.buildShare(mediaIds, folderIds) }
+                .onSuccess { outcome ->
+                    when (outcome) {
+                        is LibrarySelectionActions.ShareOutcome.NothingToShare -> NativeErrorEnvelope.reject(
                             promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
                             NativeErrorEnvelope.Category.MEDIA, field = "ids",
                         )
-                        return@onSuccess
-                    }
-                    try {
-                        activity.startActivity(Intent.createChooser(intent, null))
-                        promise.resolve(
-                            Arguments.createMap().apply {
-                                putString("status", "ok")
-                                putInt("affectedCount", idList.size)
-                            },
+                        is LibrarySelectionActions.ShareOutcome.NoSpace -> NativeErrorEnvelope.reject(
+                            promise, "MR_STORAGE_INSUFFICIENT", "error.storageInsufficient",
+                            NativeErrorEnvelope.Category.STORAGE, field = "share",
                         )
-                    } catch (error: Exception) {
-                        failSafe(promise, error, "exportMediaAssets")
+                        is LibrarySelectionActions.ShareOutcome.Ready -> try {
+                            activity.startActivity(Intent.createChooser(outcome.intent, null))
+                            promise.resolve(
+                                Arguments.createMap().apply {
+                                    putString("status", "ok")
+                                    putInt("affectedCount", outcome.fileCount)
+                                },
+                            )
+                        } catch (error: Exception) {
+                            failSafe(promise, error, operation)
+                        }
                     }
                 }
-                .onFailure { failSafe(promise, it, "exportMediaAssets") }
+                .onFailure { failSafe(promise, it, operation) }
+        }
+    }
+
+    /**
+     * Library "Save to gallery" for a selection of media and whole folders.
+     * Opt-in and copy-only (DL-101); a Library folder becomes a sub-folder of
+     * the Nudgio album. Resolves `limited` below API 29, with the counts
+     * otherwise: `savedCount`, `alreadySavedCount` (skipped, already there),
+     * `failedCount` and `unsupportedCount` (notes have no gallery collection).
+     */
+    @ReactMethod
+    fun saveLibrarySelectionToGallery(mediaIds: ReadableArray, folderIds: ReadableArray, promise: Promise) {
+        moduleScope.launch {
+            runCatching { selectionActions.saveToGallery(readStrings(mediaIds), readStrings(folderIds)) }
+                .onSuccess { summary ->
+                    if (summary.noSpace) {
+                        NativeErrorEnvelope.reject(
+                            promise, "MR_STORAGE_INSUFFICIENT", "error.storageInsufficient",
+                            NativeErrorEnvelope.Category.STORAGE, field = "gallery",
+                        )
+                        return@onSuccess
+                    }
+                    promise.resolve(
+                        Arguments.createMap().apply {
+                            putString("status", if (summary.platformSupported) "ok" else "limited")
+                            putInt("savedCount", summary.saved)
+                            putInt("alreadySavedCount", summary.alreadySaved)
+                            putInt("failedCount", summary.failed)
+                            putInt("unsupportedCount", summary.unsupported)
+                        },
+                    )
+                }
+                .onFailure { failSafe(promise, it, "saveLibrarySelectionToGallery") }
         }
     }
 

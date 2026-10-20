@@ -27,6 +27,7 @@ import type {
   MediaQuery,
   MediaStorageUsage,
   MediaSummary,
+  GallerySaveSummary,
   MutationResult,
   NotificationPermissionResult,
   Page,
@@ -73,6 +74,10 @@ export interface MediaRepository {
   remove(request: DeleteMediaRequest): Promise<Result<MutationResult, AppError>>;
   /** MR-10 "Export selected" — opens the OS share sheet for these assets' real files. */
   exportSelected(ids: readonly UUID[]): Promise<Result<MutationResult, AppError>>;
+  /** Library "Share": one file as is, several files or any folder as an automatic zip with the folder structure. */
+  shareSelection(mediaIds: readonly UUID[], folderIds: readonly UUID[]): Promise<Result<MutationResult, AppError>>;
+  /** Library "Save to gallery": opt-in copies into the Nudgio album, folders as sub-folders. */
+  saveSelectionToGallery(mediaIds: readonly UUID[], folderIds: readonly UUID[]): Promise<Result<GallerySaveSummary, AppError>>;
   /** What Nudgio's managed copies cost on disk, for the Settings storage row. */
   storageUsage(): Promise<Result<MediaStorageUsage, AppError>>;
   /** Saves a copy into the device's own gallery under a Nudgio folder; `limited` when the platform has no supported destination. */

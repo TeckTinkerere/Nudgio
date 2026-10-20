@@ -253,7 +253,7 @@ class BackupExporter(
 
     /**
      * Backup screen "Share" (MR-03/MR-10): the counterpart to
-     * [com.aslam.mediareminder.media.MediaLibraryService.buildExportIntent]
+     * [com.aslam.mediareminder.media.LibrarySelectionActions.buildShare]
      * for a single finished backup archive rather than a media selection —
      * same shape (read-only `content://` grant via the app's `FileProvider`,
      * the app's job ends once the chooser opens), just `ACTION_SEND` since

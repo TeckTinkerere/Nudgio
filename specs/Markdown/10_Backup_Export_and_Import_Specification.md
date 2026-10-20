@@ -264,6 +264,10 @@ Plain ZIP v1 is intentional for portability and transparent recovery. The export
 
 Completed private exports shared through another app use FileProvider with read-only temporary URI permission. The app never grants a whole directory. Private temporary exports are written to app-internal storage (`filesDir/backups`), never external app storage, which other apps can read on Android 8-9 and which is visible over USB. Only the newest private export is kept; older ones are deleted when a new export completes. Share chooser copy says that the selected destination controls the file after sharing. Export history stores no destination path by default.
 
+Library **Share** works on any selection of media and folders. One file chosen on its own is shared as is. Two or more files, or any folder, are zipped automatically into a plain zip (not a backup archive: no manifest or checksum file) that keeps the Library folder structure, with filesystem-safe, de-duplicated names. The zip is built in the app's internal cache, never in external storage, shared with a read-only temporary URI grant, and replaced by the next share so at most one remains. If it would not fit under the free-space reserve, the share is refused before anything is written.
+
+Library **Save to gallery** is an opt-in copy, never automatic (DL-101). It writes into `Pictures/Nudgio`, `Movies/Nudgio` or `Music/Nudgio` by kind, with a Library folder becoming a sub-folder of that album. A file already saved with the same name and size is skipped, so repeating the action does not duplicate it. It needs no storage permission from Android 10; below that it reports the action as unavailable and Share remains the way out.
+
 # Validation limits
 
 Baseline configurable limits:

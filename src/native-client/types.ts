@@ -631,6 +631,15 @@ export interface MutationResult {
   readonly affectedCount: number;
 }
 
+/** What "Save to gallery" did for a Library selection. */
+export interface GallerySaveSummary {
+  readonly status: 'ok' | 'limited';
+  readonly savedCount: number;
+  readonly alreadySavedCount: number;
+  readonly failedCount: number;
+  readonly unsupportedCount: number;
+}
+
 // --- Alarm action contract (MR-08 "Alarm action contract") -----------------------
 
 /**
