@@ -30,6 +30,7 @@ import type {
   MediaQuery,
   MediaStorageUsage,
   MediaSummary,
+  GallerySaveSummary,
   MutationResult,
   NotificationPermissionResult,
   Page,
@@ -100,6 +101,14 @@ export interface MediaReminderClient {
   updateMedia(request: UpdateMediaRequest): Promise<Result<MediaDetail, AppError>>;
   deleteMedia(request: DeleteMediaRequest): Promise<Result<MutationResult, AppError>>;
   exportMediaAssets(ids: readonly UUID[]): Promise<Result<MutationResult, AppError>>;
+  shareLibrarySelection(
+    mediaIds: readonly UUID[],
+    folderIds: readonly UUID[],
+  ): Promise<Result<MutationResult, AppError>>;
+  saveLibrarySelectionToGallery(
+    mediaIds: readonly UUID[],
+    folderIds: readonly UUID[],
+  ): Promise<Result<GallerySaveSummary, AppError>>;
   getMediaStorageUsage(): Promise<Result<MediaStorageUsage, AppError>>;
   saveMediaCopyToGallery(id: UUID): Promise<Result<MutationResult, AppError>>;
   replaceMediaSource(request: ReplaceMediaSourceRequest): Promise<Result<MediaDetail, AppError>>;
@@ -282,6 +291,12 @@ export const createMediaReminderClient = (
     deleteMedia: request => call('deleteMedia', native => native.deleteMedia(request)),
 
     exportMediaAssets: ids => call('exportMediaAssets', native => native.exportMediaAssets(ids)),
+    shareLibrarySelection: (mediaIds, folderIds) =>
+      call('shareLibrarySelection', native => native.shareLibrarySelection(mediaIds, folderIds)),
+    saveLibrarySelectionToGallery: (mediaIds, folderIds) =>
+      call('saveLibrarySelectionToGallery', native =>
+        native.saveLibrarySelectionToGallery(mediaIds, folderIds),
+      ),
 
     getMediaStorageUsage: () =>
       call('getMediaStorageUsage', native => native.getMediaStorageUsage()),

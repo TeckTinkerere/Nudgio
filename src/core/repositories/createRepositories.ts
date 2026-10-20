@@ -51,6 +51,8 @@ export const createRepositories = (deps: CreateRepositoriesDeps): Repositories =
       update: request => client.updateMedia(request),
       remove: request => client.deleteMedia(request),
       exportSelected: ids => client.exportMediaAssets(ids),
+      shareSelection: (mediaIds, folderIds) => client.shareLibrarySelection(mediaIds, folderIds),
+      saveSelectionToGallery: (mediaIds, folderIds) => client.saveLibrarySelectionToGallery(mediaIds, folderIds),
       storageUsage: () => client.getMediaStorageUsage(),
       saveCopyToGallery: id => client.saveMediaCopyToGallery(id),
       replaceSource: request => client.replaceMediaSource(request),

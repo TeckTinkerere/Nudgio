@@ -3431,3 +3431,48 @@ any other library component that becomes exported will fail CI.
 **Not done.** SEC-07 (publish the signing-certificate fingerprint) needs the
 release keystore's SHA-256, which is not in the repo. SEC-11 (ZIP symlinks)
 stays a known gap per DL-031; the Flutter/iOS reader must reject them.
+
+## DL-115 — Library Share zips multi-file and folder selections; Save to gallery works on selections
+
+**Date:** 2026-10-20
+**Status:** Accepted. Extends DL-070 (Share buttons) and DL-101 (the gallery
+album is an export); does not reverse DL-101.
+**Context:** Two requests. Saved media should be visible in the device gallery
+as a Nudgio folder, and Share should work for media and, when several files or
+folders are selected, produce one zip. Before this, "Save a copy to gallery"
+existed only per item on the detail screen, and Library Share handed several
+loose files to the OS as separate attachments and was hidden whenever a folder
+was selected.
+**Decision.**
+- **The gallery stays opt-in (DL-101).** Copying every import automatically
+  would double storage use, leave copies behind after uninstall and make them
+  readable by any app with photo access. Instead Library multi-select gets a
+  **Save to gallery** action for media and whole folders. Each kind goes to
+  `Pictures|Movies|Music/Nudgio`, and a Library folder becomes a sub-folder
+  (`Pictures/Nudgio/Holidays/Beach`). A file already saved with the same name
+  and size is skipped, so repeating it does not pile up copies. Android 10+
+  only, as before; below that it reports unavailable and Share remains.
+  Gallery apps list albums by their own folder, so a Library folder shows in
+  Photos as an album named for it, inside a Nudgio folder in file managers.
+- **Share is one action for everything selected.** One file on its own goes
+  straight to the share sheet with its real MIME type. Two or more files, or
+  any folder, become one zip with the folder structure kept
+  (`LibrarySelectionActions`, `SelectionPlanner`, `ShareZipWriter`). Folders
+  selected together with their sub-folders are not duplicated; a loose file
+  sits at the top of the zip; names are sanitised and made unique per
+  directory, ignoring case. Entries use compression level 0 since media is
+  already compressed, in one streaming pass at a flat 64 KB of memory.
+- **The zip is private and short-lived.** Built in `cacheDir/share/` (not
+  external storage, per SEC-01), shared by read-only FileProvider grant
+  (`cache-path` in `file_paths.xml`), and replaced by the next share, so one
+  zip at most is on disk. It is also swept at startup. The free-space reserve
+  (DL-109) is checked first and the share refused with `MR_STORAGE_INSUFFICIENT`
+  rather than half-written. The old `exportMediaAssets(ids)` bridge method now
+  goes through the same code, so the detail screen's Export and any multi-file
+  call zip too.
+**Not changed:** no new permission, schema or archive field; the zip is not a
+backup archive. The Library's virtual Unsorted album is supported natively
+(`"unsorted"`) but is opened rather than selected in the UI today.
+**Tests:** `SelectionPlannerTest`, `ShareZipWriterTest` (JVM),
+`LibrarySelectionActionsInstrumentedTest` (device: Room, FileProvider and
+MediaStore), `useLibrarySelection.test.tsx`.

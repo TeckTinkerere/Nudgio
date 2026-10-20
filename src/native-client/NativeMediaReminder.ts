@@ -308,6 +308,18 @@ export interface MutationResultWire {
   readonly affectedCount: number;
 }
 
+/** Outcome of saving a Library selection into the device gallery. */
+export interface GallerySaveSummaryWire {
+  /** `limited` when the platform (below API 29) has no permissionless destination. */
+  readonly status: 'ok' | 'limited';
+  readonly savedCount: number;
+  /** Skipped because the same file was already saved there. */
+  readonly alreadySavedCount: number;
+  readonly failedCount: number;
+  /** Items with no gallery collection, such as notes. */
+  readonly unsupportedCount: number;
+}
+
 export interface TestReminderResultWire {
   readonly sessionId: string;
   readonly scheduledAt: string;
@@ -600,6 +612,29 @@ export interface Spec extends TurboModule {
    * the ids resolve to a still-existing file.
    */
   exportMediaAssets(ids: readonly string[]): Promise<MutationResultWire>;
+
+  /**
+   * Library "Share" for media and whole folders. One file on its own is
+   * shared as is; two or more files, or any folder, are zipped first with
+   * the folder structure kept. Resolves once the chooser is open;
+   * `affectedCount` is the number of files shared. Rejects
+   * `MR_MEDIA_UNAVAILABLE` if nothing resolves to an existing file and
+   * `MR_STORAGE_INSUFFICIENT` if the zip would not fit.
+   */
+  shareLibrarySelection(
+    mediaIds: readonly string[],
+    folderIds: readonly string[],
+  ): Promise<MutationResultWire>;
+
+  /**
+   * Library "Save to gallery" for media and whole folders: opt-in copies into
+   * the Nudgio album, a folder becoming a sub-folder. Rejects
+   * `MR_STORAGE_INSUFFICIENT` before copying anything if it would not fit.
+   */
+  saveLibrarySelectionToGallery(
+    mediaIds: readonly string[],
+    folderIds: readonly string[],
+  ): Promise<GallerySaveSummaryWire>;
 
   /**
    * Points an existing media record at newly picked bytes, keeping its id,
