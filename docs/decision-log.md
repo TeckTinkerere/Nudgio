@@ -3489,3 +3489,39 @@ right, the call failed before reaching it.
 **Tests:** `SelectionPlannerTest`, `ShareZipWriterTest` (JVM),
 `LibrarySelectionActionsInstrumentedTest` (device: Room, FileProvider and
 MediaStore), `useLibrarySelection.test.tsx`.
+
+## DL-116 — CI failed on every run: a Windows-only Metro block list
+
+**Date:** 2026-10-20
+**Status:** Accepted. Fixes the failing GitHub Actions runs on `main` and on the
+Dependabot PRs opened after DL-114 added CI.
+**Symptom:** The "Gradle test, lintDebug, release manifest" job failed on every
+run, on `main` and on every PR, at the JavaScript bundling step: `Unable to
+resolve module ./Libraries/NativeModules/specs/NativeDialogManagerAndroid from
+node_modules/react-native/index.js`. The JavaScript job and every local build
+passed.
+**Root cause:** `metro.config.js` blocked `/specs\/.*/` to keep the spec pack
+away from the file crawler. Unanchored, it also matched React Native's own
+`node_modules/react-native/Libraries/NativeModules/specs/`. Metro matches
+those patterns against paths in the host's format, with `\` on Windows and
+`/` on Linux. Written with only `/`, the patterns matched nothing on the
+Windows development machine (so nothing was wrong locally, and the other block
+rules never applied there either) and too much on the Linux runner. The
+latent version of the same bug: `.claude/worktrees` was unanchored too, so a
+Linux checkout living under such a path would have had every file blocked.
+**Fix:** Patterns are built from literal segments joined with `[\\/]`.
+`specs` and `.claude/worktrees` are anchored to the repo root; `.git`,
+`android/build`, `android/app/build`, `android/.gradle` and `.cxx` still match
+at any depth, `node_modules` included. `scripts/ci/__tests__/metro-config.test.js`
+checks 15 paths in both separator styles, on whatever OS runs the tests, so
+this cannot come back unnoticed (it failed 15 of 30 cases before the fix).
+**Dependabot.** The other red PRs were genuine: it proposed bumps that cannot
+work with React Native 0.86 — Kotlin 2.1.20 to 2.4, KSP, the Gradle wrapper,
+`react` 19.2 to 19.3, and majors of Babel (8), testing-library (14) and
+gesture-handler (3). `.github/dependabot.yml` now ignores the RN-coupled
+toolchain and all npm majors. Those move together with a deliberate React
+Native upgrade, or disappear with the Flutter migration (ADR-023). Dependabot
+closes its open PRs for ignored dependencies on its next run.
+**Lesson:** the maintainer builds on Windows and CI runs on Linux. CI is now the
+only Linux check, so any path-handling code needs a test that exercises both
+separator styles on one OS.
