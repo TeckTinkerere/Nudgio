@@ -1,5 +1,11 @@
 version: 2
 
+# What Dependabot must NOT touch, and why. Each of these is pinned in lockstep
+# with React Native (0.86 today) and breaks the build when bumped alone; the
+# first run opened PRs for them and every one failed CI. They move together,
+# deliberately, with a React Native upgrade (see android/build.gradle, ADR-019)
+# or are removed by the Flutter migration (ADR-023), not as automatic bumps.
+
 updates:
   - package-ecosystem: npm
     directory: /
@@ -9,6 +15,18 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Must match the exact versions React Native 0.86 renders with.
+      - dependency-name: react
+      - dependency-name: react-test-renderer
+      - dependency-name: react-native
+      - dependency-name: '@react-native/*'
+      - dependency-name: '@react-native-community/*'
+      # The Babel/Jest/TypeScript/testing toolchain is wired to RN's presets.
+      # Majors (Babel 8, testing-library 14, gesture-handler 3, ...) fail
+      # `npm ci` or the type check against RN 0.86.
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: npm
     directory: /web
@@ -24,6 +42,16 @@ updates:
     groups:
       gradle-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # The Kotlin/KSP/AGP/Gradle toolchain is chosen to match React Native's
+      # Gradle plugin. Moving Kotlin to 2.4 or Gradle to 9.8 broke compilation.
+      - dependency-name: org.jetbrains.kotlin*
+      - dependency-name: com.google.devtools.ksp*
+      - dependency-name: com.android.tools.build*
+      - dependency-name: com.facebook.react*
+      - dependency-name: gradle
+      # Room's compiler runs through KSP, so it moves with the toolchain.
+      - dependency-name: androidx.room*
 
   - package-ecosystem: github-actions
     directory: /

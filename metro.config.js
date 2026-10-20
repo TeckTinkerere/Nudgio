@@ -1,6 +1,18 @@
 const path = require('path');
 const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
 
+/** Either path separator, so a pattern behaves the same on Windows and Linux. */
+const SEP = '[\\\\/]';
+const escapeRegExp = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const joinSegments = segments => segments.map(escapeRegExp).join(SEP);
+const rootSource = joinSegments(path.resolve(__dirname).split(/[\\/]/));
+
+/** The directory made of literal [segments] directly under the repo root. */
+const underRoot = (...segments) => new RegExp(`^${rootSource}${SEP}${joinSegments(segments)}${SEP}`);
+
+/** The directory made of literal [segments] at any depth, node_modules included. */
+const anywhere = (...segments) => new RegExp(`${SEP}${joinSegments(segments)}${SEP}`);
+
 /**
  * Metro configuration.
  *
@@ -35,13 +47,28 @@ const config = {
     // *concurrently* with Metro in this same tree. None of these patterns
     // are anchored to the repo root, so they match the equivalent path
     // anywhere it occurs, including inside `node_modules`.
+    //
+    // Two rules keep these patterns honest (see
+    // scripts/ci/__tests__/metro-config.test.js):
+    //  - Metro matches them against paths in the host's own format, `\` on
+    //    Windows and `/` on Linux and macOS, so every separator below is
+    //    `[\\/]`. A bare `/` silently matched nothing on Windows and
+    //    everything on CI.
+    //  - `specs` and `.claude/worktrees` are repo-root directories and are
+    //    anchored there. The old unanchored `specs/` also matched
+    //    `node_modules/react-native/Libraries/NativeModules/specs/`, which
+    //    failed every Linux bundle ("Unable to resolve module
+    //    ./Libraries/NativeModules/specs/NativeDialogManagerAndroid") while
+    //    every Windows build passed. Build output, `.cxx` and `.git` are
+    //    deliberately left to match anywhere, node_modules included.
     blockList: [
-      /specs\/.*/,
-      /\.git\/.*/,
-      /android\/(app\/)?build\/.*/,
-      /android\/\.gradle\/.*/,
-      /\.claude\/worktrees\/.*/,
-      /\.cxx\/.*/,
+      underRoot('specs'),
+      underRoot('.claude', 'worktrees'),
+      anywhere('.git'),
+      anywhere('android', 'build'),
+      anywhere('android', 'app', 'build'),
+      anywhere('android', '.gradle'),
+      anywhere('.cxx'),
     ],
   },
 };
