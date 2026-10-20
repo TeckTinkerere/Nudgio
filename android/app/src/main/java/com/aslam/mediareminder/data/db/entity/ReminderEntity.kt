@@ -41,8 +41,9 @@ data class ReminderEntity(
     @ColumnInfo(name = "id")
     val id: String,
 
+    /** Null for an alarm with no attachment (`MIGRATION_8_9`, DL-118). */
     @ColumnInfo(name = "media_id")
-    val mediaId: String,
+    val mediaId: String?,
 
     @ColumnInfo(name = "profile_id")
     val profileId: String,

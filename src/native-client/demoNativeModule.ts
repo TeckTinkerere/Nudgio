@@ -444,13 +444,14 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
       // Reads the live, mutable `media` map (not the static `mockMedia`
       // fixture) so a reminder saved against something imported earlier in
       // this same demo session resolves its real kind, not a 'video' guess.
-      const referencedMedia = media.get(request.mediaId);
+      const mediaId = request.mediaId ?? null;
+      const referencedMedia = mediaId === null ? undefined : media.get(mediaId);
       const nextOccurrenceInstant = estimateNextOccurrence(request.schedule);
 
       const reminder: ReminderDetail = {
         id: existing?.id ?? randomId(),
         label: request.label,
-        mediaId: request.mediaId,
+        mediaId,
         mediaKind: referencedMedia?.kind ?? 'video',
         thumbnailToken: undefined,
         sourceToken: referencedMedia?.sourceToken,

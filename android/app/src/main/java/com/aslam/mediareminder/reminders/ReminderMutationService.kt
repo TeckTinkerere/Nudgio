@@ -62,9 +62,13 @@ class ReminderMutationService(
         val reminder = database.reminderDao().getById(id) ?: return null
         val rule = database.scheduleRuleDao().getByReminderId(id) ?: return null
         val nextOccurrence = database.occurrenceDao().getPendingForReminder(id)
-        val media = database.mediaDao().getById(reminder.mediaId)
+        val media = mediaFor(reminder)
         return ReminderDtoWriter.writeDetail(reminder, rule, nextOccurrence, media, storage, skippedFor(id))
     }
+
+    /** The attached media row, or null for an alarm with no attachment (or one whose media was since deleted). */
+    private suspend fun mediaFor(reminder: ReminderEntity) =
+        reminder.mediaId?.let { database.mediaDao().getById(it) }
 
     /** The latest future "Skip next" for [reminderId], shown as "Skipping ..." with an undo. */
     private suspend fun skippedFor(reminderId: String): OccurrenceEntity? =
@@ -78,7 +82,7 @@ class ReminderMutationService(
         // to be a 2N+1-query list endpoint for N reminders (docs/decision-log.md).
         val rulesByReminderId = database.scheduleRuleDao().getByReminderIds(reminderIds).associateBy { it.reminderId }
         val nextOccurrenceByReminderId = database.occurrenceDao().getPendingForReminders(reminderIds).associateBy { it.reminderId }
-        val mediaByMediaId = database.mediaDao().getByIds(reminders.map { it.mediaId }.distinct()).associateBy { it.id }
+        val mediaByMediaId = database.mediaDao().getByIds(reminders.mapNotNull { it.mediaId }.distinct()).associateBy { it.id }
         val skippedByReminderId = database.occurrenceDao().getFutureSkipped(reminderIds, Instant.now().toEpochMilli())
             .groupBy { it.reminderId }
             .mapValues { (_, rows) -> rows.maxBy { it.scheduledAt } }
@@ -88,7 +92,7 @@ class ReminderMutationService(
         for (reminder in reminders) {
             val rule = rulesByReminderId[reminder.id] ?: continue
             val nextOccurrence = nextOccurrenceByReminderId[reminder.id]
-            val media = mediaByMediaId[reminder.mediaId]
+            val media = reminder.mediaId?.let { mediaByMediaId[it] }
             items.pushMap(
                 ReminderDtoWriter.writeSummary(reminder, rule, nextOccurrence, media, storage, skippedByReminderId[reminder.id]),
             )
@@ -103,7 +107,12 @@ class ReminderMutationService(
     }
 
     suspend fun save(request: ReadableMap): SaveOutcome {
-        val mediaId = request.getString("mediaId") ?: return SaveOutcome.Invalid("mediaId")
+        // DL-118: the attachment is optional. Absent, null or blank all mean "none".
+        val mediaId = if (request.hasKey("mediaId") && !request.isNull("mediaId")) {
+            request.getString("mediaId")?.trim()?.takeIf { it.isNotEmpty() }
+        } else {
+            null
+        }
         val label = request.getString("label")?.trim().orEmpty()
         if (label.isEmpty()) return SaveOutcome.Invalid("label")
         val profileId = request.getString("profileId") ?: return SaveOutcome.Invalid("profileId")
@@ -160,6 +169,9 @@ class ReminderMutationService(
         val reminderId = existing?.id ?: requestedId ?: UUID.randomUUID().toString()
         val effectiveState = if (enabledIntent) ReminderEntity.STATE_ACTIVE else ReminderEntity.STATE_DISABLED
 
+        // A start point belongs to media; without any it is meaningless.
+        val effectiveMediaStartMs = if (mediaId == null) null else mediaStartMs
+
         val entity = ReminderEntity(
             id = reminderId,
             mediaId = mediaId,
@@ -179,7 +191,7 @@ class ReminderMutationService(
             actionType = action?.type,
             actionUri = action?.uri,
             actionLabel = action?.label,
-            mediaStartMs = mediaStartMs,
+            mediaStartMs = effectiveMediaStartMs,
         )
 
         var conflicted = false
@@ -234,7 +246,7 @@ class ReminderMutationService(
         val savedRule = requireNotNull(database.scheduleRuleDao().getByReminderId(reminderId))
         val nextOccurrence = database.occurrenceDao().getPendingForReminder(reminderId)
         val schedulerGeneration = database.schedulerStateDao().get()?.desiredGeneration ?: 0L
-        val media = database.mediaDao().getById(savedReminder.mediaId)
+        val media = mediaFor(savedReminder)
 
         val result = Arguments.createMap().apply {
             putMap("reminder", ReminderDtoWriter.writeDetail(savedReminder, savedRule, nextOccurrence, media, storage))
@@ -273,7 +285,7 @@ class ReminderMutationService(
         val updated = requireNotNull(reminderDao.getById(id))
         val rule = requireNotNull(database.scheduleRuleDao().getByReminderId(id))
         val nextOccurrence = database.occurrenceDao().getPendingForReminder(id)
-        val media = database.mediaDao().getById(updated.mediaId)
+        val media = mediaFor(updated)
 
         val result = Arguments.createMap().apply {
             putMap("reminder", ReminderDtoWriter.writeSummary(updated, rule, nextOccurrence, media, storage))
@@ -312,7 +324,7 @@ class ReminderMutationService(
         }
 
         val nextOccurrence = occurrenceDao.getPendingForReminder(id)
-        val media = database.mediaDao().getById(reminder.mediaId)
+        val media = mediaFor(reminder)
         val result = Arguments.createMap().apply {
             putMap("reminder", ReminderDtoWriter.writeSummary(reminder, ruleEntity, nextOccurrence, media, storage, skippedFor(id)))
             if (nextOccurrence != null) putMap("nextOccurrence", ReminderDtoWriter.writeOccurrence(nextOccurrence)) else putNull("nextOccurrence")

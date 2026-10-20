@@ -95,7 +95,7 @@ Profile timeout range: 15-600 seconds. Retry count: 0-3 in v1. Vibration total d
 | Column | Purpose |
 |---|---|
 | `id` | PK UUID |
-| `media_id` | FK media, restrict until dependency policy chosen |
+| `media_id` | Nullable (schema v9, DL-118): null is an alarm with no attachment. FK media, restrict until dependency policy chosen |
 | `profile_id` | FK profile, restrict |
 | `label` | display label; default copied from title but independent |
 | `notes` | reminder-specific notes |

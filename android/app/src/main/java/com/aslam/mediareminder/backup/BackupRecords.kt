@@ -76,7 +76,8 @@ object BackupReminderProfileCodec {
 object BackupReminderCodec {
     fun toJson(entity: ReminderEntity): JSONObject = JSONObject().apply {
         put("id", entity.id)
-        put("mediaId", entity.mediaId)
+        // Omitted for an alarm with no attachment (DL-118); older readers never see the key.
+        entity.mediaId?.let { put("mediaId", it) }
         put("label", entity.label)
         put("notes", entity.notes)
         put("profileId", entity.profileId)
@@ -125,7 +126,7 @@ object BackupReminderCodec {
             }
             ReminderEntity(
                 id = json.getString("id"),
-                mediaId = json.getString("mediaId"),
+                mediaId = if (json.isNull("mediaId")) null else json.getString("mediaId").takeIf { it.isNotEmpty() },
                 label = json.getString("label"),
                 notes = if (json.isNull("notes")) null else json.optString("notes"),
                 profileId = json.getString("profileId"),

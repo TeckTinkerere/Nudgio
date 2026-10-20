@@ -200,7 +200,8 @@ export interface ReminderActionWire {
 export interface ReminderSummaryWire {
   readonly id: string;
   readonly label: string;
-  readonly mediaId: string;
+  /** Null for an alarm with no attachment (DL-118). */
+  readonly mediaId: string | null;
   readonly mediaKind: string;
   readonly thumbnailToken?: string;
   /** Absent only when the joined media row itself is null (see `ReminderDtoWriter.kt`'s doc). */
@@ -224,7 +225,7 @@ export interface ReminderSummaryWire {
 export interface ReminderDetailWire {
   readonly id: string;
   readonly label: string;
-  readonly mediaId: string;
+  readonly mediaId: string | null;
   readonly mediaKind: string;
   readonly thumbnailToken?: string;
   readonly profileId: string;
@@ -254,7 +255,8 @@ export interface ReminderPageWire {
 export interface SaveReminderRequestWire {
   readonly id?: string;
   readonly entityVersion?: number;
-  readonly mediaId: string;
+  /** Omitted or null saves an alarm with no attachment (DL-118). */
+  readonly mediaId?: string | null;
   readonly label: string;
   readonly notes?: string;
   readonly schedule: ScheduleRuleWire;

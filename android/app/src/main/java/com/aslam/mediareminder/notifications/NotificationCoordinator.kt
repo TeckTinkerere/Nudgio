@@ -128,7 +128,8 @@ class NotificationCoordinator(private val context: Context) {
         useAlarmChannel: Boolean,
         ongoing: Boolean,
         useFullScreenIntent: Boolean,
-        playLabel: String = context.getString(R.string.alarm_accept),
+        /** Null (DL-118) leaves the notification with only Snooze and Dismiss: nothing to open. */
+        playLabel: String? = context.getString(R.string.alarm_accept),
     ): Notification {
         // Bug fix: this is the real due-alarm path (AlarmDispatchReceiver,
         // AlarmRingingService), but unlike postGenericDueNotification/
@@ -159,7 +160,7 @@ class NotificationCoordinator(private val context: Context) {
             // resolving it" — tapping the body brings the alarm UI forward,
             // it is not itself a Play/Snooze/Dismiss action.
             .setContentIntent(alarmActivityIntent(sessionId))
-            .addAction(playAction(sessionId, nonce, playLabel))
+            .apply { if (playLabel != null) addAction(playAction(sessionId, nonce, playLabel)) }
             .addAction(actionFor(context.getString(R.string.alarm_snooze), AlarmIds.ACTION_SNOOZE, sessionId, nonce, notificationIdFor(sessionId)))
             .addAction(actionFor(context.getString(R.string.alarm_dismiss), AlarmIds.ACTION_DISMISS, sessionId, nonce, notificationIdFor(sessionId)))
 
@@ -178,7 +179,7 @@ class NotificationCoordinator(private val context: Context) {
         useAlarmChannel: Boolean,
         ongoing: Boolean,
         useFullScreenIntent: Boolean = false,
-        playLabel: String = context.getString(R.string.alarm_accept),
+        playLabel: String? = context.getString(R.string.alarm_accept),
     ) {
         postNotification(
             notificationIdFor(sessionId),

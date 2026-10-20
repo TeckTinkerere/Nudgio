@@ -92,7 +92,7 @@ interface MediaDao {
 
     /** DL-110 storage cleanup: media no reminder refers to (same rule as `MediaQuerySql`'s `onlyUnused`). */
     @Query(
-        "SELECT COUNT(*) AS items, SUM(size_bytes) AS bytes FROM media_assets WHERE id NOT IN (SELECT media_id FROM reminders)",
+        "SELECT COUNT(*) AS items, SUM(size_bytes) AS bytes FROM media_assets WHERE id NOT IN (SELECT media_id FROM reminders WHERE media_id IS NOT NULL)",
     )
     suspend fun unusedTotals(): MediaStorageTotals
 

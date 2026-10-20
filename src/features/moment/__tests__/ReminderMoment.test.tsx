@@ -121,4 +121,25 @@ describe('ReminderMoment', () => {
     container.queryClient.clear();
     container.uninstallNativeModule();
   });
+
+  it('shows a plain alarm without calling it a missing media file (DL-118)', async () => {
+    const container = createTestContainer();
+    const plain: ReminderDetail = {...reminder, mediaId: null, action: null};
+    jest.spyOn(container.repositories.reminders, 'get').mockResolvedValue(ok(plain));
+    const getMedia = jest.spyOn(container.repositories.media, 'get');
+    const {view} = renderMoment(container);
+
+    act(() => useSessionStore.getState().openMoment({reminderId: plain.id, mediaId: null}));
+
+    expect(await screen.findByText('Learn Japanese')).toBeTruthy();
+    expect(screen.getByTestId('reminder-moment-no-attachment', {hidden: true})).toBeTruthy();
+    expect(screen.queryByText("This media isn't available anymore")).toBeNull();
+    expect(getMedia).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByRole('button', {name: 'Done'}));
+    expect(useSessionStore.getState().moment).toBeNull();
+
+    view.unmount();
+    container.queryClient.clear();
+    container.uninstallNativeModule();
+  });
 });

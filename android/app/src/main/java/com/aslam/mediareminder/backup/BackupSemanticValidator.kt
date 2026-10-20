@@ -161,7 +161,7 @@ object BackupSemanticValidator {
         // sweep marks it "Media unavailable" rather than the whole import
         // failing, which is also what keeps pre-media archives importable.
         val archiveMediaIds = media.map { it.id }.toSet()
-        val unresolved = reminders.count { it.mediaId !in archiveMediaIds }
+        val unresolved = reminders.count { it.mediaId != null && it.mediaId !in archiveMediaIds }
         if (unresolved > 0) {
             warnings += "$unresolved reminders reference media that is not in this archive"
         }

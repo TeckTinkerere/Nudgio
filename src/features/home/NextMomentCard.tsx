@@ -108,7 +108,7 @@ export function NextMomentCard({reminder, whenLabel, onOpen, onPreview, testID}:
         <View style={styles.media}>
           <MediaHero
             thumbnailToken={reminder.thumbnailToken}
-            kind={reminder.mediaKind}
+            kind={reminder.mediaId === null ? 'none' : reminder.mediaKind}
             height={heroHeight}
             roundTopOnly={!sideBySide}
           />

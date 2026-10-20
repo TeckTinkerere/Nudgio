@@ -272,7 +272,7 @@ class AlarmActivity : AppCompatActivity() {
 
             val reminder = database.reminderDao().getById(session.reminderId)
             val ruleEntity = reminder?.let { database.scheduleRuleDao().getByReminderId(it.id) }
-            val media = reminder?.let { database.mediaDao().getById(it.mediaId) }
+            val media = reminder?.mediaId?.let { database.mediaDao().getById(it) }
 
             labelView.text = reminder?.label ?: getString(R.string.alarm_default_label)
             // The user's own message is what this moment is for (DL-080);
@@ -287,6 +287,8 @@ class AlarmActivity : AppCompatActivity() {
             mediaTitleView.maxLines = MESSAGE_MAX_LINES
             setOptionalText(mediaTitleView, message)
             acceptButton.text = getString(AlarmNotificationText.acceptLabelRes(media?.kind))
+            // DL-118: no attachment and no follow-up action -> nothing to open.
+            acceptButton.visibility = if (AlarmNotificationText.hasOpenTarget(reminder?.mediaId, reminder?.actionType)) View.VISIBLE else View.GONE
             setOptionalText(
                 repeatSummaryView,
                 ruleEntity?.let { RepeatSummaryFormatter.summarize(ScheduleRuleMapper.toDomain(it)) },

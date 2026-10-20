@@ -14,7 +14,7 @@ import com.aslam.mediareminder.data.db.MediaReminderDatabase
 object AcceptMediaResolver {
     suspend fun resolve(database: MediaReminderDatabase, reminderId: String): String? {
         val reminder = database.reminderDao().getById(reminderId) ?: return null
-        val media = database.mediaDao().getById(reminder.mediaId)
+        val media = reminder.mediaId?.let { database.mediaDao().getById(it) }
         return media?.id
     }
 }
