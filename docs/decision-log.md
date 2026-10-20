@@ -3522,6 +3522,12 @@ gesture-handler (3). `.github/dependabot.yml` now ignores the RN-coupled
 toolchain and all npm majors. Those move together with a deliberate React
 Native upgrade, or disappear with the Flutter migration (ADR-023). Dependabot
 closes its open PRs for ignored dependencies on its next run.
+**Dependabot follow-up.** The first ignore list had two gaps, found when the
+recreated PRs ran against the fixed `main`: the Gradle wrapper is called
+`gradle-wrapper` (not `gradle`), so Gradle 9.3 to 9.8 was still proposed and breaks
+Kotlin compilation; and `react-native-reanimated` 4.7 needs `react-native-worklets`
+0.13 while the app is on 0.11, which crashed 14 Jest suites. Both are now ignored;
+Reanimated and Worklets move together with a React Native upgrade.
 **Lesson:** the maintainer builds on Windows and CI runs on Linux. CI is now the
 only Linux check, so any path-handling code needs a test that exercises both
 separator styles on one OS.

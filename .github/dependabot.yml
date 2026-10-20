@@ -22,6 +22,11 @@ updates:
       - dependency-name: react-native
       - dependency-name: '@react-native/*'
       - dependency-name: '@react-native-community/*'
+      # A matched pair: Reanimated 4.7 needs Worklets 0.13 while this app is on
+      # 0.11, and a lone Reanimated bump crashed 14 Jest suites. They move
+      # together, with the React Native upgrade.
+      - dependency-name: react-native-reanimated
+      - dependency-name: react-native-worklets
       # The Babel/Jest/TypeScript/testing toolchain is wired to RN's presets.
       # Majors (Babel 8, testing-library 14, gesture-handler 3, ...) fail
       # `npm ci` or the type check against RN 0.86.
@@ -49,7 +54,8 @@ updates:
       - dependency-name: com.google.devtools.ksp*
       - dependency-name: com.android.tools.build*
       - dependency-name: com.facebook.react*
-      - dependency-name: gradle
+      # Dependabot names the wrapper `gradle-wrapper`; `gradle` matches nothing.
+      - dependency-name: gradle-wrapper
       # Room's compiler runs through KSP, so it moves with the toolchain.
       - dependency-name: androidx.room*
 
