@@ -52,6 +52,9 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode versionProps.getProperty('versionCode', '1').toInteger()
         versionName versionProps.getProperty('versionName', '0.1.0')
+        // Instrumented tests (src/androidTest) run on a device or emulator;
+        // they cover what a plain JVM cannot: MediaStore, FileProvider, Room.
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     if (hasReleaseSigning) {

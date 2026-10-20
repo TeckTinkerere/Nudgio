@@ -1,6 +1,5 @@
 package com.aslam.mediareminder.media
 
-import android.content.Intent
 import androidx.sqlite.db.SimpleSQLiteQuery
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.data.db.entity.MediaAssetEntity
@@ -167,35 +166,6 @@ class MediaLibraryService(private val database: MediaReminderDatabase, private v
     }
 
     /**
-     * Library "Export selected" (MR-10 "Sharing and privacy"). There is no
-     * native "export a subset" archive format — that is `BackupExporter`'s
-     * whole-library ZIP, a distinct feature. This hands the selected files'
-     * real bytes to the OS share sheet instead (`ACTION_SEND_MULTIPLE`,
-     * read-only `content://` grants via `MediaStorage.contentUriFor`), which
-     * is what "export" means for a multi-select action in most gallery apps:
-     * the app's job ends once the chooser opens, not once some other app
-     * finishes receiving the files. `null` means none of the requested ids
-     * resolved to a still-existing file — nothing to share.
-     */
-    suspend fun buildExportIntent(ids: List<String>): Intent? {
-        val entities = mediaDao.getByIds(ids)
-        val uris = entities
-            .map { storage.fileFor(it.storageKey) }
-            .filter { it.exists() }
-            .map { storage.contentUriFor(it) }
-        if (uris.isEmpty()) return null
-
-        val kinds = entities.map { it.kind }.toSet()
-        val mimeType = if (kinds.size == 1) MIME_TYPE_PREFIX[kinds.first()] ?: "*/*" else "*/*"
-
-        return Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-            type = mimeType
-            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-    }
-
-    /**
      * One-time, best-effort catch-up for assets imported before thumbnail
      * generation existed, or where it failed on the first try (see
      * `MediaDao.getMissingThumbnails`'s doc — real library rows were found
@@ -315,14 +285,5 @@ class MediaLibraryService(private val database: MediaReminderDatabase, private v
         return mediaDao
             .countActiveRemindersFor(items.map { it.id })
             .associate { it.mediaId to it.activeCount }
-    }
-
-    companion object {
-        private val MIME_TYPE_PREFIX = mapOf(
-            MediaAssetEntity.KIND_VIDEO to "video/*",
-            MediaAssetEntity.KIND_AUDIO to "audio/*",
-            MediaAssetEntity.KIND_IMAGE to "image/*",
-            MediaAssetEntity.KIND_TEXT to "text/*",
-        )
     }
 }

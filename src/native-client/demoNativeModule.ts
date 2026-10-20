@@ -400,6 +400,20 @@ export const createDemoNativeModule = (): MediaReminderSpec => {
     /** No device gallery behind a fake, so this reports the same "nothing to save into" state as a pre-API-29 phone. */
     saveMediaCopyToGallery: async () => ({status: 'limited' as const, affectedCount: 0}),
 
+    /** No OS share sheet behind a fake: report the files as handed over. */
+    shareLibrarySelection: async (mediaIds: readonly string[]) => ({
+      status: 'ok' as const,
+      affectedCount: mediaIds.length,
+    }),
+
+    saveLibrarySelectionToGallery: async () => ({
+      status: 'limited' as const,
+      savedCount: 0,
+      alreadySavedCount: 0,
+      failedCount: 0,
+      unsupportedCount: 0,
+    }),
+
     /** Mirrors the Kotlin totals: recorded sizes, and nothing is ever "unavailable" in a map-backed fake. */
     getMediaStorageUsage: async () => ({
       itemCount: media.size,
