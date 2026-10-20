@@ -3473,6 +3473,19 @@ was selected.
 **Not changed:** no new permission, schema or archive field; the zip is not a
 backup archive. The Library's virtual Unsorted album is supported natively
 (`"unsorted"`) but is opened rather than selected in the UI today.
+**Found while verifying: Share did not work at all.** The first run of the
+instrumented test on a device (Android 16 emulator) failed every share with
+`Missing android.support.FILE_PROVIDER_PATHS meta-data`. `MediaReminderFileProvider`
+passes `R.xml.file_paths` to its constructor, but `FileProvider.getUriForFile`
+is static and runs before the provider has served anything, so it only reads
+the paths from manifest meta-data, which was not declared. Every
+`getUriForFile` call therefore threw: the single-item Export, Library
+"Export selected" and the Backup screen's Share (and with them this
+feature). The meta-data is now declared on the `<provider>`. Nothing in the
+JVM or Jest suites could see this, which is why the device test was added.
+`MediaReminderFileProvider.kt` and the audit's "FileProvider is limited to
+backups/ and media/" are about scope, not whether it works: the scope was
+right, the call failed before reaching it.
 **Tests:** `SelectionPlannerTest`, `ShareZipWriterTest` (JVM),
 `LibrarySelectionActionsInstrumentedTest` (device: Room, FileProvider and
 MediaStore), `useLibrarySelection.test.tsx`.
