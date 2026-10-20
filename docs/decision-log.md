@@ -3528,6 +3528,12 @@ recreated PRs ran against the fixed `main`: the Gradle wrapper is called
 Kotlin compilation; and `react-native-reanimated` 4.7 needs `react-native-worklets`
 0.13 while the app is on 0.11, which crashed 14 Jest suites. Both are now ignored;
 Reanimated and Worklets move together with a React Native upgrade.
+A second pass added `androidx.core`, `androidx.appcompat` and Material: core 1.19
+needs `compileSdk` 37 and AGP 9.1 (the app is on 36 and 8.10), so they move with a
+deliberate SDK baseline bump (ADR-019). With the corrected ignore list the
+remaining Dependabot PRs (actions bumps, `org.json`, `@upstash/redis`, the npm
+minor/patch group) all pass CI.
+
 **Lesson:** the maintainer builds on Windows and CI runs on Linux. CI is now the
 only Linux check, so any path-handling code needs a test that exercises both
 separator styles on one OS.

@@ -58,6 +58,13 @@ updates:
       - dependency-name: gradle-wrapper
       # Room's compiler runs through KSP, so it moves with the toolchain.
       - dependency-name: androidx.room*
+      # These raise the required compileSdk and Android Gradle Plugin with
+      # each release (core 1.19 needs compileSdk 37 and AGP 9.1; the project is
+      # on 36 and 8.10, ADR-019), so they move with a deliberate SDK baseline
+      # bump, not as a minor version.
+      - dependency-name: androidx.core*
+      - dependency-name: androidx.appcompat*
+      - dependency-name: com.google.android.material*
 
   - package-ecosystem: github-actions
     directory: /
