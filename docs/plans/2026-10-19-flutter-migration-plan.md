@@ -1,7 +1,7 @@
 # Nudgio → Flutter: cross-platform migration plan (Android + iPhone)
 
 **Date:** 19 October 2026
-**Status:** Proposed. Becomes binding only once ADR-023 (draft in §14) is accepted. Rationale is logged as [DL-111](../decision-log.md).
+**Status:** Direction accepted 20 Oct 2026 as [ADR-023](../../specs/Markdown/17_Architecture_Decision_Records.md) (reason: long-term stability over an earlier iPhone release). Execution not started; phase F0 and decisions 2-5 in §13 are still to confirm. Rationale is logged as [DL-111](../decision-log.md), acceptance as [DL-117](../decision-log.md).
 **Baseline:** `main` at `a8e45f4`, Android v2.3.1.
 **Supersedes, if accepted:** the "React Native remains the chosen production UI" sentence in [ADR-IOS-001](../ios/ADR-IOS-001.md), and the RN-on-iOS packages (P2–P5) of the [iPhone plan](2026-09-27-iphone-v1-implementation-plan.md) and its [6 Oct re-baseline](2026-10-06-iphone-next-steps.md). The iPhone product scope, the brand, the AlarmKit decision, the G1 device gate and the "Android lessons" list in those documents all stay in force.
 
@@ -19,7 +19,7 @@ The app is not only Kotlin. It has two layers:
 |---|---|---|---|
 | UI (every screen, navigation, design system, state, localization) | **React Native + TypeScript** (`src/`) | ~25,000 incl. tests | Could run on iOS, but never has been: no iOS host, no iOS native module |
 | Reliability core (alarms, Room DB, scheduling, ringing, notifications, media storage, backup) | **Kotlin** (`android/`) | ~13,700 | No. Android-only by nature |
-| Bridge | One TurboModule spec, `src/native-client/NativeMediaReminder.ts` | 44 methods | Android implementation only |
+| Bridge | One TurboModule spec, `src/native-client/NativeMediaReminder.ts` | 46 methods (44 at the time of writing, plus `shareLibrarySelection` and `saveLibrarySelectionToGallery`, DL-115) | Android implementation only |
 
 ### 1.2 Why Flutter rather than finishing the RN-on-iOS plan
 
@@ -127,14 +127,14 @@ Avoid community plugins that own reliability-critical paths: no `flutter_local_n
 
 ## 5. The contract: port `NativeMediaReminder.ts` to Pigeon first
 
-The 44-method TurboModule spec and `src/native-client/types.ts` are the seam. Translating them into `pigeons/nudgio_api.dart` is the **first** engineering step, because Android, iOS and Dart all build against it.
+The 46-method TurboModule spec and `src/native-client/types.ts` are the seam. Translating them into `pigeons/nudgio_api.dart` is the **first** engineering step, because Android, iOS and Dart all build against it.
 
 | Group | Methods | Android impl | iOS impl |
 |---|---|---|---|
 | Startup & settings | `getStartupSnapshot`, `getCapabilitySnapshot`, `getPreferences`, `setPreferences`, `setPausedUntil`, `getDynamicColorScheme`, `openCapabilitySettings`, `requestNotificationPermission` | Existing `PreferencesRepository`, `CapabilitySnapshotProvider`, `DynamicColorProvider` | Core Data singleton; `AlarmManager.shared.authorizationState`; dynamic colour returns null |
 | Reminders | `listReminders`, `getReminder`, `saveReminder`, `setReminderEnabled`, `deleteReminder`, `skipNextOccurrence`, `scheduleTestReminder`, `listProfiles`, `saveProfile`, `resetBuiltInProfile`, `getStatistics` | `ReminderMutationService`, `SchedulerCoordinator`, `StatisticsProvider` | `AlarmCoordinator` over AlarmKit recurring schedules. **Do not port the one-earliest-alarm scheduler** |
 | Due actions | `playDueSession`, `snoozeDueSession`, `dismissDueSession`, `takePendingMediaOpen` | `AlarmActionProcessor`, `PendingMediaOpen` | AlarmKit Stop/Snooze, `LiveActivityIntent` Open |
-| Library | `libraryCommand`, `listMedia`, `getMedia`, `updateMedia`, `deleteMedia`, `replaceMediaSource`, `getMediaStorageUsage`, `exportMediaAssets`, `saveMediaCopyToGallery` | `LibraryService`, `MediaLibraryService`, `MediaStoreExporter` | Core Data + Application Support files; `UIActivityViewController`; `PHPhotoLibrary` add-only |
+| Library | `libraryCommand`, `listMedia`, `getMedia`, `updateMedia`, `deleteMedia`, `replaceMediaSource`, `getMediaStorageUsage`, `exportMediaAssets`, `shareLibrarySelection`, `saveMediaCopyToGallery`, `saveLibrarySelectionToGallery` | `LibraryService`, `MediaLibraryService`, `MediaStoreExporter` | Core Data + Application Support files; `UIActivityViewController`; `PHPhotoLibrary` add-only |
 | Import & share | `pickDocument(s)`, `beginMediaImport`, `cancelOperation`, `takeSharedDocuments` | `MediaPicker`, `MediaImporter`, `IncomingShare` | `PHPickerViewController` (limit 20), `UIDocumentPickerViewController`, share extension later |
 | Ringtone | `pickAlarmRingtone`, `previewAlarmRingtone`, `stopAlarmRingtonePreview` | Existing | Bundled tones list only. Hide "device ringtones" on iOS |
 | Backup | `beginExport`, `shareBackupExport`, `inspectBackup`, `commitImport` | `BackupExporter`/`BackupImporter` | Swift port of the same validators (§8) |
@@ -296,15 +296,15 @@ Recurring cost: Apple Developer Program membership (annual) for TestFlight/App S
 
 | # | Decision | Recommendation |
 |---|---|---|
-| 1 | Accept Flutter over the approved RN-on-iOS path, given ≈ 2× longer time to iPhone | Accept only if long-term single-UI maintenance matters more than reaching iPhone sooner (see §1.3) |
+| 1 | Accept Flutter over the approved RN-on-iOS path, given ≈ 2× longer time to iPhone | **Decided 20 Oct 2026: accepted.** Long-term stability matters more than an earlier iPhone release (ADR-023) |
 | 2 | Android first (F2–F5) or iPhone core in parallel (F6 alongside F4) | Android first. It de-risks the rewrite on the platform with real users |
 | 3 | iOS bundle ID and Apple team | `com.aslam.nudgio` |
 | 4 | State management | Riverpod (closest to today's React Query + DI container) |
 | 5 | Android → iPhone backup import in iPhone v1 | Yes. It is the main way people will switch |
 
-## 14. Draft ADR-023 — Flutter as the shared UI for Android and iPhone
+## 14. ADR-023 — Flutter as the shared UI for Android and iPhone
 
-**Status:** Proposed (19 Oct 2026).
+**Status:** Accepted as the direction (20 Oct 2026). The authoritative copy is in `specs/Markdown/17_Architecture_Decision_Records.md`; this is the draft it was taken from.
 **Context:** Nudgio ships on Android only. iPhone users cannot use it. The UI is React Native/TypeScript over a Kotlin core; the approved iPhone path would run RN on iOS over a Swift core.
 **Decision:** Replace the React Native UI with a single Flutter (Dart) application used on both Android and iPhone. Keep the Kotlin reliability core on Android unchanged; build a Swift/AlarmKit core on iPhone. Both implement one Pigeon-generated contract derived from `NativeMediaReminder.ts`. Alarm actions on both platforms run without the Flutter engine.
 **Consequences:** UI rewrite (~25k lines incl. tests); removal of the npm/Metro toolchain; same Android package, key and schema (no user data migration); ADR-003 (RN UI) is superseded and ADR-IOS-001's RN sentence is amended; every new pub.dev dependency needs a decision-log entry; time to first iPhone release rises to about 20–27 weeks.
