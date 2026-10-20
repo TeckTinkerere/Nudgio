@@ -1332,12 +1332,12 @@ class MediaReminderModule(
                 val missed = database.occurrenceDao().recentlyMissed(since, MISSED_LIMIT)
                 val reminders = missed.map { it.reminderId }.distinct()
                     .mapNotNull { database.reminderDao().getById(it) }.associateBy { it.id }
-                val media = database.mediaDao().getByIds(reminders.values.map { it.mediaId }.distinct()).associateBy { it.id }
+                val media = database.mediaDao().getByIds(reminders.values.mapNotNull { it.mediaId }.distinct()).associateBy { it.id }
                 val storage = com.aslam.mediareminder.media.MediaStorage(reactApplicationContext)
                 Arguments.createArray().apply {
                     for (occurrence in missed) {
                         val reminder = reminders[occurrence.reminderId] ?: continue
-                        val asset = media[reminder.mediaId]
+                        val asset = reminder.mediaId?.let { media[it] }
                         pushMap(
                             Arguments.createMap().apply {
                                 putString("occurrenceId", occurrence.id)

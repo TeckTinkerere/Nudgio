@@ -3560,3 +3560,57 @@ as needed. Prefer logic in Kotlin over TypeScript where there is a choice, since
 Kotlin carries over unchanged. Keep `NativeMediaReminder.ts` and `types.ts` as the
 single description of the bridge, since the Pigeon contract is generated from
 them (it now has 46 methods, not the 44 the plan lists).
+
+## DL-118 — Alarms without an attachment (schema v9)
+
+**Date:** 2026-10-21
+**Context:** The v2.3.4 plan (`docs/plans/2026-10-21-v2.3.4-alarm-clock-recommendations.md`,
+item 1). Nudgio is meant to work as an ordinary alarm clock, but the editor
+refused to save without a photo, video or sound, and `reminders.media_id` was
+`NOT NULL`.
+
+**Decision.** An attachment is optional.
+- **Schema v9, `MIGRATION_8_9`.** `reminders.media_id` becomes nullable. SQLite
+  cannot drop `NOT NULL` in place, so the table is rebuilt (create, copy, drop,
+  rename, recreate the three indexes). Existing rows keep their `media_id`, so
+  every current reminder behaves exactly as before.
+- **The hazard, and the guard.** `schedule_rules` and `occurrences` reference
+  `reminders` with `ON DELETE CASCADE` (and `active_alarm_session` references
+  `occurrences`). With foreign keys enforced, `DROP TABLE reminders` deletes
+  every schedule. Run against real SQLite, the plain rebuild left 3 reminders
+  with **0** schedules and **0** occurrences. Room enables enforcement only
+  after a migration, but `PRAGMA foreign_keys` cannot be changed inside the
+  migration's transaction, so the migration does not depend on that: it copies
+  the three child tables aside first and `INSERT OR IGNORE`s them back
+  afterwards (a no-op when nothing cascaded). With the guard, all rows,
+  schedules, occurrences and an active alarm session survived with foreign keys
+  both on and off, and `PRAGMA foreign_key_check` was clean. The new table's
+  columns and foreign keys match Room's exported `9.json`.
+- **A NULL trap in "unused media".** `id NOT IN (SELECT media_id FROM reminders)`
+  evaluates to NULL for every row once any reminder has a NULL `media_id`, so
+  Settings' "Not used by any reminder" and the Library filter would have
+  silently found nothing. Both queries now add `WHERE media_id IS NOT NULL`.
+- **Ringing.** An alarm with no attachment rings with the default alarm sound
+  from Settings (the existing fallback). Its notification and full-screen alarm
+  offer only Snooze and Dismiss, unless the reminder has a follow-up action, in
+  which case Open stays. The Moment shows the title, message and action on a
+  plain field, never "media isn't available" (`mediaMissing` is false when there
+  is no attachment).
+- **Editor.** The attachment section is labelled optional, has a compact empty
+  state and a Remove button. An attachment that was picked but cannot be loaded
+  blocks Save until retried or removed, so it is never silently dropped.
+- **Backups.** `mediaId` is omitted for an alarm with no attachment; an absent,
+  null or blank key reads as none. Older archives (always with a `mediaId`)
+  import as before, and archives from this version carry no new required key.
+  A start point (`mediaStartMs`) is cleared when there is no media.
+- **Wire types.** `mediaId` is `string | null` on reminder summaries/details and
+  optional/null on `SaveReminderRequest`.
+
+**Not changed (known).** The in-app due strip still shows Open for every alarm;
+for a plain alarm it opens the Moment (title and message). The title is still
+required (plan item 2).
+
+**Scope:** schema v9 (non-additive table rebuild, guarded as above), one
+optional archive field, no new permission, no new dependency.
+**Rollback:** v2.3.4 cannot be downgraded in place: Room refuses to open a v9
+database with a v8 app. Back up before installing, as for any schema change.

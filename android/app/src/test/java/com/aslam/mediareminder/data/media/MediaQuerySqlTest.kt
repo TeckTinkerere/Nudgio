@@ -209,7 +209,7 @@ class MediaQuerySqlTest {
     @Test
     fun `unused filter excludes media any reminder refers to`() {
         val sql = MediaQuerySql.where(MediaQuerySql.Criteria(onlyUnused = true))
-        assertEquals("WHERE id NOT IN (SELECT media_id FROM reminders)", sql.sql)
+        assertEquals("WHERE id NOT IN (SELECT media_id FROM reminders WHERE media_id IS NOT NULL)", sql.sql)
         assertTrue(sql.args.isEmpty())
     }
 
@@ -217,6 +217,6 @@ class MediaQuerySqlTest {
     fun `unused filter narrows alongside a kind filter`() {
         val sql = MediaQuerySql.where(MediaQuerySql.Criteria(onlyUnused = true, kinds = listOf("video")))
         assertTrue(sql.sql.contains("kind IN (?)"))
-        assertTrue(sql.sql.contains(" AND id NOT IN (SELECT media_id FROM reminders)"))
+        assertTrue(sql.sql.contains(" AND id NOT IN (SELECT media_id FROM reminders WHERE media_id IS NOT NULL)"))
     }
 }

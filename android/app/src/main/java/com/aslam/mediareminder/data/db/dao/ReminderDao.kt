@@ -62,7 +62,7 @@ interface ReminderDao {
     )
     suspend fun updateWithVersionCheck(
         id: String,
-        mediaId: String,
+        mediaId: String?,
         profileId: String,
         label: String,
         notes: String?,

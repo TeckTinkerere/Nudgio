@@ -10,11 +10,12 @@ import {Icon, useTheme, type IconName} from '../../design-system';
 import {thumbnailImageSource} from '../../native-client/mediaTokens';
 import type {MediaKind, ThumbnailToken} from '../../native-client/types';
 
-const KIND_ICON: Record<MediaKind, IconName> = {video: 'video', audio: 'audio', image: 'image', text: 'text'};
+/** `none` (DL-118) is an alarm with no attachment: a clock, not a picture of nothing. */
+const KIND_ICON: Record<MediaKind | 'none', IconName> = {video: 'video', audio: 'audio', image: 'image', text: 'text', none: 'clock'};
 
 export interface MediaHeroProps {
   readonly thumbnailToken: ThumbnailToken | undefined;
-  readonly kind: MediaKind;
+  readonly kind: MediaKind | 'none';
   readonly height?: number;
   /** Rounds only the top corners, for a hero that sits at the top of a card. */
   readonly roundTopOnly?: boolean;

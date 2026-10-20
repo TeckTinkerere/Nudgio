@@ -48,6 +48,9 @@ const KIND_ICON: Record<MediaKind, IconName> = {video: 'video', audio: 'audio', 
 /** Tall enough to read as a stage rather than a banner, short enough to leave the form visible. */
 const STAGE_HEIGHT = 240;
 
+/** The empty, optional frame: enough for a title and three source pills. */
+const EMPTY_HEIGHT = 152;
+
 interface SourceOption {
   readonly key: string;
   readonly icon: IconName;
@@ -68,8 +71,8 @@ export interface ReminderMediaSectionProps {
   readonly onRetry: () => void;
   readonly onPicked: (id: UUID) => void;
   readonly onChooseFromLibrary: () => void;
-  /** Shown after a Save attempt with nothing chosen. */
-  readonly error?: string;
+  /** DL-118: the attachment is optional, so a chosen one can be taken off again. */
+  readonly onClear: () => void;
   /** DL-110: where playback starts, in ms; null is the beginning. Video/audio only. */
   readonly startMs?: number | null;
   readonly onStartChange?: (startMs: number | null) => void;
@@ -82,7 +85,7 @@ export function ReminderMediaSection({
   onRetry,
   onPicked,
   onChooseFromLibrary,
-  error,
+  onClear,
   startMs = null,
   onStartChange,
 }: ReminderMediaSectionProps) {
@@ -116,11 +119,12 @@ export function ReminderMediaSection({
 
   const styles = StyleSheet.create({
     empty: {
-      height: STAGE_HEIGHT,
+      // Optional (DL-118), so a compact frame rather than a hero-sized stage.
+      height: EMPTY_HEIGHT,
       borderRadius: theme.radius.card,
       borderWidth: 2,
       borderStyle: 'dashed',
-      borderColor: error ? theme.color.error : theme.color.outlineVariant,
+      borderColor: theme.color.outlineVariant,
       backgroundColor: theme.color.surfaceContainerHigh,
       alignItems: 'center',
       justifyContent: 'center',
@@ -183,7 +187,13 @@ export function ReminderMediaSection({
       ) : loading ? (
         <LoadingState label={t('loading.startingUp')} />
       ) : failed ? (
-        <Button label={t('action.retry')} variant="tonal" onPress={onRetry} />
+        <Stack gap="xs">
+          <Text variant="bodyMedium" tone="variant">{t('reminders.editor.mediaLoadFailed')}</Text>
+          <Stack direction="row" gap="xs">
+            <Button label={t('action.retry')} variant="tonal" onPress={onRetry} />
+            <Button label={t('reminders.editor.removeMedia')} variant="text" onPress={onClear} testID="reminder-media-remove" />
+          </Stack>
+        </Stack>
       ) : media && !choosing ? (
         <View testID="reminder-media-selected">
           <View style={styles.stage}>
@@ -223,6 +233,15 @@ export function ReminderMediaSection({
               {media.title}
             </Text>
           </Stack>
+          <Button
+            label={t('reminders.editor.removeMedia')}
+            variant="text"
+            onPress={() => {
+              setAlsoInLibrary(0);
+              onClear();
+            }}
+            testID="reminder-media-remove"
+          />
           {/* DL-110: set in the preview, at the playhead. */}
           {onStartChange && (media.kind === 'video' || media.kind === 'audio') ? (
             <Stack direction="row" align="center" gap="xs" style={styles.caption}>
@@ -259,7 +278,6 @@ export function ReminderMediaSection({
         </Stack>
       )}
 
-      {error && !media ? <Text variant="bodyMedium" tone="error">{error}</Text> : null}
       {importError && importMedia.error?.field !== 'cancelled' ? (
         <Banner kind="actionNeeded" title={t(importError.titleKey)} effect={t(importError.bodyKey)} />
       ) : null}

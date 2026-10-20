@@ -92,7 +92,7 @@ export function ReminderRow({reminder, now, use24Hour, onOpen, onToggle}: Remind
                 <Image source={thumbnail} style={StyleSheet.absoluteFill} resizeMode="cover"
                   accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
               ) : (
-                <Icon name={MEDIA_ICON[reminder.mediaKind]} color={theme.color.onSurfaceVariant} />
+                <Icon name={reminder.mediaId === null ? 'clock' : MEDIA_ICON[reminder.mediaKind]} color={theme.color.onSurfaceVariant} />
               )}
             </View>
             <Stack style={styles.flex} gap={2}>

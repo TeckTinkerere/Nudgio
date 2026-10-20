@@ -179,8 +179,7 @@ class AlarmRingingService : Service() {
                 useAlarmChannel = true,
                 ongoing = true,
                 useFullScreenIntent = false,
-                playLabel = reminder?.let { AlarmNotificationText.acceptLabel(this@AlarmRingingService, database, it) }
-                    ?: getString(com.aslam.mediareminder.R.string.alarm_accept),
+                playLabel = AlarmNotificationText.acceptLabel(this@AlarmRingingService, database, reminder),
             )
             runCatching {
                 ServiceCompat.startForeground(
