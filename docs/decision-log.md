@@ -3276,7 +3276,7 @@ archives without them read as before.
 ## DL-111 — Proposed: move the UI to Flutter so iPhone users can use Nudgio
 
 **Date:** 2026-10-19
-**Status:** Proposed. Binding only once ADR-023 is accepted; until then
+**Status:** Proposed on 19 Oct; the direction was accepted as ADR-023 on 20 Oct (DL-117). Originally: binding only once ADR-023 is accepted; until then
 ADR-IOS-001 and the approved iPhone plan stand. Full plan:
 [`docs/plans/2026-10-19-flutter-migration-plan.md`](plans/2026-10-19-flutter-migration-plan.md).
 **Context:** Nudgio is Android-only. People with an iPhone, including the
@@ -3525,3 +3525,26 @@ closes its open PRs for ignored dependencies on its next run.
 **Lesson:** the maintainer builds on Windows and CI runs on Linux. CI is now the
 only Linux check, so any path-handling code needs a test that exercises both
 separator styles on one OS.
+
+## DL-117 — Accepted: Flutter is the shared UI direction (ADR-023)
+
+**Date:** 2026-10-20
+**Status:** Accepted as the direction. Execution not started.
+**Decision (owner):** Move to Flutter. The reason given: long-term stability is
+more important than an earlier iPhone release, so one maintained UI codebase
+for Android and iPhone is worth a longer road (about 20-27 weeks of focused
+work against about 9-12 for finishing the React Native path).
+**What this changes:** ADR-023 is now in the ADR pack and supersedes ADR-003
+(React Native UI) from the Android cutover (plan phase F5) and the "React Native
+remains the production UI" sentence in ADR-IOS-001 and ADR-022. Nothing ships
+differently yet: the React Native app remains the Android UI, and the Kotlin
+core, Room schema v8, package name and signing key are untouched.
+**Still open (plan §13):** Android first versus the iPhone core in parallel
+(recommended: Android first), the iOS bundle ID (suggested `com.aslam.nudgio`),
+Riverpod, and Android-to-iPhone backup import in iPhone v1. Phase F0 (pin the
+Flutter SDK, order Mac access, decide the Apple team) comes next.
+**Interim rules until F5:** keep fixing the React Native app and the Kotlin core
+as needed. Prefer logic in Kotlin over TypeScript where there is a choice, since
+Kotlin carries over unchanged. Keep `NativeMediaReminder.ts` and `types.ts` as the
+single description of the bridge, since the Pigeon contract is generated from
+them (it now has 46 methods, not the 44 the plan lists).
