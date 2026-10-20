@@ -202,7 +202,20 @@
             android:name=".backup.MediaReminderFileProvider"
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
-            android:grantUriPermissions="true" />
+            android:grantUriPermissions="true">
+            <!--
+              `FileProvider.getUriForFile` is a static call made before the
+              provider has served anything, so it cannot see the paths the
+              subclass hands its constructor: it resolves them from this
+              meta-data and throws "Missing android.support.FILE_PROVIDER_PATHS
+              meta-data" without it. Every share (media Export, Share on a
+              selection, backup Share) goes through that call, and an
+              instrumented test on a device caught all of them failing.
+            -->
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>
