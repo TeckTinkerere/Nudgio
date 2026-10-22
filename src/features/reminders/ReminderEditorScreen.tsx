@@ -386,7 +386,9 @@ function ReminderEditorForm({
   // The first problem, in the order the form reads — the one the toast names.
   const problem = firstProblem({
     label,
-    hasMedia: selectedMedia !== undefined,
+    // DL-118: an attachment is optional, but one that was picked and cannot be
+    // loaded must be retried or removed, never silently dropped on save.
+    mediaUnresolved: mediaId !== undefined && selectedMedia === undefined,
     repeatType,
     weekdayCount: weekdays.length,
     actionInvalid: action === 'invalid',
@@ -394,13 +396,13 @@ function ReminderEditorForm({
   });
 
   const performSave = () => {
-    if (!selectedMedia || !profileId || action === 'invalid') {
+    if (!profileId || action === 'invalid') {
       return;
     }
     saveReminder.mutate(
       {
         id: existing?.id,
-        mediaId: selectedMedia.id,
+        mediaId: selectedMedia?.id ?? null,
         label: label.trim(),
         notes: notes.trim().length > 0 ? notes.trim() : undefined,
         schedule: scheduleRule,
@@ -479,8 +481,8 @@ function ReminderEditorForm({
           failed={mediaDetail.isError}
           onRetry={() => mediaDetail.refetch()}
           onPicked={setMediaId}
+          onClear={() => setMediaId(undefined)}
           onChooseFromLibrary={() => navigation.navigate(rootRoutes.selectMedia, {selectedMediaId: mediaId})}
-          error={saveAttempted ? t('reminders.editor.validationMediaRequired') : undefined}
           startMs={mediaStartMs}
           onStartChange={setMediaStartMs}
         />
@@ -606,7 +608,7 @@ function ReminderEditorForm({
 
 interface FormProblemInput {
   readonly label: string;
-  readonly hasMedia: boolean;
+  readonly mediaUnresolved: boolean;
   readonly repeatType: RepeatType;
   readonly weekdayCount: number;
   readonly actionInvalid: boolean;
@@ -618,8 +620,8 @@ const firstProblem = (input: FormProblemInput): TranslationKey | null => {
   if (input.label.trim().length === 0) {
     return 'reminders.editor.validationLabelRequired';
   }
-  if (!input.hasMedia) {
-    return 'reminders.editor.validationMediaRequired';
+  if (input.mediaUnresolved) {
+    return 'reminders.editor.validationMediaUnavailable';
   }
   if (input.repeatType === 'weekdays' && input.weekdayCount === 0) {
     return 'reminders.editor.validationWeekdaysRequired';

@@ -43,7 +43,7 @@ object ReminderDtoWriter {
     ): WritableMap = Arguments.createMap().apply {
         putString("id", reminder.id)
         putString("label", reminder.label)
-        putString("mediaId", reminder.mediaId)
+        if (reminder.mediaId != null) putString("mediaId", reminder.mediaId) else putNull("mediaId")
         putString("mediaKind", media?.kind ?: "video")
         val thumbnailToken = media?.let { MediaThumbnailUri.resolveThumbnail(it, storage) }
         if (thumbnailToken != null) putString("thumbnailToken", thumbnailToken) else putNull("thumbnailToken")
@@ -63,7 +63,8 @@ object ReminderDtoWriter {
         // `MediaDtoWriter.resolveIntegrity` does it there: `integrity_state`
         // is a cache that only the startup sweep refreshes, and a list read
         // should show what is true now.
-        putBoolean("mediaMissing", media == null || !storage.fileFor(media.storageKey).exists())
+        // An alarm with no attachment has nothing to be missing (DL-118).
+        putBoolean("mediaMissing", reminder.mediaId != null && (media == null || !storage.fileFor(media.storageKey).exists()))
         putString("profileId", reminder.profileId)
         putBoolean("enabledIntent", reminder.enabledIntent)
         putString("effectiveState", reminder.effectiveState)

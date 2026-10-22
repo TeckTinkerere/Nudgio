@@ -18,7 +18,7 @@ object AlarmNotificationText {
     suspend fun resolveBody(database: MediaReminderDatabase, reminder: ReminderEntity): String {
         reminder.notes?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
 
-        val media = database.mediaDao().getById(reminder.mediaId)
+        val media = reminder.mediaId?.let { database.mediaDao().getById(it) }
         if (media != null && media.title.isNotBlank()) return media.title
 
         val ruleEntity = database.scheduleRuleDao().getByReminderId(reminder.id)
@@ -37,6 +37,17 @@ object AlarmNotificationText {
         else -> R.string.alarm_accept
     }
 
-    suspend fun acceptLabel(context: Context, database: MediaReminderDatabase, reminder: ReminderEntity): String =
-        context.getString(acceptLabelRes(database.mediaDao().getById(reminder.mediaId)?.kind))
+    /**
+     * DL-118: an alarm with no attachment and no follow-up action has nothing
+     * for Open to open, so it offers only Snooze and Dismiss. Shared by the
+     * notification and the full-screen alarm.
+     */
+    fun hasOpenTarget(mediaId: String?, actionType: String?): Boolean = mediaId != null || actionType != null
+
+    /** Null when [hasOpenTarget] is false: the notification then has no Open button at all. */
+    suspend fun acceptLabel(context: Context, database: MediaReminderDatabase, reminder: ReminderEntity): String? {
+        if (!hasOpenTarget(reminder.mediaId, reminder.actionType)) return null
+        val kind = reminder.mediaId?.let { database.mediaDao().getById(it) }?.kind
+        return context.getString(acceptLabelRes(kind))
+    }
 }

@@ -153,7 +153,7 @@ export function ReminderDetailScreen({navigation, route}: Props) {
 
         {/* The moment, as it will appear: media first, then the words. */}
         <Card padding={0}>
-          <MediaHero thumbnailToken={reminder.thumbnailToken} kind={reminder.mediaKind} roundTopOnly />
+          <MediaHero thumbnailToken={reminder.thumbnailToken} kind={reminder.mediaId === null ? 'none' : reminder.mediaKind} roundTopOnly />
           <Stack gap="xs" style={{padding: theme.spacing.md}}>
             <Text variant="headlineMedium" isHeading>{reminder.label}</Text>
             {reminder.notes ? <Text variant="bodyLarge">{reminder.notes}</Text> : null}

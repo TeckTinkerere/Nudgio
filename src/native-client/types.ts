@@ -254,7 +254,8 @@ export interface SnoozePolicyDto {
 export interface ReminderSummary {
   readonly id: UUID;
   readonly label: string;
-  readonly mediaId: UUID;
+  /** Null for an alarm with no attachment (DL-118). `mediaKind` is then only a placeholder. */
+  readonly mediaId: UUID | null;
   readonly mediaKind: MediaKind;
   readonly thumbnailToken?: ThumbnailToken;
   /** Lets the Reminders list preview-play this reminder's media in place; absent only when the joined media row is null. */
@@ -321,7 +322,8 @@ export interface ReminderDetail extends ReminderSummary {
 export interface SaveReminderRequest {
   readonly id?: UUID;
   readonly entityVersion?: number;
-  readonly mediaId: UUID;
+  /** Omitted or null saves an alarm with no attachment (DL-118). */
+  readonly mediaId?: UUID | null;
   readonly label: string;
   readonly notes?: string;
   readonly schedule: ScheduleRuleDto;
