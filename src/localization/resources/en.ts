@@ -363,8 +363,8 @@ export const en = {
   'reminders.editor.editTitle': 'Edit reminder',
   'reminders.editor.createSuccess': 'Reminder created successfully.',
   'reminders.editor.updateSuccess': 'Reminder updated successfully.',
-  'reminders.editor.mediaSection': 'Media',
-  'reminders.editor.mediaEmptyTitle': 'Add a photo, video or sound',
+  'reminders.editor.mediaSection': 'Attachment (optional)',
+  'reminders.editor.mediaEmptyTitle': 'Add a photo, video or sound, or leave it as a plain alarm',
   'reminders.editor.changeMedia': 'Change media',
   // Translator note: {time} is a playback position such as "1:23".
   'reminders.editor.startsAt': 'Starts at {time}',
@@ -405,7 +405,9 @@ export const en = {
   'reminders.editor.enabledToggle': 'Enabled',
   'reminders.editor.capabilitySummary': 'Capability summary',
   'reminders.editor.validationLabelRequired': 'Give this reminder a name.',
-  'reminders.editor.validationMediaRequired': 'Choose media for this reminder.',
+  'reminders.editor.validationMediaUnavailable': 'The attached media could not be loaded. Retry, or remove it.',
+  'reminders.editor.removeMedia': 'Remove attachment',
+  'reminders.editor.mediaLoadFailed': 'Could not load the attachment.',
   'reminders.editor.saved': 'Reminder saved',
   'reminders.editor.notificationsBlockedTitle': 'Notifications are turned off',
   'reminders.editor.notificationsBlockedBody':

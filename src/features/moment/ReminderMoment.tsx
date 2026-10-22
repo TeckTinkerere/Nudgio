@@ -87,6 +87,9 @@ function MomentContent({reminderId, fallbackMediaId, onClose}: MomentContentProp
   const sideBySide = width >= SIDE_BY_SIDE_MIN_WIDTH && width > height;
   const loading = (reminderId !== undefined && reminder.isPending) || (mediaId !== undefined && media.isPending);
 
+  // DL-118: an alarm saved without an attachment is not "media unavailable".
+  const noAttachment = reminder.data !== undefined && reminder.data.mediaId === null;
+
   const action = reminder.data?.action ?? null;
   const title = reminder.data?.label ?? media.data?.title ?? '';
   const message = reminder.data?.notes?.trim();
@@ -132,6 +135,8 @@ function MomentContent({reminderId, fallbackMediaId, onClose}: MomentContentProp
         <View style={styles.stage}>
           {loading ? (
             <CenteredSpinner label={t('moment.loading')} />
+          ) : noAttachment ? (
+            <NoAttachmentStage />
           ) : (
             <MomentMedia
               media={media.data}
@@ -318,6 +323,15 @@ function MomentMedia({media, unavailable, startMs}: MomentMediaProps) {
   return (
     <View style={centered.fill}>
       <Icon name="text" size="xl" color={neutral.white} />
+    </View>
+  );
+}
+
+/** The stage for an alarm with nothing attached: just the time's words below, on a calm field. */
+function NoAttachmentStage() {
+  return (
+    <View style={centered.fill} testID="reminder-moment-no-attachment" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Icon name="clock" size="xl" color={withAlpha(neutral.white, 0.72)} />
     </View>
   );
 }

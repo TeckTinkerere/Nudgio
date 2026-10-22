@@ -140,7 +140,7 @@ object MediaQuerySql {
         if (criteria.onlyUnused) {
             // Any reminder counts, paused or finished included: "unused" has
             // to mean deleting it cannot touch a reminder.
-            clauses += "id NOT IN (SELECT media_id FROM reminders)"
+            clauses += "id NOT IN (SELECT media_id FROM reminders WHERE media_id IS NOT NULL)"
         }
 
         val sql = if (clauses.isEmpty()) "" else "WHERE ${clauses.joinToString(" AND ")}"
