@@ -3614,3 +3614,31 @@ required (plan item 2).
 optional archive field, no new permission, no new dependency.
 **Rollback:** v2.3.4 cannot be downgraded in place: Room refuses to open a v9
 database with a v8 app. Back up before installing, as for any schema change.
+
+## DL-119 — Publish the APK signing-certificate fingerprint (SEC-07)
+
+**Date:** 2026-10-23
+**Context:** Audit finding SEC-07. Users sideload the APK, and
+`SHA256SUMS.txt` is uploaded to the same GitHub release, so anyone able to
+replace the APK can replace the checksum too. The signing certificate is what
+proves who built the file.
+
+**Decision.** Publish the release certificate's SHA-256 fingerprint,
+`4acfa5e636dde8b9a1277c61a5798ae573ae70162c65e3f0b96f054fd8ad501c`, in `README.md` and in the trust section of
+`web/index.html`, with `apksigner verify --print-certs Nudgio.apk`
+instructions. The value is static markup, so the site's CSP is unchanged (no
+inline script or style).
+- **Evidence.** Downloaded `Nudgio-v2.3.1.apk`, `Nudgio-v2.3.2.apk` and
+  `Nudgio-v2.3.4.apk` from their GitHub releases into fresh folders and ran
+  `apksigner verify --print-certs` (build-tools 37.0.0). All three report the
+  same V2 signer certificate and this digest.
+- **Release process.** `docs/APK_RELEASE_CHECKLIST.md` gains a "Signing
+  identity" section: re-check the fingerprint on every release, keep the
+  keystore backed up offline, keep 2FA on the GitHub account.
+
+**Not changed.** The checksum file stays; it still catches a corrupted
+download. Key rotation is not planned; if it ever happens, the published value
+and this entry must change together, with the old value kept for reference.
+
+**Scope:** docs and static site copy only. No app, permission, schema or
+dependency change.

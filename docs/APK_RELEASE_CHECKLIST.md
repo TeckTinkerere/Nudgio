@@ -11,6 +11,12 @@ Android checklist. Cross-check against `specs/Markdown/20_Release_Distribution_P
 - [x] **Signing.** `scripts/release/` now exists — `android/app/build.gradle` reads `RELEASE_STORE_FILE`/`RELEASE_STORE_PASSWORD`/`RELEASE_KEY_ALIAS`/`RELEASE_KEY_PASSWORD` env vars, falling back to gitignored `android/keystore.properties` (template: `android/keystore.properties.example`). See `scripts/README.md`. You still need a real keystore generated and stored *outside* this repo — nothing here creates one for you — and this is unverified against an actual `assembleRelease` run since that's currently blocked (see above).
 - [x] **Version stamping.** `scripts/release/stamp-version.js` writes `android/version.properties` (`versionCode` monotonic, `versionName` semver-validated); `android/app/build.gradle` reads it instead of hardcoding. See `scripts/README.md`.
 
+## Signing identity (SEC-07, DL-119)
+
+- [ ] **Re-check the certificate fingerprint on every release.** Run `apksigner verify --print-certs` on the APK you are about to upload (from the release folder, not the build output) and confirm the `certificate SHA-256 digest` equals `4acfa5e636dde8b9a1277c61a5798ae573ae70162c65e3f0b96f054fd8ad501c`, the value published in `README.md` and `web/index.html`. If it differs, stop: do not upload, and do not "fix" the published value unless the key was rotated on purpose.
+- [ ] **The keystore is backed up offline.** At least one copy off this machine and off any cloud sync (for example an encrypted USB drive), with its passwords stored separately. If the keystore is lost, existing installs can never be updated in place.
+- [ ] **2FA is on for the GitHub account** that publishes releases. Whoever controls the account controls the release page and its checksum file; the fingerprint is the check that survives that.
+
 ## Manifest / permissions audit
 
 Current manifest declares exactly: `POST_NOTIFICATIONS`, `SCHEDULE_EXACT_ALARM` (capped at `maxSdkVersion="32"`), `USE_EXACT_ALARM`, `RECEIVE_BOOT_COMPLETED`, `VIBRATE`, `WAKE_LOCK`, `USE_FULL_SCREEN_INTENT`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`. No `INTERNET`, no `SYSTEM_ALERT_WINDOW`, no broad media/gallery access, no battery-exemption request, no location/contacts/camera/microphone/phone-state.

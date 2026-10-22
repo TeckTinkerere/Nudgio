@@ -25,6 +25,26 @@ conventions. [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md),
 [`TODO.md`](TODO.md) and [`docs/APK_RELEASE_CHECKLIST.md`](docs/APK_RELEASE_CHECKLIST.md)
 track what's fixed, what's missing, and what a real release still needs.
 
+## Verifying a downloaded APK
+
+Every release APK is signed with the same key. Its SHA-256 certificate
+fingerprint is:
+
+```text
+4acfa5e636dde8b9a1277c61a5798ae573ae70162c65e3f0b96f054fd8ad501c
+```
+
+`SHA256SUMS.txt` sits beside the APK on the same release, so it only proves the
+download is intact, not who built it. To check the signer, run `apksigner`
+from the Android SDK build-tools:
+
+```bash
+apksigner verify --print-certs Nudgio.apk
+```
+
+The `certificate SHA-256 digest` line must equal the fingerprint above. If it
+differs, do not install the file.
+
 ## Repository layout
 
 ```text
