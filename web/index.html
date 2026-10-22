@@ -172,8 +172,17 @@
         Nudgio isn't on the Play Store — it's built and signed by one person,
         published straight from source. The code is public on
         <a href="https://github.com/TeckTinkerere/Nudgio" target="_blank" rel="noopener">GitHub</a>,
-        every release is a tagged build, and each APK ships with a SHA-256
-        checksum you can verify against the file yourself.
+        and every release is a tagged build. The checksum file sits beside the
+        APK, so on its own it only proves the download wasn't corrupted. What
+        proves the APK is genuine is its signing certificate.
+      </p>
+      <p>Every Nudgio APK is signed with the same key. Its SHA-256 certificate fingerprint is:</p>
+      <p class="fingerprint"><code id="signing-fingerprint">4acfa5e636dde8b9a1277c61a5798ae573ae70162c65e3f0b96f054fd8ad501c</code></p>
+      <p>
+        To check a download, run <code>apksigner verify --print-certs Nudgio.apk</code>
+        (from the Android SDK build-tools) and compare the
+        <code>certificate SHA-256 digest</code> line with the value above. If it
+        differs, don't install the file.
       </p>
       <p id="checksum-row" class="checksum-row" hidden>
         <span class="pill pill--mono">SHA-256 published</span>
