@@ -99,9 +99,25 @@ OEM notification ranking, battery policies, lock-screen behavior and audio routi
 
 Android developer verification and sideloading policy is evolving in 2026. Direct APK guidance must be refreshed immediately before public distribution. The technical pack intentionally avoids a promise that any current sideload process remains unchanged indefinitely.
 
+# Flutter toolchain baseline (ADR-023, F0)
+
+Pinned 2026-10-23 with FVM (`.fvmrc` at the repo root; DL-120). Refresh at the start of F1 and before F5 cutover; never move to a beta or a release announced but not yet on the stable channel.
+
+| Component | Version | Source |
+|---|---|---|
+| Flutter SDK | 3.47.7, stable channel (framework `abaf9c5237`, 2026-10-08) | `releases_windows.json` `current_release.stable`, checked 2026-10-23 |
+| Dart SDK | 3.13.5 (bundled) | `flutter --version` |
+| DevTools | 2.60.0 | `flutter --version` |
+| FVM | 4.3.2 (standalone Windows x64 build) | github.com/leoafarias/fvm releases |
+| Android SDK | platform android-37.1, build-tools 37.0.0 | `flutter doctor -v` |
+| JDK | 23.0.2 (`C:\Program Files\Java\jdk-23`) | `flutter doctor -v` |
+
+`flutter doctor` on the Windows development machine: Flutter, Android SDK, JDK and devices OK. Open item: Android SDK licenses not yet accepted by the owner (`flutter doctor --android-licenses`). Visual Studio is missing; it is only needed for Windows desktop builds, which Nudgio does not target.
+
 # Baseline refresh checklist
 
 - Confirm latest stable React Native and compatible Gradle/AGP/JDK matrix.
+- Confirm the pinned Flutter stable (`.fvmrc`) and its Dart/AGP/JDK requirements.
 - Confirm current Android release/API and target SDK requirement.
 - Re-read exact-alarm and full-screen intent policy plus Play declarations.
 - Re-read foreground service types/background audio behavior.
