@@ -534,6 +534,20 @@ main {
   text-underline-offset: 3px;
 }
 
+.trust code {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.fingerprint code {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 12px 14px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 12px;
+  color: var(--on-surface);
+}
+
 .checksum-row {
   display: flex;
   align-items: center;

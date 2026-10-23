@@ -160,7 +160,7 @@ All of these fixes are needed in the Flutter version too. The Kotlin core is kep
 | SEC-04 | Fixed | DL-112; missing media checksum is `media_entry_corrupt` |
 | SEC-05 | Fixed | DL-114; length cap, rate limit on every POST, `x-real-ip`, cached GET, 400/503 |
 | SEC-06 | Fixed | DL-114; one shared 100 MB budget, 25 MB per entry |
-| SEC-07 | Open | Needs the release keystore's SHA-256 fingerprint to publish |
+| SEC-07 | Fixed | DL-119; fingerprint published in `README.md` and `web/index.html`, re-checked per release in `docs/APK_RELEASE_CHECKLIST.md` |
 | SEC-08 | Fixed, unproven on GitHub | DL-114; CI and Dependabot added, workflow not yet run remotely |
 | SEC-09 | Partly fixed | DL-114; 63 to 59 advisories, 0 critical. The rest need Jest 30 or React Native 0.88 |
 | SEC-10 | Fixed | DL-114; `storageKey` shape enforced |
