@@ -3642,3 +3642,44 @@ and this entry must change together, with the old value kept for reference.
 
 **Scope:** docs and static site copy only. No app, permission, schema or
 dependency change.
+
+## DL-120 — Flutter migration phase F0: decisions and toolchain pin
+
+**Date:** 2026-10-23
+**Context:** ADR-023 / DL-117 accepted Flutter as the direction and left the
+plan's §13 decisions open. F0 is "decide and set up"; F1 has not started.
+
+**Decisions (owner, 23 Oct).**
+- **Android first.** F2-F5 ship Android v3.0.0 on Flutter before any iPhone
+  core work (F6).
+- **iOS bundle ID `com.aslam.nudgio`.** Android keeps
+  `com.aslam.mediareminder`, which cannot change without breaking in-place
+  updates.
+- **Riverpod** for state, replacing React Query, Zustand and the DI container.
+- **Android-to-iPhone backup import in iPhone v1.** The Swift importer must
+  port the Kotlin validators, including the SEC-02/04/06/10 fixes and symlink
+  rejection (SEC-11), and accept media-less alarms (schema v9).
+- **iPhone track parked.** The Apple Developer team and Mac access are not
+  decided now; revisit before F6.
+
+**Toolchain.** Flutter 3.47.7 stable (Dart 3.13.5) pinned with FVM 4.3.2 in
+`.fvmrc`; `.fvm/` is git-ignored. Versions are recorded in MR-22.
+`flutter doctor` on the Windows machine is OK for Android (SDK 37, JDK 23)
+except that the Android SDK licenses still have to be accepted by the owner.
+
+**Stale facts corrected in the plan.** Baseline v2.3.1/`a8e45f4` to
+v2.3.4/`0fab7bf`; Room v8 to v9 (DL-118); rollback must not go below v2.3.4,
+because schema-v8 builds cannot open a v9 database; the F5 upgrade test starts
+from v2.3.4 and includes an alarm with no attachment; 30 Kotlin test files, not
+23. The Pigeon contract must make a reminder's `mediaId` nullable
+(`String?` on summaries, details, `SaveReminderRequest`, `PendingMediaOpen`),
+as `types.ts` already does. DL-111 and DL-117 keep their original wording as
+history.
+
+**Interim rule carried from DL-117, until the F5 cutover:** prefer logic in
+Kotlin over TypeScript where there is a choice, and keep
+`src/native-client/NativeMediaReminder.ts` and `types.ts` as the single
+description of the bridge; any bridge change lands there first.
+
+**Scope:** docs, `.fvmrc` and `.gitignore` only. No app, schema, permission or
+dependency change.

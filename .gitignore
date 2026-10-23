@@ -81,3 +81,6 @@ xcuserdata/
 # the Metro log a dev run leaves behind. Both are reproducible output, not source.
 graphify-out/
 metro.log
+
+# FVM Version Cache
+.fvm/
