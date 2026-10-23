@@ -1,8 +1,8 @@
 # Nudgio → Flutter: cross-platform migration plan (Android + iPhone)
 
 **Date:** 19 October 2026
-**Status:** Direction accepted 20 Oct 2026 as [ADR-023](../../specs/Markdown/17_Architecture_Decision_Records.md) (reason: long-term stability over an earlier iPhone release). Execution not started; phase F0 and decisions 2-5 in §13 are still to confirm. Rationale is logged as [DL-111](../decision-log.md), acceptance as [DL-117](../decision-log.md).
-**Baseline:** `main` at `a8e45f4`, Android v2.3.1.
+**Status:** Direction accepted 20 Oct 2026 as [ADR-023](../../specs/Markdown/17_Architecture_Decision_Records.md) (reason: long-term stability over an earlier iPhone release). Decisions 2-5 in §13 confirmed 23 Oct 2026; phase F0 done the same day (DL-120). F1 not started. Rationale is logged as [DL-111](../decision-log.md), acceptance as [DL-117](../decision-log.md), F0 as [DL-120](../decision-log.md).
+**Baseline:** written against `main` at `a8e45f4` (Android v2.3.1); refreshed in F0 against `0fab7bf` (Android v2.3.4, version code 23, Room schema v9).
 **Supersedes, if accepted:** the "React Native remains the chosen production UI" sentence in [ADR-IOS-001](../ios/ADR-IOS-001.md), and the RN-on-iOS packages (P2–P5) of the [iPhone plan](2026-09-27-iphone-v1-implementation-plan.md) and its [6 Oct re-baseline](2026-10-06-iphone-next-steps.md). The iPhone product scope, the brand, the AlarmKit decision, the G1 device gate and the "Android lessons" list in those documents all stay in force.
 
 ---
@@ -50,7 +50,7 @@ The alarm itself can never be "written once". Android's `AlarmManager` with a fu
 |---|---|
 | Kotlin reliability core: `alarm/`, `data/` (Room + migrations), `media/`, `backup/`, `notifications/`, `library/`, `reminders/`, `statistics/` | Proven alarm reliability (DL-001…DL-110) is not re-earned from scratch |
 | `AlarmActivity`, `AlarmRingingService`, notification actions | Already native XML/Kotlin and independent of React Native. They stay independent of Flutter |
-| Room schema v8 and the `schemas/` JSON | **Existing Android users upgrade in place with no data migration** |
+| Room schema (v9 since v2.3.4, DL-118) and the `schemas/` JSON | **Existing Android users upgrade in place with no data migration** |
 | `applicationId com.aslam.mediareminder` and the release signing key | Required for an in-place update of the sideloaded APK |
 | Backup ZIP format | Old backups keep importing, and the format becomes the Android ↔ iPhone transfer path (§8) |
 | Product rules in AGENTS.md (no Internet, no analytics, one earliest alarm on Android, explicit Play, etc.) | Flutter must not weaken any of them; checked again in §9 |
@@ -141,6 +141,7 @@ The 46-method TurboModule spec and `src/native-client/types.ts` are the seam. Tr
 | Events | reminder due, operation progress, backup operation | `ReminderEventEmitter`, `OperationProgressEmitter`, `BackupOperationEmitter` → Pigeon event streams | Same streams from Swift |
 
 Rules:
+- **A reminder's media reference is nullable** (schema v9, DL-118). In Pigeon, `mediaId` is `String?` on reminder summaries, reminder details, `SaveReminderRequest` and `PendingMediaOpen`, matching `types.ts`. It stays non-null where a media record is the subject (`ReplaceMediaSourceRequest`, media detail). Screens, the Moment and the Swift backup importer must handle an alarm with no attachment; a backup omits `mediaId` for one.
 - Errors cross the bridge as the existing `NativeErrorEnvelope` categories (`VALIDATION`, `BACKUP`, `SECURITY`, …) mapped to a Dart `AppError`. Never use a generic `PlatformException` string.
 - Every method gets a Dart-side contract test against a fake HostApi, and a Kotlin round-trip test. Port `MediaReminderClient.test.ts`.
 - Use `capabilities` fields, not `Platform.isIOS` checks scattered through screens, for platform differences such as "device ringtones available" or "max enabled reminders".
@@ -177,6 +178,8 @@ Every phase ends with evidence, as AGENTS.md "Completion report" requires. Andro
 - Decide the iOS bundle ID (suggested `com.aslam.nudgio`) and Apple team; order Mac access (CI runner and a physical Mac, per the 6 Oct plan §2).
 - **Fix SEC-01, SEC-02 and SEC-04 in Kotlin now.** They carry into Flutter unchanged.
 - **Exit:** ADR accepted; `flutter doctor` green on Windows (Android); Mac access date known.
+- **Status (23 Oct 2026, DL-120):** done except where noted. ADR-023 accepted; §13 decisions 2-5 confirmed; Flutter 3.47.7 / Dart 3.13.5 pinned in `.fvmrc` and recorded in MR-22 §Flutter toolchain baseline; `flutter doctor` OK for Android apart from the owner accepting SDK licenses. SEC-01/02/04 were already fixed (DL-112). **Not done, by decision:** Apple team and Mac access. The owner parked the iPhone track until Android v3.0.0, so the "Mac access date known" exit is waived for now and moves to the start of F6. Editing the text of ADR-003, ADR-IOS-001 and the iPhone plans is not needed now: ADR-023 already records the supersession, and the plans are parked with the iPhone track. The owner-only items are in [`2026-10-23-flutter-f0-owner-checklist.md`](2026-10-23-flutter-f0-owner-checklist.md).
+- **Bridge facts at F0** (input to F1): 46 methods in `NativeMediaReminder.ts`; reminder `mediaId` nullable (§5 rules); schema v9.
 
 ### F1 — Contract and Dart foundation (1.5–2 weeks)
 - Write `pigeons/nudgio_api.dart` from `NativeMediaReminder.ts` and `types.ts`; generate code.
@@ -201,7 +204,7 @@ Every phase ends with evidence, as AGENTS.md "Completion report" requires. Andro
 
 ### F5 — Android parity and cutover (1.5–2 weeks)
 - Device matrix (MR-14), cold-start time, APK size (use `--split-per-abi`; compare to today's 32 MB universal APK), battery idle check (no new wakeups).
-- **Upgrade test:** install v2.3.1, create real data (reminders, albums, media, skip, pause), upgrade to the Flutter build signed with the same key, verify everything survives and the next alarm still fires.
+- **Upgrade test:** install the last React Native release (v2.3.4 or later), create real data including an alarm with no attachment (reminders, albums, media, skip, pause), upgrade to the Flutter build signed with the same key, verify everything survives and the next alarm still fires.
 - Release with `--obfuscate --split-debug-info`; keep the symbol files privately for crash reading.
 - Release **Android v3.0.0**.
 - **Exit:** v3.0.0 on GitHub Releases; no regressions open at P0/P1.
@@ -232,11 +235,11 @@ Every phase ends with evidence, as AGENTS.md "Completion report" requires. Andro
 
 | Case | Plan |
 |---|---|
-| Existing Android user upgrades to v3.0.0 | No migration: same package, same signing key, same Room DB v8, same DataStore. Covered by the F5 upgrade test |
+| Existing Android user upgrades to v3.0.0 | No migration: same package, same signing key, same Room DB (v9 at F0), same DataStore. Covered by the F5 upgrade test |
 | New iPhone user | Fresh Core Data store |
 | Android → iPhone switcher | **Import the Android backup ZIP on iPhone.** Keep the logical ZIP format shared (6 Oct plan, decision 3). The Swift importer ports the Kotlin validators **including the SEC-02/04/06/10 fixes, plus explicit symlink rejection (SEC-11)**. Android-only fields (escalation profiles, device ringtone URIs) are mapped to iPhone defaults and listed in the import preview |
 | iPhone → Android | Same format in reverse. Lower priority, after F8 |
-| Rollback | Android: v2.3.1 APK stays on GitHub Releases. Because the schema is untouched, downgrading by reinstalling (after uninstall, using a backup) works. iPhone: none needed before release |
+| Rollback | Android: the last React Native APK (v2.3.4 at F0) stays on GitHub Releases. Flutter does not change the schema, so uninstalling, reinstalling that APK and restoring a backup works. Do **not** roll back below v2.3.4: v2.3.1-v2.3.2 (schema v8) cannot open a v9 database (DL-118). iPhone: none needed before release |
 
 ## 9. Security and privacy carry-over
 
@@ -275,7 +278,7 @@ Recurring cost: Apple Developer Program membership (annual) for TestFlight/App S
 | Widgets | `flutter test` + `mocktail` fake HostApi | RNTL component and screen tests |
 | Visual | Golden tests (light/dark, text scale 1.0/2.0, LTR/RTL) | New; replaces manual brand validation docs |
 | Contract | Dart fake vs Kotlin/Swift round-trip tests per method group | `MediaReminderClient.test.ts` |
-| Native core | Existing 23 Kotlin JUnit tests (unchanged) + new XCTests | — |
+| Native core | Existing 30 Kotlin JUnit test files (unchanged) + new XCTests | — |
 | On device | `integration_test` (create reminder → alarm → Play → Moment) on Android and iPhone | Manual release checklists |
 | Alarm without engine | Kill the Flutter engine / do not start it; fire the alarm; Stop/Snooze must work | AGENTS.md hard rule |
 
@@ -297,10 +300,10 @@ Recurring cost: Apple Developer Program membership (annual) for TestFlight/App S
 | # | Decision | Recommendation |
 |---|---|---|
 | 1 | Accept Flutter over the approved RN-on-iOS path, given ≈ 2× longer time to iPhone | **Decided 20 Oct 2026: accepted.** Long-term stability matters more than an earlier iPhone release (ADR-023) |
-| 2 | Android first (F2–F5) or iPhone core in parallel (F6 alongside F4) | Android first. It de-risks the rewrite on the platform with real users |
-| 3 | iOS bundle ID and Apple team | `com.aslam.nudgio` |
-| 4 | State management | Riverpod (closest to today's React Query + DI container) |
-| 5 | Android → iPhone backup import in iPhone v1 | Yes. It is the main way people will switch |
+| 2 | Android first (F2–F5) or iPhone core in parallel (F6 alongside F4) | **Decided 23 Oct 2026: Android first** (DL-120) |
+| 3 | iOS bundle ID and Apple team | **Bundle ID decided 23 Oct 2026: `com.aslam.nudgio`.** Apple team and Mac access deferred: the iPhone track is parked until Android v3.0.0 (DL-120) |
+| 4 | State management | **Decided 23 Oct 2026: Riverpod** (DL-120) |
+| 5 | Android → iPhone backup import in iPhone v1 | **Decided 23 Oct 2026: yes, in iPhone v1** (DL-120) |
 
 ## 14. ADR-023 — Flutter as the shared UI for Android and iPhone
 

@@ -240,7 +240,7 @@ Each ADR is immutable after approval except for status and superseding reference
 
 # ADR-023 — Flutter as the shared UI for Android and iPhone
 
-**Status:** Accepted as the direction, 2026-10-20, by the owner. Reason given: long-term stability matters more than an earlier iPhone release, so a single maintained UI codebase is worth the longer road. Execution has not started: Phase F0 of the [migration plan](../../docs/plans/2026-10-19-flutter-migration-plan.md), and the plan's remaining decisions (Android first, iOS bundle ID, Riverpod, Android-to-iPhone backup import) are still to be confirmed.
+**Status:** Accepted as the direction, 2026-10-20, by the owner. Reason given: long-term stability matters more than an earlier iPhone release, so a single maintained UI codebase is worth the longer road. Phase F0 of the [migration plan](../../docs/plans/2026-10-19-flutter-migration-plan.md) was completed 2026-10-23 (DL-120): Android first, iOS bundle ID `com.aslam.nudgio`, Riverpod, and Android-to-iPhone backup import in iPhone v1 are decided; the Flutter SDK is pinned with FVM. The iPhone track (Apple team, Mac access) is deferred until Android v3.0.0. F1 has not started.
 
 **Context:** Nudgio ships on Android only. The UI is React Native/TypeScript over a Kotlin core; the previously approved iPhone path (ADR-022) would run that React Native UI on iOS over a new Swift core.
 
@@ -248,7 +248,7 @@ Each ADR is immutable after approval except for status and superseding reference
 
 **Supersedes:** ADR-003 (React Native UI), from the Android cutover to Flutter (plan phase F5), and the "React Native remains the production UI" sentence of ADR-IOS-001 and ADR-022. Until that cutover, the React Native app stays the shipping Android UI and every ADR it relies on stays in force. ADR-002, ADR-004 to ADR-017 and the iPhone scope, brand and G1 gate are unchanged.
 
-**Consequences:** UI rewrite (about 25,000 lines including tests); removal of the npm/Metro toolchain; same Android package, signing key and Room schema, so no user data migration; every new pub.dev dependency needs a decision-log entry; first iPhone release moves to about 20-27 weeks of focused work. Android users keep receiving fixes on the React Native app until v3.0.0.
+**Consequences:** UI rewrite (about 25,000 lines including tests); removal of the npm/Metro toolchain; same Android package, signing key and Room schema (v9 since DL-118), so no user data migration; every new pub.dev dependency needs a decision-log entry; first iPhone release moves to about 20-27 weeks of focused work. Android users keep receiving fixes on the React Native app until v3.0.0.
 
 **Alternatives rejected:** (a) React Native UI on iOS plus Swift core: quicker to iPhone but keeps two native-module ecosystems and the Codegen/Objective-C++ adapter. (b) Two native UIs (Compose and SwiftUI): best platform fidelity, double the UI work for good. (c) A generic cross-platform alarm plugin: hides lifecycle limits behind a shared API, unacceptable for an alarm app.
 
