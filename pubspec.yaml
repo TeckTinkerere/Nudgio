@@ -1,0 +1,37 @@
+# Nudgio's Flutter UI (ADR-023), shared by Android and iPhone.
+#
+# The Flutter app lives at the repository root so `android/` and `ios/` stay
+# where both the existing Kotlin core and the Flutter tool expect them. The
+# React Native app in `src/` keeps building from `package.json` until the F5
+# cutover; the two do not share any code.
+#
+# Every dependency below needs a decision-log entry (plan §9 "Plugin vetting
+# rule"): verified or first-party publisher, no analytics or telemetry, no
+# network permission, pinned version.
+name: nudgio
+description: "Media alarms for Android and iPhone."
+publish_to: 'none'
+
+# Android's versionCode/versionName still come from android/version.properties
+# (scripts/release/stamp-version.js); this line only feeds the iOS bundle
+# version until the release scripts learn to stamp both.
+version: 2.3.4+23
+
+environment:
+  sdk: ^3.13.5
+  flutter: 3.47.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # State management (DL-120 decision 4). First-party Riverpod publisher, pure
+  # Dart, no platform code and no network access.
+  flutter_riverpod: 3.4.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
