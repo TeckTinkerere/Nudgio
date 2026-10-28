@@ -2,8 +2,8 @@ package com.aslam.mediareminder.data
 
 import android.content.Context
 import android.os.Build
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.WritableMap
+import com.aslam.mediareminder.bridge.wire.Arguments
+import com.aslam.mediareminder.bridge.wire.WritableMap
 
 /**
  * Material You palette extraction (MR-04's dynamic-color opt-in; see

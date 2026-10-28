@@ -28,6 +28,6 @@ final startupProvider = FutureProvider<Result<StartupSnapshot>>(
   (ref) => ref.watch(clientProvider).getStartupSnapshot(),
 );
 
-final remindersProvider = FutureProvider<Result<Page<ReminderSummary>>>(
+final remindersProvider = FutureProvider<Result<WirePage<ReminderSummary>>>(
   (ref) => ref.watch(clientProvider).listReminders(),
 );

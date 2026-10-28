@@ -138,10 +138,10 @@ class NudgioClient {
 
   // --- Reminders ------------------------------------------------------------------
 
-  Future<Result<Page<ReminderSummary>>> listReminders() => _call(
+  Future<Result<WirePage<ReminderSummary>>> listReminders() => _call(
         'listReminders',
         const {},
-        (raw) => Page.fromWire(WireReader(raw, 'ReminderPage'), ReminderSummary.fromWire),
+        (raw) => WirePage.fromWire(WireReader(raw, 'ReminderPage'), ReminderSummary.fromWire),
       );
 
   Future<Result<ReminderDetail>> getReminder(String id) =>
@@ -208,10 +208,10 @@ class NudgioClient {
 
   // --- Library ------------------------------------------------------------------------
 
-  Future<Result<Page<MediaSummary>>> listMedia(MediaQuery query) => _call(
+  Future<Result<WirePage<MediaSummary>>> listMedia(MediaQuery query) => _call(
         'listMedia',
         {'query': query.toWire()},
-        (raw) => Page.fromWire(WireReader(raw, 'MediaPage'), MediaSummary.fromWire),
+        (raw) => WirePage.fromWire(WireReader(raw, 'MediaPage'), MediaSummary.fromWire),
       );
 
   Future<Result<MediaDetail>> getMedia(String id) =>

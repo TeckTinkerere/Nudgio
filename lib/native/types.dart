@@ -31,10 +31,10 @@ final class NamedRef {
   final String name;
 }
 
-final class Page<T> {
-  const Page({required this.items, required this.total, required this.offset, required this.hasMore});
+final class WirePage<T> {
+  const WirePage({required this.items, required this.total, required this.offset, required this.hasMore});
 
-  factory Page.fromWire(WireReader r, T Function(WireReader item) decode) => Page(
+  factory WirePage.fromWire(WireReader r, T Function(WireReader item) decode) => WirePage(
         items: r.list('items', decode),
         total: r.integer('total'),
         offset: r.integer('offset'),

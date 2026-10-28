@@ -1,24 +1,37 @@
+/*
+ * Flutter host (ADR-023, phase F2). The Flutter Gradle plugin is loaded from
+ * the SDK named in local.properties (`flutter.sdk`), which `flutter pub get`,
+ * `flutter build` and `flutter run` write automatically, on CI too.
+ *
+ * Plugin versions are the ones the React Native build already used (AGP
+ * 8.10.0, DL-044; Kotlin 2.1.20 with its matching KSP for Room), so this swap
+ * changes the UI host and nothing about how the Kotlin core is compiled.
+ */
 pluginManagement {
+    def flutterSdkPath = {
+        def properties = new Properties()
+        file("local.properties").withInputStream { properties.load(it) }
+        def path = properties.getProperty("flutter.sdk")
+        assert path != null, "flutter.sdk not set in local.properties: run `flutter pub get` at the repository root"
+        return path
+    }()
+
+    includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
+
     repositories {
         google()
         mavenCentral()
         gradlePluginPortal()
     }
-    includeBuild(new File(['node', '--print', "require.resolve('@react-native/gradle-plugin/package.json')"].execute(null, rootDir).text.trim()).getParentFile().toString())
 }
 
-plugins { id("com.facebook.react.settings") }
-
-def reactNativeGradlePlugin = new File(['node', '--print', "require.resolve('@react-native/gradle-plugin/package.json')"].execute(null, rootDir).text.trim()).getParentFile().toString()
+plugins {
+    id "dev.flutter.flutter-plugin-loader" version "1.0.0"
+    id "com.android.application" version "8.10.0" apply false
+    id "org.jetbrains.kotlin.android" version "2.1.20" apply false
+    id "com.google.devtools.ksp" version "2.1.20-2.0.1" apply false
+}
 
 rootProject.name = 'Nudgio'
 
-// Configures autolinking for React Native dependencies declared in package.json.
-extensions.configure(com.facebook.react.ReactSettingsExtension) { ex -> ex.autolinkLibrariesFromCommand() }
-
 include ':app'
-
-// Substitutes the com.facebook.react:react-native-gradle-plugin classpath
-// dependency (declared without a version in build.gradle) with this local
-// build, so it doesn't try to resolve from a remote Maven repo.
-includeBuild(reactNativeGradlePlugin)

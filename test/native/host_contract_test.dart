@@ -20,7 +20,9 @@ void main() {
     if (const bool.fromEnvironment('UPDATE_CONTRACT')) {
       file.writeAsStringSync('$expected\n');
     }
-    expect(file.readAsStringSync().trim(), expected, reason: 'Regenerate with --dart-define=UPDATE_CONTRACT=true');
+    // A Windows checkout may have CRLF line endings; the contract is the text.
+    final actual = file.readAsStringSync().replaceAll('\r\n', '\n').trim();
+    expect(actual, expected, reason: 'Regenerate with --dart-define=UPDATE_CONTRACT=true');
   });
 
   test('every method the TurboModule spec declared is still in the contract', () {

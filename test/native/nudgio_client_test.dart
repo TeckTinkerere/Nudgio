@@ -25,7 +25,7 @@ void main() {
     test('a reminder page, including an alarm with no attachment (DL-118)', () async {
       host.answer('listReminders', fixture('reminder_page'));
       final result = await client.listReminders();
-      final page = (result as Ok<Page<ReminderSummary>>).value;
+      final page = (result as Ok<WirePage<ReminderSummary>>).value;
 
       expect(page.total, 2);
       final [withMedia, alarmOnly] = page.items;
@@ -49,7 +49,7 @@ void main() {
 
     test('a media page keeps byte counts past 2^53 exact', () async {
       host.answer('listMedia', fixture('media_page'));
-      final page = (await client.listMedia(const MediaQuery()) as Ok<Page<MediaSummary>>).value;
+      final page = (await client.listMedia(const MediaQuery()) as Ok<WirePage<MediaSummary>>).value;
       expect(page.items.single.sizeBytes, BigInt.parse('9007199254740993'));
       expect(page.items.single.durationMs, 61000);
     });

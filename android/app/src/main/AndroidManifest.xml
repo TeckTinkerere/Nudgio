@@ -20,12 +20,12 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-      `react-native-video`'s ExoPlayer dependency declares this defensively
-      for adaptive network-streaming sources; this app only ever plays local
-      `file://` sources (the media-preview player), so it is stripped rather
-      than silently allowed to widen the verified permission set (MR-06 "no
-      network access" — the release-manifest check in TODO.md re-verifies
-      this after every dependency change).
+      Video player libraries (ExoPlayer, which react-native-video used and
+      Flutter's first-party video_player uses) declare this defensively for
+      network-streaming sources; this app only ever plays local `file://`
+      sources, so it is stripped rather than silently allowed to widen the
+      verified permission set (MR-06 "no network access" — CI's
+      release-manifest check re-verifies this after every dependency change).
     -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
@@ -86,7 +86,8 @@
         <activity
             android:name=".MainActivity"
             android:label="@string/app_name"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
             android:exported="true">
@@ -115,6 +116,11 @@
                 <data android:mimeType="audio/*" />
             </intent-filter>
         </activity>
+
+        <!-- Flutter embedding v2 (ADR-023); read by the Flutter tool and plugins. -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
 
         <!--
           MR-07 "Android entry components": every receiver/service/activity

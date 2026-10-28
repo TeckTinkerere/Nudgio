@@ -2,6 +2,7 @@ package com.aslam.mediareminder.bridge
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.RingtoneManager
@@ -11,17 +12,11 @@ import android.provider.OpenableColumns
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import com.facebook.react.bridge.ActivityEventListener
-import com.facebook.react.modules.core.PermissionAwareActivity
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.Promise
-import com.facebook.react.bridge.ReactApplicationContext
-import com.facebook.react.bridge.ReactContextBaseJavaModule
-import com.facebook.react.bridge.ReactMethod
-import com.facebook.react.bridge.ReadableArray
-import com.facebook.react.bridge.ReadableMap
-import com.facebook.react.bridge.WritableMap
-import com.facebook.react.turbomodule.core.interfaces.TurboModule
+import com.aslam.mediareminder.bridge.wire.Arguments
+import com.aslam.mediareminder.bridge.wire.Promise
+import com.aslam.mediareminder.bridge.wire.ReadableArray
+import com.aslam.mediareminder.bridge.wire.ReadableMap
+import com.aslam.mediareminder.bridge.wire.WritableMap
 import com.aslam.mediareminder.BuildConfig
 import com.aslam.mediareminder.alarm.AlarmActionProcessor
 import com.aslam.mediareminder.alarm.AlarmIds
@@ -67,35 +62,34 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * The `MediaReminder` TurboModule (MR-08 "Native module surface").
+ * The host module (MR-08 "Native module surface"): every method the Flutter
+ * UI calls, answered from the Kotlin core.
  *
- * Registered by hand through [MediaReminderPackage] rather than a
- * Codegen-generated `Spec` base class: this environment has no Android SDK to
- * run `generateCodegenArtifactsFromSchema` against, so the module implements
- * [TurboModule] directly against the same method surface declared in
- * `src/native-client/NativeMediaReminder.ts`. Wiring `codegenConfig` in
- * `package.json` and switching to the generated `NativeMediaReminderSpec`
- * base class is a mechanical follow-up once a real Gradle build is available
- * to verify it — the method names, argument shapes and promise semantics
- * below already match what Codegen would produce.
+ * Until ADR-023 this was the `MediaReminder` TurboModule. The method bodies
+ * are unchanged by the Flutter host swap (plan F2, DL-121): [NudgioHostChannel]
+ * decodes each `nudgio/host` call into the same arguments React Native used to
+ * pass and hands it a [Promise], and [NudgioPlugin] supplies the activity
+ * this module used to get from `ReactApplicationContext`. The method table
+ * is `contract/host_methods.json`.
  *
  * MR-18: "Coroutines with structured concurrency; no GlobalScope... Receivers
  * call goAsync() and finish within bounded work." This module owns one scope
  * tied to its own lifecycle ([invalidate]) rather than `GlobalScope`.
  */
 class MediaReminderModule(
-    reactContext: ReactApplicationContext,
-) : ReactContextBaseJavaModule(reactContext), TurboModule, ActivityEventListener {
+    private val appContext: Context,
+    private val activityHost: ActivityHost,
+) {
 
     private val moduleScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val preferences = PreferencesRepository(reactContext)
-    private val database = MediaReminderDatabase.getInstance(reactContext)
-    private val reminderMutations = ReminderMutationService(reactContext, database)
+    private val preferences = PreferencesRepository(appContext)
+    private val database = MediaReminderDatabase.getInstance(appContext)
+    private val reminderMutations = ReminderMutationService(appContext, database)
     /** Hoisted so the library service and the startup partial-file sweep share one instance. */
-    private val mediaStorage = MediaStorage(reactContext)
+    private val mediaStorage = MediaStorage(appContext)
     private val mediaLibrary = MediaLibraryService(database, mediaStorage)
-    private val selectionActions = LibrarySelectionActions(reactContext, database, mediaStorage)
-    private val libraryService = MediaStorage(reactContext).let { storage ->
+    private val selectionActions = LibrarySelectionActions(appContext, database, mediaStorage)
+    private val libraryService = MediaStorage(appContext).let { storage ->
         LibraryService(database) { media -> com.aslam.mediareminder.media.MediaThumbnailUri.resolveThumbnail(media, storage) }
     }
 
@@ -133,18 +127,17 @@ class MediaReminderModule(
 
     init {
         // ADR-011: the Photo Picker/SAF result arrives through the hosting
-        // Activity's `onActivityResult`, not through this module directly —
-        // this is what lets `onActivityResult` below ever fire.
-        reactContext.addActivityEventListener(this)
+        // Activity's `onActivityResult`; [NudgioPlugin] forwards it to
+        // [onActivityResult] below.
 
         // MR-11 "Crash during replace": "Startup sees operation journal...
         // completes rollback/forward recovery." The module is instantiated
-        // once, early in the RN host's lifecycle, before any backup bridge
+        // once, when the Flutter engine attaches, before any backup host
         // method can be called — this always runs ahead of a fresh
         // export/import request.
         moduleScope.launch {
             runCatching {
-                BackupImporter(reactContext, database, preferences).recoverUnfinishedOnStartup()
+                BackupImporter(appContext, database, preferences).recoverUnfinishedOnStartup()
             }.onFailure { NativeLogger.error("backup.startupRecoveryFailed", cause = it) }
         }
 
@@ -216,15 +209,12 @@ class MediaReminderModule(
         }
     }
 
-    override fun getName(): String = NAME
-
     // --- Implemented in the foundation -----------------------------------
 
-    @ReactMethod
     fun getStartupSnapshot(promise: Promise) {
         moduleScope.launch {
             try {
-            val capability = CapabilitySnapshotProvider.snapshot(reactApplicationContext)
+            val capability = CapabilitySnapshotProvider.snapshot(appContext)
             // The reminder engine has been real since the recurrence-engine
             // slice (docs/decision-log.md DL-005 onward) — `activeReminderCount`
             // and `nextOccurrence` previously stayed hardcoded at their
@@ -239,7 +229,8 @@ class MediaReminderModule(
             val activeReminderCount = database.reminderDao().countEnabled()
             val nextOccurrence = database.occurrenceDao().getEarliestEligible()
             val snapshot: WritableMap = Arguments.createMap().apply {
-                putInt("contractVersion", 1)
+                putInt("contractVersion", HostMethods.CONTRACT_VERSION)
+                putString("platform", "android")
                 putInt("schemaVersion", MediaReminderDatabase.SCHEMA_VERSION)
                 putString("appVersion", BuildConfig.VERSION_NAME)
                 putString("buildVariant", BuildVariant.current)
@@ -264,16 +255,14 @@ class MediaReminderModule(
         }
     }
 
-    @ReactMethod
     fun getCapabilitySnapshot(promise: Promise) {
         moduleScope.launch {
-            runCatching { CapabilitySnapshotProvider.snapshot(reactApplicationContext) }
+            runCatching { CapabilitySnapshotProvider.snapshot(appContext) }
                 .onSuccess { promise.resolve(it) }
                 .onFailure { failSafe(promise, it, "getCapabilitySnapshot") }
         }
     }
 
-    @ReactMethod
     fun getPreferences(promise: Promise) {
         moduleScope.launch {
             runCatching { preferences.read() }
@@ -282,7 +271,6 @@ class MediaReminderModule(
         }
     }
 
-    @ReactMethod
     fun setPreferences(patch: ReadableMap, promise: Promise) {
         moduleScope.launch {
             // MR-07 observability event; no values logged, only which keys
@@ -296,15 +284,13 @@ class MediaReminderModule(
         }
     }
 
-    @ReactMethod
     fun getDynamicColorScheme(promise: Promise) {
         // `resolve(null)` is a valid, distinct outcome here — it is exactly
         // how `decodeDynamicColorPayload()` on the JS side is told "fall
         // back to the brand palette" (API < 31 or an OEM that omits a ramp).
-        promise.resolve(DynamicColorProvider.read(reactApplicationContext))
+        promise.resolve(DynamicColorProvider.read(appContext))
     }
 
-    @ReactMethod
     fun listMedia(query: ReadableMap, promise: Promise) {
         moduleScope.launch {
             runCatching { mediaLibrary.listMedia(mediaLibrary.criteriaFrom(query)) }
@@ -329,7 +315,6 @@ class MediaReminderModule(
         }
     }
 
-    @ReactMethod
     fun libraryCommand(requestJson: String, promise: Promise) {
         moduleScope.launch {
             runCatching { libraryService.command(requestJson) }
@@ -338,7 +323,6 @@ class MediaReminderModule(
         }
     }
 
-    @ReactMethod
     fun listReminders(promise: Promise) {
         moduleScope.launch {
             runCatching { reminderMutations.list() }
@@ -347,7 +331,6 @@ class MediaReminderModule(
         }
     }
 
-    @ReactMethod
     fun listProfiles(promise: Promise) {
         moduleScope.launch {
             runCatching {
@@ -387,7 +370,6 @@ class MediaReminderModule(
     // (`mockNativeModule.ts`'s `notImplemented`), so a screen built against
     // this module today and against the mock tomorrow behaves identically.
 
-    @ReactMethod
     fun getMedia(id: String, promise: Promise) {
         moduleScope.launch {
             runCatching { mediaLibrary.getMedia(id) }
@@ -422,7 +404,6 @@ class MediaReminderModule(
      * the (potentially large, potentially long) streamed copy. Splitting them
      * means [beginMediaImport] never needs Activity access at all.
      */
-    @ReactMethod
     fun pickDocument(mimeTypes: ReadableArray, promise: Promise) {
         launchPicker(mimeTypes, maxItems = 1, pending = pendingPickers, promise = promise)
     }
@@ -435,7 +416,6 @@ class MediaReminderModule(
      * [pickDocument]; the caller imports the results one at a time, so each
      * file keeps its own journal entry, progress and failure.
      */
-    @ReactMethod
     fun pickDocuments(mimeTypes: ReadableArray, maxItems: Double, promise: Promise) {
         val limit = maxItems.toInt().coerceIn(1, MediaPicker.MAX_BATCH_ITEMS)
         launchPicker(mimeTypes, maxItems = limit, pending = pendingMultiPickers, promise = promise)
@@ -447,7 +427,7 @@ class MediaReminderModule(
         pending: ConcurrentHashMap<Int, Promise>,
         promise: Promise,
     ) {
-        val activity = reactApplicationContext.currentActivity
+        val activity = activityHost.currentActivity
         if (activity == null) {
             NativeErrorEnvelope.reject(
                 promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
@@ -479,9 +459,8 @@ class MediaReminderModule(
      * chose the system default, string otherwise. The caller is expected to
      * persist the uri via [setPreferences] immediately after.
      */
-    @ReactMethod
     fun pickAlarmRingtone(currentUri: String?, promise: Promise) {
-        val activity = reactApplicationContext.currentActivity
+        val activity = activityHost.currentActivity
         if (activity == null) {
             NativeErrorEnvelope.reject(
                 promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
@@ -521,12 +500,11 @@ class MediaReminderModule(
      * this never touches a real session, so it has no business going
      * through that service.
      */
-    @ReactMethod
     @Synchronized
     fun previewAlarmRingtone(uri: String?, promise: Promise) {
         stopPreviewRingtone()
         val toneUri = uri?.let { runCatching { Uri.parse(it) }.getOrNull() }
-            ?: RingtoneManager.getActualDefaultRingtoneUri(reactApplicationContext, RingtoneManager.TYPE_ALARM)
+            ?: RingtoneManager.getActualDefaultRingtoneUri(appContext, RingtoneManager.TYPE_ALARM)
         if (toneUri == null) {
             promise.resolve(
                 Arguments.createMap().apply {
@@ -537,7 +515,7 @@ class MediaReminderModule(
             return
         }
         val played = runCatching {
-            val ringtone = RingtoneManager.getRingtone(reactApplicationContext, toneUri)
+            val ringtone = RingtoneManager.getRingtone(appContext, toneUri)
                 ?: error("Tone unavailable")
             previewRingtone = ringtone
             ringtone.apply {
@@ -568,7 +546,6 @@ class MediaReminderModule(
         )
     }
 
-    @ReactMethod
     fun stopAlarmRingtonePreview(promise: Promise) {
         stopPreviewRingtone()
         promise.resolve(
@@ -603,7 +580,6 @@ class MediaReminderModule(
      * attaches to the result is only guaranteed to still be valid promptly
      * after picking, not indefinitely.
      */
-    @ReactMethod
     fun beginMediaImport(request: ReadableMap, promise: Promise) {
         val sourceUri = request.getString("sourceUri")
         if (sourceUri.isNullOrBlank()) {
@@ -625,8 +601,8 @@ class MediaReminderModule(
         OperationRegistry.register(operationId)
         moduleScope.launch {
             try {
-                val importerStorage = MediaStorage(reactApplicationContext)
-                val importer = MediaImporter(reactApplicationContext, database, importerStorage)
+                val importerStorage = MediaStorage(appContext)
+                val importer = MediaImporter(appContext, database, importerStorage)
                 val asset = importer.import(
                     operationId = operationId,
                     sourceUri = sourceUri,
@@ -635,7 +611,7 @@ class MediaReminderModule(
                     declaredSizeBytes = declaredSizeBytes,
                     onProgress = { phase, completedBytes, totalBytes ->
                         OperationProgressEmitter.emit(
-                            context = reactApplicationContext,
+                            context = appContext,
                             operationId = operationId,
                             kind = "import",
                             phase = phase,
@@ -669,7 +645,6 @@ class MediaReminderModule(
     }
 
     /** MR-03 "Edit details": rename and/or edit notes for an existing media item. */
-    @ReactMethod
     fun updateMedia(request: ReadableMap, promise: Promise) {
         moduleScope.launch {
             runCatching { mediaLibrary.updateMedia(request) }
@@ -709,7 +684,6 @@ class MediaReminderModule(
      * now null — a case `ReminderDtoWriter` already treats as a null-safe
      * fallback rather than a crash.
      */
-    @ReactMethod
     fun deleteMedia(request: ReadableMap, promise: Promise) {
         moduleScope.launch {
             runCatching {
@@ -761,7 +735,6 @@ class MediaReminderModule(
      * without being asked, and re-arming someone's alarms unasked is not
      * this method's call to make. Their rows simply become toggleable again.
      */
-    @ReactMethod
     fun replaceMediaSource(request: ReadableMap, promise: Promise) {
         val mediaId = request.getString("mediaId")
         val sourceUri = request.getString("sourceUri")
@@ -784,7 +757,7 @@ class MediaReminderModule(
         OperationRegistry.register(operationId)
         moduleScope.launch {
             try {
-                val importer = MediaImporter(reactApplicationContext, database, mediaStorage)
+                val importer = MediaImporter(appContext, database, mediaStorage)
                 val asset = importer.replaceSource(
                     operationId = operationId,
                     mediaId = mediaId,
@@ -793,7 +766,7 @@ class MediaReminderModule(
                     declaredSizeBytes = declaredSizeBytes,
                     onProgress = { phase, completedBytes, totalBytes ->
                         OperationProgressEmitter.emit(
-                            context = reactApplicationContext,
+                            context = appContext,
                             operationId = operationId,
                             kind = "import",
                             phase = phase,
@@ -837,7 +810,6 @@ class MediaReminderModule(
      * API 29, where this would need `WRITE_EXTERNAL_STORAGE`: that is a
      * capability gap for the UI to explain, not an error the user caused.
      */
-    @ReactMethod
     fun saveMediaCopyToGallery(id: String, promise: Promise) {
         moduleScope.launch {
             runCatching {
@@ -853,7 +825,7 @@ class MediaReminderModule(
                 if (!file.exists()) {
                     return@runCatching GallerySaveOutcome.MEDIA_MISSING
                 }
-                if (MediaStoreExporter.saveCopy(reactApplicationContext, entity, file) != null) {
+                if (MediaStoreExporter.saveCopy(appContext, entity, file) != null) {
                     GallerySaveOutcome.SAVED
                 } else {
                     GallerySaveOutcome.FAILED
@@ -905,7 +877,6 @@ class MediaReminderModule(
      * alongside, because a total that silently shrank when files vanished
      * would hide exactly what the integrity sweep exists to surface.
      */
-    @ReactMethod
     fun getMediaStorageUsage(promise: Promise) {
         moduleScope.launch {
             runCatching { mediaLibrary.storageUsage() }
@@ -938,7 +909,6 @@ class MediaReminderModule(
      * not `startActivityForResult`): unlike a picker, nothing meaningful comes
      * back from a share chooser to await.
      */
-    @ReactMethod
     fun exportMediaAssets(ids: ReadableArray, promise: Promise) {
         launchShare(readStrings(ids), emptyList(), promise, "exportMediaAssets")
     }
@@ -950,7 +920,6 @@ class MediaReminderModule(
      * once the chooser is open; `affectedCount` is the number of files shared.
      * [folderIds] may include `"unsorted"`, the virtual Unsorted album.
      */
-    @ReactMethod
     fun shareLibrarySelection(mediaIds: ReadableArray, folderIds: ReadableArray, promise: Promise) {
         launchShare(readStrings(mediaIds), readStrings(folderIds), promise, "shareLibrarySelection")
     }
@@ -959,7 +928,7 @@ class MediaReminderModule(
         (0 until array.size()).mapNotNull { array.getString(it) }
 
     private fun launchShare(mediaIds: List<String>, folderIds: List<String>, promise: Promise, operation: String) {
-        val activity = reactApplicationContext.currentActivity
+        val activity = activityHost.currentActivity
         if (activity == null) {
             NativeErrorEnvelope.reject(
                 promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
@@ -1004,7 +973,6 @@ class MediaReminderModule(
      * otherwise: `savedCount`, `alreadySavedCount` (skipped, already there),
      * `failedCount` and `unsupportedCount` (notes have no gallery collection).
      */
-    @ReactMethod
     fun saveLibrarySelectionToGallery(mediaIds: ReadableArray, folderIds: ReadableArray, promise: Promise) {
         moduleScope.launch {
             runCatching { selectionActions.saveToGallery(readStrings(mediaIds), readStrings(folderIds)) }
@@ -1030,7 +998,6 @@ class MediaReminderModule(
         }
     }
 
-    @ReactMethod
     fun getReminder(id: String, promise: Promise) {
         moduleScope.launch {
             runCatching { reminderMutations.get(id) }
@@ -1048,7 +1015,6 @@ class MediaReminderModule(
         }
     }
 
-    @ReactMethod
     fun saveReminder(request: ReadableMap, promise: Promise) {
         moduleScope.launch {
             runCatching { reminderMutations.save(request) }
@@ -1071,7 +1037,6 @@ class MediaReminderModule(
         }
     }
 
-    @ReactMethod
     fun setReminderEnabled(id: String, enabled: Boolean, promise: Promise) {
         moduleScope.launch {
             runCatching { reminderMutations.setEnabled(id, enabled) }
@@ -1090,7 +1055,6 @@ class MediaReminderModule(
     }
 
     /** DL-110 "Skip next" / its undo. Resolves the same `{reminder, nextOccurrence}` shape as [setReminderEnabled]. */
-    @ReactMethod
     fun skipNextOccurrence(id: String, skip: Boolean, promise: Promise) {
         moduleScope.launch {
             runCatching { reminderMutations.skipNext(id, skip) }
@@ -1120,7 +1084,6 @@ class MediaReminderModule(
      * an instant in the past is treated as resume. Resolves the updated
      * preferences, which carry `pausedUntil`.
      */
-    @ReactMethod
     fun setPausedUntil(until: String?, promise: Promise) {
         moduleScope.launch {
             val instant = if (until == null) {
@@ -1148,7 +1111,6 @@ class MediaReminderModule(
      * call, as [pickDocuments] would return them, or an empty array. JS polls
      * this on mount and on every resume, like [takePendingMediaOpen].
      */
-    @ReactMethod
     fun takeSharedDocuments(promise: Promise) {
         val uris = com.aslam.mediareminder.media.IncomingShare.take()
         promise.resolve(
@@ -1158,7 +1120,6 @@ class MediaReminderModule(
         )
     }
 
-    @ReactMethod
     fun deleteReminder(id: String, promise: Promise) {
         moduleScope.launch {
             runCatching { reminderMutations.delete(id) }
@@ -1167,11 +1128,9 @@ class MediaReminderModule(
         }
     }
 
-    @ReactMethod
     fun saveProfile(request: ReadableMap, promise: Promise) =
         NativeErrorEnvelope.rejectNotImplemented(promise, "saveProfile")
 
-    @ReactMethod
     fun resetBuiltInProfile(id: String, promise: Promise) =
         NativeErrorEnvelope.rejectNotImplemented(promise, "resetBuiltInProfile")
 
@@ -1179,7 +1138,7 @@ class MediaReminderModule(
      * Triggers the real OS "Allow notifications?" dialog (MR-06 capability
      * state machine, `notifications` capability's `request_runtime` action) —
      * previously nothing in this bridge ever called
-     * [PermissionAwareActivity.requestPermissions], so a user who denied (or
+     * `requestPermissions`, so a user who denied (or
      * was never asked) at first install had no way to be re-prompted short of
      * finding the OS Settings screen themselves.
      *
@@ -1188,7 +1147,6 @@ class MediaReminderModule(
      * default with no separate grant step, so this resolves `granted: true`
      * immediately rather than asking for a permission that does not exist.
      */
-    @ReactMethod
     fun requestNotificationPermission(promise: Promise) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             promise.resolve(Arguments.createMap().apply { putBoolean("granted", true) })
@@ -1196,7 +1154,7 @@ class MediaReminderModule(
         }
 
         val alreadyGranted = ContextCompat.checkSelfPermission(
-            reactApplicationContext,
+            appContext,
             Manifest.permission.POST_NOTIFICATIONS,
         ) == PackageManager.PERMISSION_GRANTED
         if (alreadyGranted) {
@@ -1204,8 +1162,7 @@ class MediaReminderModule(
             return
         }
 
-        val activity = reactApplicationContext.currentActivity as? PermissionAwareActivity
-        if (activity == null) {
+        if (activityHost.currentActivity == null) {
             NativeErrorEnvelope.reject(
                 promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
                 NativeErrorEnvelope.Category.MEDIA, field = "activity",
@@ -1214,13 +1171,12 @@ class MediaReminderModule(
         }
 
         val requestCode = nextPermissionRequestCode.getAndIncrement()
-        activity.requestPermissions(
+        activityHost.requestPermissions(
             arrayOf(Manifest.permission.POST_NOTIFICATIONS),
             requestCode,
-        ) { _, _, grantResults ->
+        ) { grantResults ->
             val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
             promise.resolve(Arguments.createMap().apply { putBoolean("granted", granted) })
-            true
         }
     }
 
@@ -1236,19 +1192,18 @@ class MediaReminderModule(
      * reports Ready unconditionally below that level, so this case is
      * unreachable there).
      */
-    @ReactMethod
     fun openCapabilitySettings(kind: String, promise: Promise) {
         val intent = when (kind) {
             "notifications", "channels" -> Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                putExtra(Settings.EXTRA_APP_PACKAGE, reactApplicationContext.packageName)
+                putExtra(Settings.EXTRA_APP_PACKAGE, appContext.packageName)
             }
             "exact_alarm" -> Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                data = Uri.parse("package:${reactApplicationContext.packageName}")
+                data = Uri.parse("package:${appContext.packageName}")
             }
             "full_screen_intent" ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
-                        data = Uri.parse("package:${reactApplicationContext.packageName}")
+                        data = Uri.parse("package:${appContext.packageName}")
                     }
                 } else {
                     null
@@ -1261,7 +1216,7 @@ class MediaReminderModule(
         }
 
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        runCatching { reactApplicationContext.startActivity(intent) }
+        runCatching { appContext.startActivity(intent) }
             .onSuccess { promise.resolve(Arguments.createMap()) }
             .onFailure { failSafe(promise, it, "openCapabilitySettings") }
     }
@@ -1271,7 +1226,6 @@ class MediaReminderModule(
      * the retention window MR-09 defines — asking for more than is retained
      * would silently return a partial range that looks like real data.
      */
-    @ReactMethod
     fun getStatistics(rangeDays: Double, promise: Promise) {
         moduleScope.launch {
             runCatching {
@@ -1324,7 +1278,6 @@ class MediaReminderModule(
      * to show it and reopen it. Bounded to [hours] back and a handful of
      * rows — after weeks away the app summarizes, it does not flood.
      */
-    @ReactMethod
     fun listRecentlyMissed(hours: Double, promise: Promise) {
         moduleScope.launch {
             runCatching {
@@ -1333,7 +1286,7 @@ class MediaReminderModule(
                 val reminders = missed.map { it.reminderId }.distinct()
                     .mapNotNull { database.reminderDao().getById(it) }.associateBy { it.id }
                 val media = database.mediaDao().getByIds(reminders.values.mapNotNull { it.mediaId }.distinct()).associateBy { it.id }
-                val storage = com.aslam.mediareminder.media.MediaStorage(reactApplicationContext)
+                val storage = com.aslam.mediareminder.media.MediaStorage(appContext)
                 Arguments.createArray().apply {
                     for (occurrence in missed) {
                         val reminder = reminders[occurrence.reminderId] ?: continue
@@ -1357,7 +1310,6 @@ class MediaReminderModule(
         }
     }
 
-    @ReactMethod
     fun takePendingMediaOpen(promise: Promise) {
         val result = Arguments.createMap()
         val pending = com.aslam.mediareminder.alarm.PendingMediaOpen.take()
@@ -1376,14 +1328,13 @@ class MediaReminderModule(
      * anything but a placeholder, since no caller existed yet; repurposed
      * now that Settings is the first real caller.
      */
-    @ReactMethod
     fun scheduleTestReminder(request: ReadableMap, promise: Promise) {
         val fullScreenWhenLocked = request.hasKey("fullScreenWhenLocked") &&
             request.getBoolean("fullScreenWhenLocked")
         // Fail early: if POST_NOTIFICATIONS is not granted the alarm would
         // fire 15 s later and silently drop the notification, giving the user
         // a success toast with no visible outcome.
-        if (!NotificationCoordinator(reactApplicationContext).canAlert(fullScreenWhenLocked)) {
+        if (!NotificationCoordinator(appContext).canAlert(fullScreenWhenLocked)) {
             NativeLogger.warn("scheduleTestReminder.notificationsBlocked", emptyMap())
             NativeErrorEnvelope.reject(
                 promise,
@@ -1402,16 +1353,15 @@ class MediaReminderModule(
             .onFailure { failSafe(promise, it, "scheduleTestReminder") }
     }
 
-    @ReactMethod
     fun beginExport(request: ReadableMap, promise: Promise) {
         val operationId = UUID.randomUUID().toString()
         BackupOperationRegistry.register(operationId)
         moduleScope.launch {
             try {
-                val exporter = BackupExporter(reactApplicationContext, database, preferences)
+                val exporter = BackupExporter(appContext, database, preferences)
                 val outcome = exporter.export(
                     onProgress = { progress ->
-                        BackupOperationEmitter.emit(reactApplicationContext, operationId, "export", progress, cancellable = true)
+                        BackupOperationEmitter.emit(appContext, operationId, "export", progress, cancellable = true)
                     },
                     isCancelled = { BackupOperationRegistry.isCancelled(operationId) },
                 )
@@ -1441,9 +1391,8 @@ class MediaReminderModule(
      * `exportMediaAssets`. `fileName` is `ExportResult.fileName`, already
      * returned to JS by the `beginExport` call this always follows.
      */
-    @ReactMethod
     fun shareBackupExport(fileName: String, promise: Promise) {
-        val activity = reactApplicationContext.currentActivity
+        val activity = activityHost.currentActivity
         if (activity == null) {
             NativeErrorEnvelope.reject(
                 promise, "MR_MEDIA_UNAVAILABLE", "error.mediaUnavailable",
@@ -1451,7 +1400,7 @@ class MediaReminderModule(
             )
             return
         }
-        val exporter = BackupExporter(reactApplicationContext, database, preferences)
+        val exporter = BackupExporter(appContext, database, preferences)
         runCatching { exporter.buildShareIntent(fileName) }
             .onSuccess { intent ->
                 if (intent == null) {
@@ -1477,18 +1426,17 @@ class MediaReminderModule(
      * the picker UI itself is a documented follow-up, see docs/decision-log.md).
      * `ContentResolver.openInputStream` accepts either scheme directly.
      */
-    @ReactMethod
     fun inspectBackup(uriToken: String, promise: Promise) {
         val operationId = UUID.randomUUID().toString()
         BackupOperationRegistry.register(operationId)
         moduleScope.launch {
             try {
-                val importer = BackupImporter(reactApplicationContext, database, preferences)
+                val importer = BackupImporter(appContext, database, preferences)
                 importer.stage(operationId, uriToken) { progress ->
-                    BackupOperationEmitter.emit(reactApplicationContext, operationId, "backup_inspection", progress, cancellable = true)
+                    BackupOperationEmitter.emit(appContext, operationId, "backup_inspection", progress, cancellable = true)
                 }
                 val inspection = importer.inspect(operationId) { progress ->
-                    BackupOperationEmitter.emit(reactApplicationContext, operationId, "backup_inspection", progress, cancellable = true)
+                    BackupOperationEmitter.emit(appContext, operationId, "backup_inspection", progress, cancellable = true)
                 }
                 promise.resolve(BackupDtoWriter.writeInspection(inspection))
             } catch (formatError: BackupFormatException) {
@@ -1505,7 +1453,6 @@ class MediaReminderModule(
     }
 
     /** `request` carries `{operationId, importToken, mode}` — `mode` is `inspect` | `merge` | `replace` (MR-10 "Import modes"). */
-    @ReactMethod
     fun commitImport(request: ReadableMap, promise: Promise) {
         val operationId = request.getString("operationId")
         val importToken = request.getString("importToken")
@@ -1539,7 +1486,7 @@ class MediaReminderModule(
         }
         moduleScope.launch {
             try {
-                val importer = BackupImporter(reactApplicationContext, database, preferences)
+                val importer = BackupImporter(appContext, database, preferences)
                 val result = importer.commit(operationId, importToken, mode)
                 promise.resolve(BackupDtoWriter.writeCommitResult(result))
             } catch (formatError: BackupFormatException) {
@@ -1556,14 +1503,13 @@ class MediaReminderModule(
         }
     }
 
-    @ReactMethod
     fun cancelOperation(id: String, promise: Promise) {
         // The shared registry (see its own doc comment): one call site for
         // every operation kind, media import included, not just backup's.
         OperationRegistry.requestCancellation(id)
         // Harmless no-op for an id `BackupImporter` does not recognize —
         // `BackupImporter.cancel()` only logs, it never looks anything up.
-        BackupImporter(reactApplicationContext, database, preferences).cancel(id)
+        BackupImporter(appContext, database, preferences).cancel(id)
         promise.resolve(
             Arguments.createMap().apply {
                 putString("status", "ok")
@@ -1572,15 +1518,12 @@ class MediaReminderModule(
         )
     }
 
-    @ReactMethod
     fun playDueSession(sessionId: String, nonce: String, promise: Promise) =
         resolveAlarmAction(AlarmIds.ACTION_PLAY, sessionId, nonce, null, promise)
 
-    @ReactMethod
     fun snoozeDueSession(sessionId: String, minutes: Double, nonce: String, promise: Promise) =
         resolveAlarmAction(AlarmIds.ACTION_SNOOZE, sessionId, nonce, minutes.toInt(), promise)
 
-    @ReactMethod
     fun dismissDueSession(sessionId: String, nonce: String, promise: Promise) =
         resolveAlarmAction(AlarmIds.ACTION_DISMISS, sessionId, nonce, null, promise)
 
@@ -1611,9 +1554,9 @@ class MediaReminderModule(
                             promise.resolve(ActionResultWriter.write(sessionId, "already_resolved", null))
 
                         is AlarmActionProcessor.Outcome.Resolved -> {
-                            NotificationCoordinator(reactApplicationContext).cancel(sessionId)
-                            AlarmRingingService.stopSession(reactApplicationContext, sessionId)
-                            SchedulerCoordinator(reactApplicationContext, database)
+                            NotificationCoordinator(appContext).cancel(sessionId)
+                            AlarmRingingService.stopSession(appContext, sessionId)
+                            SchedulerCoordinator(appContext, database)
                                 .reconcile("alarm_action_${outcome.actionLabel}")
                             val actionOutcome = when (outcome.actionLabel) {
                                 "play" -> "playing"
@@ -1643,11 +1586,11 @@ class MediaReminderModule(
         )
     }
 
-    override fun invalidate() {
-        reactApplicationContext.removeActivityEventListener(this)
+    /** Called when the Flutter engine detaches ([NudgioPlugin.onDetachedFromEngine]). */
+    fun dispose() {
         stopPreviewRingtone()
-        // A picker left open across module teardown (rare — RN tears the
-        // module down on reload/backgrounding, not the system picker dialog)
+        // A picker left open across module teardown (rare — the engine
+        // detaches on hot restart or process teardown, not the picker dialog)
         // would otherwise leak a promise that never resolves. Reject rather
         // than silently drop it, matching MR-18's "bounded, deterministic
         // teardown" for every in-flight call, not just DataStore reads.
@@ -1669,29 +1612,29 @@ class MediaReminderModule(
         }
         // MR-18: every scope has a bounded, deterministic teardown. Cancelling
         // here means an in-flight DataStore read simply never resolves its
-        // promise rather than touching a torn-down ReactContext.
+        // promise rather than answering a detached engine.
         moduleScope.cancel()
-        super.invalidate()
     }
 
-    // --- ActivityEventListener (ADR-011 picker result delivery) -----------------
+    // --- Activity results (ADR-011 picker result delivery) ---------------------
 
-    override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
+    /** Returns true when [requestCode] belonged to this module. */
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
         // Ringtone picker takes priority — its request codes never overlap with
         // PICKER_REQUEST_CODE_BASE (9100) or PERMISSION_REQUEST_CODE_BASE (9200).
         pendingRingtonePickers.remove(requestCode)?.let { promise ->
             if (resultCode != Activity.RESULT_OK) {
                 // User backed out — not a failure; caller keeps the current setting.
                 promise.resolve(null)
-                return
+                return true
             }
             @Suppress("DEPRECATION")
             val pickedUri: Uri? = data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             val uriString = pickedUri?.toString()
             val title = runCatching {
                 val resolveUri = pickedUri
-                    ?: RingtoneManager.getActualDefaultRingtoneUri(reactApplicationContext, RingtoneManager.TYPE_ALARM)
-                RingtoneManager.getRingtone(reactApplicationContext, resolveUri)?.getTitle(reactApplicationContext)
+                    ?: RingtoneManager.getActualDefaultRingtoneUri(appContext, RingtoneManager.TYPE_ALARM)
+                RingtoneManager.getRingtone(appContext, resolveUri)?.getTitle(appContext)
             }.getOrNull() ?: "Default alarm"
             promise.resolve(
                 Arguments.createMap().apply {
@@ -1699,7 +1642,7 @@ class MediaReminderModule(
                     putString("title", title)
                 },
             )
-            return
+            return true
         }
 
         pendingMultiPickers.remove(requestCode)?.let { promise ->
@@ -1717,24 +1660,25 @@ class MediaReminderModule(
                     uris.distinct().take(MediaPicker.MAX_BATCH_ITEMS).forEach { pushMap(pickedDocument(it)) }
                 },
             )
-            return
+            return true
         }
 
-        val promise = pendingPickers.remove(requestCode) ?: return
+        val promise = pendingPickers.remove(requestCode) ?: return false
 
         if (resultCode != Activity.RESULT_OK || data?.data == null) {
             // The user backed out of the picker with no selection — MR-03's
             // "Import was cancelled. No file was added." is the *expected*
             // outcome of this path, not a failure to report as one.
             promise.resolve(null)
-            return
+            return true
         }
 
         promise.resolve(pickedDocument(data.data!!))
+        return true
     }
 
     private fun pickedDocument(uri: Uri): WritableMap {
-        val resolver = reactApplicationContext.contentResolver
+        val resolver = appContext.contentResolver
         val (displayName, sizeBytes) = queryDisplayNameAndSize(resolver, uri)
         return Arguments.createMap().apply {
             putString("uriToken", uri.toString())
@@ -1743,8 +1687,6 @@ class MediaReminderModule(
             if (sizeBytes != null) putString("sizeBytes", sizeBytes.toString()) else putNull("sizeBytes")
         }
     }
-
-    override fun onNewIntent(intent: Intent) = Unit
 
     private fun queryDisplayNameAndSize(
         resolver: android.content.ContentResolver,
@@ -1781,7 +1723,6 @@ class MediaReminderModule(
 
     companion object {
         private const val MISSED_LIMIT = 20
-        const val NAME = "MediaReminder"
 
         /** MR-09 "Data retention": occurrence history defaults to 90 days. */
         private const val OCCURRENCE_RETENTION_MS = 90L * 24 * 60 * 60 * 1000
@@ -1795,7 +1736,7 @@ class MediaReminderModule(
         /**
          * An arbitrary, distinctive base for `pickDocument`'s
          * `startActivityForResult` codes. `onActivityResult` fires for every
-         * `ActivityEventListener` regardless of which one owns a given
+         * registered result listener regardless of which one owns a given
          * request code — [pendingPickers] already ignores codes it does not
          * recognize, so this only needs to be unlikely to collide by
          * coincidence, not globally reserved.
