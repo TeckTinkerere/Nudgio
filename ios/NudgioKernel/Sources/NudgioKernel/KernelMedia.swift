@@ -109,7 +109,7 @@ extension NudgioKernel {
             if (try? jpeg.write(to: directories.thumbnails.appendingPathComponent(key), options: Data.WritingOptions.atomic)) != nil { thumbnailKey = key }
         }
 
-        let title = request.string("displayName").map { ($0 as NSString).deletingPathExtension }?.nonEmpty
+        let title = request.string("displayName").map { NSString(string: $0).deletingPathExtension }?.nonEmpty
         var record: MediaRecord
         if let index = current.media.firstIndex(where: { $0.id == replacedId }) {
             record = current.media[index]

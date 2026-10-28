@@ -15,6 +15,14 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // Re-arm monthly, yearly and custom alarms, and anything a pause or skip
+    // held back, whenever the app comes to the front. A notification rather
+    // than a delegate method: with UIScene the app delegate is not told.
+    NotificationCenter.default.addObserver(
+      forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
+    ) { _ in
+      Task { await NudgioHost.shared.kernel.reconcile() }
+    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
@@ -22,13 +30,6 @@ import UIKit
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "NudgioHost") else { return }
     NudgioHost.shared.attach(messenger: registrar.messenger())
-  }
-
-  override func applicationDidBecomeActive(_ application: UIApplication) {
-    super.applicationDidBecomeActive(application)
-    // Re-arm monthly, yearly and custom alarms, and anything a pause or skip
-    // held back, whenever the app comes to the front.
-    Task { await NudgioHost.shared.kernel.reconcile() }
   }
 }
 

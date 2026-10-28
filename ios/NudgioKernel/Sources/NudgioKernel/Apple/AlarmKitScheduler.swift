@@ -88,7 +88,7 @@ public final class AlarmKitScheduler: AlarmScheduling {
             tintColor: Color(red: 0.96, green: 0.62, blue: 0.42)
         )
         let configuration = AlarmManager.AlarmConfiguration(
-            countdownDuration: snoozeMinutes.map { .init(preAlert: nil, postAlert: TimeInterval($0 * 60)) },
+            countdownDuration: snoozeMinutes.map { Alarm.CountdownDuration(preAlert: nil, postAlert: TimeInterval($0 * 60)) },
             schedule: schedule,
             attributes: attributes,
             stopIntent: nil,
