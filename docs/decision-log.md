@@ -3683,3 +3683,126 @@ description of the bridge; any bridge change lands there first.
 
 **Scope:** docs, `.fvmrc` and `.gitignore` only. No app, schema, permission or
 dependency change.
+
+## DL-121 — Flutter phases F1 and F2: the host contract and the Android host swap
+
+**Date:** 2026-10-28
+**Context:** F0 done (DL-120). This entry covers F1 (contract and Dart
+foundation) and F2 (Android host swap) on branch `feat/flutter-f1-f2`.
+
+**Decision 1 — a method channel with a shared contract file, not Pigeon.**
+The plan (§4, §5) named Pigeon. The bridge is instead one `nudgio/host`
+method channel and one `nudgio/events` event channel carrying
+`StandardMessageCodec` maps, with:
+- `lib/native/host_contract.dart` as the single method table (47 methods: the
+  46 of `NativeMediaReminder.ts` plus `listRecentlyMissed`, which Kotlin
+  already exported without a TypeScript declaration);
+- `contract/host_methods.json` generated from it and checked by the Dart,
+  Kotlin (`HostMethodsContractTest`) and Swift (`ContractTests`) suites;
+- `contract/fixtures/*.json` wire payloads decoded by the Dart tests and
+  checked key-for-key against what the Swift kernel produces;
+- typed Dart DTOs with runtime decoding (`lib/native/types.dart`,
+  `wire.dart`), so screens still only see typed values.
+
+Why: sixteen Kotlin files (DTO writers, request readers, services) build MR-08
+DTOs as React Native `WritableMap`s. With Pigeon each would need rewriting to
+Pigeon classes, which changes the code most likely to regress (plan §12, top
+risk) with no Android SDK on the development machine to compile it. The
+channel carries those maps unchanged. The cost is that Pigeon's compile-time
+typing on the native side is replaced by the contract tests above. Reversible
+per method group: a group can move to Pigeon later without touching the rest.
+
+**Decision 2 — a pure-Kotlin `WritableMap` subset.**
+`bridge/wire/Wire.kt` reproduces the parts of React Native's
+`WritableMap`/`ReadableMap`/`WritableArray`/`ReadableArray`/`Arguments`/
+`Promise` API the core uses, over Kotlin collections. The sixteen files changed
+only their imports, so every DTO is the map it was before. Numeric getters
+accept any `Number`, because the old bridge sent every JS number as a `Double`
+and Dart sends `int`.
+
+**Decision 3 — the host.** `MainActivity` is a `FlutterActivity`;
+`NudgioPlugin` owns both channels and hands `MediaReminderModule` the activity
+(pickers, share sheets) and permission prompts through `ActivityHost`;
+`NudgioHostChannel` decodes arguments into the module's existing signatures and
+answers on the main thread exactly once. `MainApplication` is now empty, so a
+receiver that starts the process for an alarm never starts a Dart VM.
+Receivers, `AlarmActivity` and `AlarmRingingService` are untouched (AND-002).
+
+**Build changes.** React Native Gradle plugin, autolinking and Hermes removed;
+Flutter Gradle plugin added. **AGP 8.10.0 → 8.11.1**, the minimum Flutter 3.47
+accepts (supersedes the DL-044 pin; Kotlin 2.1.20, KSP and Room unchanged).
+Build outputs move to the repository's `build/` as the Flutter tool expects, so
+CI's merged-manifest path changed. The `qa` build type gets
+`applicationIdSuffix ".flutter"` so it installs beside the shipped app.
+
+**Dependencies.** `flutter_riverpod 3.4.3` (pinned; first-party publisher,
+pure Dart, no platform code or network) and the SDK's own `integration_test`.
+
+**Evidence.** `flutter analyze --fatal-infos` clean; `flutter test` 107
+passed. CI on the branch: `flutter build apk --debug`, Gradle `test lintDebug`,
+the release-manifest check (no `INTERNET`), and an Android emulator
+integration test (`integration_test/host_round_trip_test.dart`) that creates,
+lists, disables and deletes an alarm with no attachment through the real
+Kotlin core and Room: 2 passed.
+
+**Not done / residual risk.**
+- F3-F5: design system and the real screens. The UI is a QA shell that lists
+  reminders. **Merging this branch ends React Native on `main`'s Android
+  build.** Cut `release/2.x` from `main` first if a v2.x hotfix may be needed.
+- `scripts/release/*` and `docs/APK_RELEASE_CHECKLIST.md` still describe the
+  React Native release path and `android/app/build/` outputs; they move in F5.
+- No on-device check of pickers, share sheets or the permission prompt
+  through the new `ActivityHost` yet.
+- `src/` stays until F9 and still passes its own CI job; the two UIs share no
+  code.
+
+## DL-122 — The iPhone core in Swift, and building it without a Mac
+
+**Date:** 2026-10-28
+**Context:** The owner asked for the iPhone code now, with no Mac available.
+This moves F6/F7 code ahead of the "Android first" order of DL-120 (the
+owner's call); G1 device evidence is still required before release
+(AGENTS.md).
+
+**Decisions.**
+- **`ios/NudgioKernel`, a Swift package in plain Swift over Foundation**, so
+  its logic is built and tested on Linux with no Apple hardware. AlarmKit,
+  Photos and UIKit adapters are in `Sources/NudgioKernel/Apple/` behind
+  `#if os(iOS)`. The Flutter Runner links it as a local package.
+- **One JSON document, not Core Data** (plan §3 suggested Core Data). Written
+  atomically (temp file + rename) with `NSFileProtectionComplete`, versioned
+  (`schemaVersion`), behind the `KernelStore` protocol so Core Data or SQLite
+  can replace it. Core Data cannot be tested off Apple platforms; the data set
+  (reminders, media metadata, folders) is small.
+- **AlarmKit strategy:** one alarm per enabled reminder (cap 20 until G1-09
+  measures the real limit); daily and weekday rules use AlarmKit's own weekly
+  repeat and keep ringing with the app never opened; once, monthly, yearly,
+  custom, paused and skipped reminders hold their next moment as a fixed alarm
+  and are re-armed whenever the app runs (launch, foreground, Open, any
+  mutation). A monthly reminder whose app is never opened rings once, then
+  waits: residual risk, listed for G1.
+- **Second button:** Open (an App Intent in the Runner that stops the alert,
+  records the reminder and opens the app; Play stays explicit) when the
+  reminder has media, the system countdown Snooze otherwise. AlarmKit allows
+  one secondary button.
+- **The permission prompt** is AlarmKit's, behind the same
+  `requestNotificationPermission` call the Dart primer already makes.
+- **Same validation and field names as Kotlin**, ported tests: schedule engine
+  (java.time DST semantics), action-link rules, folder rules, Android's
+  built-in profile ids.
+
+**Not implemented on iPhone yet (declared, answering `error.notImplemented`):**
+backup export/import and the Android → iPhone transfer (DL-120 decision 5),
+test-alarm preview, custom profiles. Device ringtones, the missed-moments list
+and share-in are empty by design or later slices.
+
+**Testing without a Mac.**
+- Linux CI: `swift test` on the kernel (store, schedules, DTOs, dispatcher,
+  media import, folders, contract).
+- macOS CI (GitHub-hosted, free for this public repository): kernel tests on an
+  iOS 26 simulator (compiles the AlarmKit/UIKit code), `flutter build ios
+  --simulator`, the same integration test as Android on the simulator, and the
+  simulator `.app` uploaded as a build artifact.
+- Still needs a real iPhone: G1 (lock-screen alarm, Stop/Snooze/Open with no
+  engine, capacity). A device build needs an Apple Developer account for
+  signing; see `docs/ios/building-without-a-mac.md`.

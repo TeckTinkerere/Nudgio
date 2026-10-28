@@ -3,10 +3,9 @@
  * the SDK named in local.properties (`flutter.sdk`), which `flutter pub get`,
  * `flutter build` and `flutter run` write automatically, on CI too.
  *
- * Kotlin 2.1.20 and its matching KSP (Room) are what the React Native build
- * used. AGP moves from 8.10.0 (DL-044) to 8.11.1, the minimum the Flutter
- * 3.47 Gradle plugin accepts (DL-121); nothing else about how the Kotlin core
- * is compiled changes.
+ * Versions are the minimums the Flutter 3.47 Gradle plugin accepts (DL-121):
+ * AGP 8.11.1 (was 8.10.0, DL-044) and Kotlin 2.2.20 (was 2.1.20) with its
+ * matching KSP for Room. Room, AndroidX and the Kotlin core are unchanged.
  */
 pluginManagement {
     def flutterSdkPath = {
@@ -29,8 +28,8 @@ pluginManagement {
 plugins {
     id "dev.flutter.flutter-plugin-loader" version "1.0.0"
     id "com.android.application" version "8.11.1" apply false
-    id "org.jetbrains.kotlin.android" version "2.1.20" apply false
-    id "com.google.devtools.ksp" version "2.1.20-2.0.1" apply false
+    id "org.jetbrains.kotlin.android" version "2.2.20" apply false
+    id "com.google.devtools.ksp" version "2.2.20-2.0.4" apply false
 }
 
 rootProject.name = 'Nudgio'

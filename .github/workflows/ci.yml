@@ -172,3 +172,15 @@ jobs:
           name: Nudgio-ios-simulator
           path: Nudgio-simulator.zip
           retention-days: 14
+      # A device build with no signature, for re-signing with a free Apple ID
+      # on Windows (docs/ios/building-without-a-mac.md, section 3a).
+      - name: Build an unsigned device IPA
+        run: |
+          flutter build ios --release --no-codesign
+          mkdir -p Payload && cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qr Nudgio-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nudgio-ios-unsigned
+          path: Nudgio-unsigned.ipa
+          retention-days: 14

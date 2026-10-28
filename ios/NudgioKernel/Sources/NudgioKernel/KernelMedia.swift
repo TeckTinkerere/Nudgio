@@ -57,11 +57,11 @@ extension NudgioKernel {
     /// including `cancelOperation`, keep being answered.
     public func importMedia(_ request: WireReader, replacing replacedId: String? = nil) async throws -> WireMap {
         guard let token = request.string("sourceUri"), !token.isEmpty else { throw HostError.validation("sourceUri") }
-        if let replacedId, try state().media.first(where: { $0.id == replacedId }) == nil {
+        if let replacedId, try self.state().media.first(where: { $0.id == replacedId }) == nil {
             throw HostError.mediaUnavailable("id")
         }
         let source = try stagedURL(token)
-        let existingMime = try replacedId.flatMap { id in try state().media.first { $0.id == id }?.mimeType }
+        let existingMime = try replacedId.flatMap { id in try self.state().media.first { $0.id == id }?.mimeType }
         let mimeType = request.string("mimeType") ?? existingMime ?? "application/octet-stream"
         guard let kind = Self.kind(forMimeType: mimeType) else { throw HostError.unsupportedType() }
         let sourceSize = (try? FileManager.default.attributesOfItem(atPath: source.path)[.size] as? NSNumber)?.int64Value
@@ -88,13 +88,13 @@ extension NudgioKernel {
             throw HostError.mediaUnavailable("sourceUnreadable")
         }
 
-        var state = try state()
+        var current = try state()
         // Duplicate-hash reuse (Android lesson): the same bytes are one asset.
-        if replacedId == nil, let duplicate = state.media.first(where: { $0.sha256 == copied.sha256 }),
+        if replacedId == nil, let duplicate = current.media.first(where: { $0.sha256 == copied.sha256 }),
            fileExists(duplicate.storageKey, in: directories.media) {
             try? FileManager.default.removeItem(at: partial)
             try? FileManager.default.removeItem(at: source)
-            return mediaDetailWire(duplicate, in: state)
+            return mediaDetailWire(duplicate, in: current)
         }
 
         let final = directories.media.appendingPathComponent(storageKey)
@@ -106,13 +106,13 @@ extension NudgioKernel {
         if let jpeg = probe.thumbnailJPEG {
             try? FileManager.default.createDirectory(at: directories.thumbnails, withIntermediateDirectories: true)
             let key = "\(id)-\(UUID().uuidString.prefix(8).lowercased()).jpg"
-            if (try? jpeg.write(to: directories.thumbnails.appendingPathComponent(key), options: .atomic)) != nil { thumbnailKey = key }
+            if (try? jpeg.write(to: directories.thumbnails.appendingPathComponent(key), options: Data.WritingOptions.atomic)) != nil { thumbnailKey = key }
         }
 
         let title = request.string("displayName").map { ($0 as NSString).deletingPathExtension }?.nonEmpty
         var record: MediaRecord
-        if let index = state.media.firstIndex(where: { $0.id == replacedId }) {
-            record = state.media[index]
+        if let index = current.media.firstIndex(where: { $0.id == replacedId }) {
+            record = current.media[index]
             let oldKeys = (record.storageKey, record.thumbnailKey)
             record.mimeType = mimeType
             record.kind = kind
@@ -125,8 +125,8 @@ extension NudgioKernel {
             record.heightPx = probe.heightPx
             record.updatedAt = now
             record.entityVersion += 1
-            state.media[index] = record
-            try commit(state)
+            current.media[index] = record
+            try commit(current)
             try? FileManager.default.removeItem(at: directories.media.appendingPathComponent(oldKeys.0))
             if let thumb = oldKeys.1 { try? FileManager.default.removeItem(at: directories.thumbnails.appendingPathComponent(thumb)) }
         } else {
@@ -135,8 +135,8 @@ extension NudgioKernel {
                 sha256: copied.sha256, storageKey: storageKey, thumbnailKey: thumbnailKey, durationMs: probe.durationMs,
                 widthPx: probe.widthPx, heightPx: probe.heightPx, createdAt: now, updatedAt: now, entityVersion: 1
             )
-            state.media.append(record)
-            try commit(state)
+            current.media.append(record)
+            try commit(current)
         }
         try? FileManager.default.removeItem(at: source)
         Self.emit(events, operationId: operationId, phase: "ready", completed: copied.size, total: copied.size,
