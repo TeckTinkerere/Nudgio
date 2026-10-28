@@ -1,7 +1,7 @@
 # Nudgio → Flutter: cross-platform migration plan (Android + iPhone)
 
 **Date:** 19 October 2026
-**Status:** Direction accepted 20 Oct 2026 as [ADR-023](../../specs/Markdown/17_Architecture_Decision_Records.md) (reason: long-term stability over an earlier iPhone release). Decisions 2-5 in §13 confirmed 23 Oct 2026; phase F0 done the same day (DL-120). F1 not started. Rationale is logged as [DL-111](../decision-log.md), acceptance as [DL-117](../decision-log.md), F0 as [DL-120](../decision-log.md).
+**Status:** Direction accepted 20 Oct 2026 as [ADR-023](../../specs/Markdown/17_Architecture_Decision_Records.md) (reason: long-term stability over an earlier iPhone release). Decisions 2-5 in §13 confirmed 23 Oct 2026; phase F0 done the same day (DL-120). F1 and F2 done on `feat/flutter-f1-f2` (28 Oct, DL-121); iPhone core code written ahead of order, awaiting G1 (DL-122). Rationale is logged as [DL-111](../decision-log.md), acceptance as [DL-117](../decision-log.md), F0 as [DL-120](../decision-log.md).
 **Baseline:** written against `main` at `a8e45f4` (Android v2.3.1); refreshed in F0 against `0fab7bf` (Android v2.3.4, version code 23, Room schema v9).
 **Supersedes, if accepted:** the "React Native remains the chosen production UI" sentence in [ADR-IOS-001](../ios/ADR-IOS-001.md), and the RN-on-iOS packages (P2–P5) of the [iPhone plan](2026-09-27-iphone-v1-implementation-plan.md) and its [6 Oct re-baseline](2026-10-06-iphone-next-steps.md). The iPhone product scope, the brand, the AlarmKit decision, the G1 device gate and the "Android lessons" list in those documents all stay in force.
 
@@ -186,6 +186,7 @@ Every phase ends with evidence, as AGENTS.md "Completion report" requires. Andro
 - Dart `core/` (AppError, Result, Logger with build-variant gating, feature flags), `NudgioClient` wrapper, and a mock HostApi and demo dataset (port `mockNativeModule.ts`, `demoNativeModule.ts`, `mocks/fixtures.ts`).
 - Port pure-logic tests: `toAppError`, `reminderStatus`, `reminderActions`, `libraryAlbums`, `folderDestinations`, `formatStorageSize`, `PauseAll`.
 - **Exit:** `flutter test` green; Pigeon output compiles in a stub Kotlin module.
+- **Status (28 Oct 2026, DL-121):** done, with one change: a method channel plus shared contract files (`contract/host_methods.json`, `contract/fixtures/`) instead of Pigeon, checked by Dart, Kotlin and Swift tests. 107 Dart tests.
 
 ### F2 — Android host swap (1–1.5 weeks)
 - `MainActivity` changes from `ReactActivity` to `FlutterActivity`. Keep `singleTask`, the share intent filters and `IncomingShare.capture`.
@@ -193,6 +194,7 @@ Every phase ends with evidence, as AGENTS.md "Completion report" requires. Andro
 - Remove `com.facebook.react` plugins and dependencies, Hermes and autolinking from Gradle; add the Flutter Gradle plugin.
 - QA build type with `applicationIdSuffix ".flutter"` so it installs beside the production app.
 - **Exit:** Flutter "hello" shell lists real reminders from Room on a device; `./gradlew test lintDebug` green; merged release manifest still has no `INTERNET`.
+- **Status (28 Oct 2026, DL-121):** host swapped; the Kotlin core changed only its imports (a pure-Kotlin `WritableMap` subset). AGP 8.11.1 and Kotlin 2.2.20 (Flutter 3.47 minimums). Verified on CI, including an Android emulator integration test through Room. Not yet: a manual pass on a physical phone; release scripts (F5).
 
 ### F3 — Design system and app shell (2–2.5 weeks)
 - Tokens (`palette`, `spacing`, `shape`, `typography`, `motion`, `breakpoints`), theme builder (brand + Material You + contrast checks, porting `contrast.test.ts`), icons, ~30 components, layout primitives, `go_router` shell with 3 tabs and 12 stack routes, l10n ARB, toasts, error boundary, splash and startup gate.
@@ -215,6 +217,7 @@ Every phase ends with evidence, as AGENTS.md "Completion report" requires. Andro
 - `NudgioHostApiImpl.swift` implements the Pigeon contract group by group (§5), with an XCTest round trip per group.
 - Carry over the 7 Android lessons from the 6 Oct plan §4 (storage reserve with `volumeAvailableCapacityForImportantUsageKey`, duplicate-hash reuse, integrity sweep, media-hash backup round trip, one-shot permission primer, cancellable import, stale alerting session).
 - **Exit:** create → lock → alarm → Stop/Snooze/Open on a real iPhone with the Flutter engine deliberately not started.
+- **Status (28 Oct 2026, DL-122):** kernel written ahead of the "Android first" order at the owner's request, as a Swift package tested on Linux and on an iOS simulator in CI (no Mac needed); one JSON store instead of Core Data. Backup/transfer not yet. **G1 not run**: needs a real iPhone (`docs/ios/building-without-a-mac.md`).
 
 ### F7 — iPhone features and platform polish (2–3 weeks)
 - Same Flutter screens on iOS. Adapt with `.adaptive` constructors and Cupertino widgets where iOS convention differs (navigation bars, switches, date/time pickers, action sheets, swipe-back).
