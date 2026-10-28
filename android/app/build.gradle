@@ -58,6 +58,9 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode versionProps.getProperty('versionCode', '1').toInteger()
         versionName versionProps.getProperty('versionName', '0.1.0')
+        // The Flutter Gradle plugin adds a `profile` build type (`flutter run
+        // --profile`); it inherits this. debug/qa/release set their own below.
+        buildConfigField "String", "BUILD_VARIANT", '"profile"'
         // Instrumented tests (src/androidTest) run on a device or emulator;
         // they cover what a plain JVM cannot: MediaStore, FileProvider, Room.
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -163,6 +166,15 @@ flutter {
  */
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+/*
+ * `integration_test` (a Flutter dev dependency, debug builds only) brings
+ * espresso-core 3.3.0 into the debug runtime, and Gradle's consistent
+ * resolution would then pin the instrumented tests to it. Keep 3.6.1.
+ */
+configurations.configureEach {
+    resolutionStrategy.force("androidx.test.espresso:espresso-core:3.6.1")
 }
 
 dependencies {

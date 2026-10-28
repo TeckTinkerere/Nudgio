@@ -19,7 +19,7 @@ public final class ApplePlatform: MediaPlatform {
     // MARK: Pickers
 
     public func pick(mimeTypes: [String], maxItems: Int, stagingDirectory: URL) async -> [StagedFile] {
-        let types = mimeTypes.map(Self.contentType)
+        let types = mimeTypes.map { Self.contentType(forMimeType: $0) }
         let visualOnly = !types.isEmpty && types.allSatisfy { $0.conforms(to: .image) || $0.conforms(to: .movie) }
         return await withCheckedContinuation { continuation in
             Task { @MainActor in
@@ -58,8 +58,6 @@ public final class ApplePlatform: MediaPlatform {
         default: return UTType(mimeType: mime) ?? .item
         }
     }
-
-    private static func contentType(_ mime: String) -> UTType { contentType(forMimeType: mime) }
 
     /// Moves [source] into [staging] under a fresh name, keeping its extension.
     static func stage(_ source: URL, into staging: URL, displayName: String?) -> StagedFile? {
