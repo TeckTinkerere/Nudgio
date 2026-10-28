@@ -167,8 +167,21 @@ jobs:
           CODE_SIGNING_ALLOWED=NO
       - name: Build the Flutter app for the simulator
         run: flutter build ios --simulator --debug
+      # simctl sometimes hangs installing or launching the app on a hosted
+      # runner (seen once after a clean Xcode build); bound it and retry once
+      # on a freshly booted simulator rather than burn the job's hour.
       - name: Integration test on the simulator
+        id: itest
+        timeout-minutes: 15
+        continue-on-error: true
         run: flutter test integration_test -d "${{ steps.sim.outputs.udid }}"
+      - name: Integration test on the simulator (retry)
+        if: steps.itest.outcome == 'failure'
+        timeout-minutes: 15
+        run: |
+          xcrun simctl shutdown all || true
+          xcrun simctl boot "${{ steps.sim.outputs.udid }}"
+          flutter test integration_test -d "${{ steps.sim.outputs.udid }}"
       - name: Package the simulator app
         run: cd build/ios/iphonesimulator && zip -qr ../../../Nudgio-simulator.zip Runner.app
       - uses: actions/upload-artifact@v4
