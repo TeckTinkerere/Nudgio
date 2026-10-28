@@ -126,6 +126,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+      # The DST cases need real zone rules (America/New_York, Asia/Singapore).
+      - run: apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tzdata
       - run: swift test --package-path ios/NudgioKernel
 
   # The iPhone build without owning a Mac: GitHub's hosted macOS runners are
