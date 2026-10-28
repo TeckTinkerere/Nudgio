@@ -31,7 +31,9 @@ struct Harness {
     }
 
     func map(_ method: String, _ arguments: [String: Any] = [:]) async throws -> WireMap {
-        try XCTUnwrap(try await call(method, arguments) as? WireMap)
+        // Awaited first: XCTUnwrap's autoclosure cannot suspend.
+        let value = try await call(method, arguments)
+        return try XCTUnwrap(value as? WireMap)
     }
 
     /// Puts a file in staging the way a picker would, and returns its token.
