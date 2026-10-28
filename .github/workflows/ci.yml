@@ -69,11 +69,13 @@ jobs:
       - run: flutter pub get
       - name: Build the debug APK (Dart, engine and Kotlin core together)
         run: flutter build apk --debug
-      # Only :app: plugin subprojects (integration_test) ship their own unit
-      # tests, which are Flutter's to keep green, not this repository's.
+      # :app only (plugin subprojects ship Flutter's own tests), debug variant
+      # only: `flutter pub get` writes a GeneratedPluginRegistrant that names
+      # dev-only plugins (integration_test), so release/qa compile only through
+      # `flutter build`, which regenerates it. The JVM tests are variant-free.
       - name: Unit tests and lint
         working-directory: android
-        run: ./gradlew :app:test :app:lintDebug --console=plain
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain
       - name: Merge the release manifest
         working-directory: android
         run: ./gradlew :app:processReleaseMainManifest --console=plain
