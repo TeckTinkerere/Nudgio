@@ -9,9 +9,9 @@ import com.aslam.mediareminder.alarm.FullScreenIntentAccess
 import com.aslam.mediareminder.alarm.SchedulerHealth
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.notifications.NotificationCoordinator
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.WritableArray
-import com.facebook.react.bridge.WritableMap
+import com.aslam.mediareminder.bridge.wire.Arguments
+import com.aslam.mediareminder.bridge.wire.WritableArray
+import com.aslam.mediareminder.bridge.wire.WritableMap
 import java.time.Instant
 
 /**
