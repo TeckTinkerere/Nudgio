@@ -52,6 +52,6 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun captureShare(intent: Intent?) {
-        IncomingShare.capture(intent, ownAuthority = "$packageName.fileprovider")
+        IncomingShare.capture(intent, ownPackage = packageName)
     }
 }
