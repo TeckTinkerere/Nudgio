@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/result.dart';
+import '../design_system/theme.dart';
 import '../features/reminders/reminder_status.dart';
 import '../native/types.dart';
 import 'providers.dart';
 
 /// The F2 shell: proves the Flutter engine reaches the native store on both
-/// platforms. Brand theme, navigation and the real screens arrive in F3/F4
+/// platforms. Wears the brand theme (F3); navigation and real screens arrive in F3/F4
 /// (plan §7); until then this is a QA build surface only.
 class NudgioApp extends StatelessWidget {
   const NudgioApp({super.key});
@@ -15,12 +16,10 @@ class NudgioApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
         title: 'Nudgio',
-        theme: ThemeData(colorSchemeSeed: const Color(0xFF6B4EFF), useMaterial3: true),
-        darkTheme: ThemeData(
-          colorSchemeSeed: const Color(0xFF6B4EFF),
-          brightness: Brightness.dark,
-          useMaterial3: true,
-        ),
+        theme: buildTheme(brightness: Brightness.light),
+        darkTheme: buildTheme(brightness: Brightness.dark),
+        highContrastTheme: buildTheme(brightness: Brightness.light, highContrast: true),
+        highContrastDarkTheme: buildTheme(brightness: Brightness.dark, highContrast: true),
         home: const ShellScreen(),
       );
 }
