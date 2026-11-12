@@ -12,12 +12,23 @@ enum ColorSource { brand, materialYou }
 /// Read with `NudgioTheme.of(context)`.
 @immutable
 class NudgioTheme extends ThemeExtension<NudgioTheme> {
-  const NudgioTheme({required this.brightness, required this.colorSource, required this.color, required this.status});
+  const NudgioTheme({
+    required this.brightness,
+    required this.colorSource,
+    required this.color,
+    required this.status,
+    this.highContrast = false,
+  });
 
   final Brightness brightness;
   final ColorSource colorSource;
   final ColorRoles color;
   final StatusRoles status;
+
+  /// MR-13: elevated surfaces also get an outline, as in dark mode.
+  final bool highContrast;
+
+  bool get needsSurfaceOutline => brightness == Brightness.dark || highContrast;
 
   static NudgioTheme of(BuildContext context) => Theme.of(context).extension<NudgioTheme>()!;
 
@@ -27,6 +38,7 @@ class NudgioTheme extends ThemeExtension<NudgioTheme> {
         colorSource: colorSource,
         color: color ?? this.color,
         status: StatusRoles.of(color ?? this.color),
+        highContrast: highContrast,
       );
 
   // Theme switches are instant (MR-04: no decorative motion), so no lerp.
@@ -54,7 +66,7 @@ TextTheme _textTheme(Color onSurface) {
   );
 }
 
-ThemeData _themeData(Brightness brightness, ColorSource source, ColorRoles c) {
+ThemeData _themeData(Brightness brightness, ColorSource source, ColorRoles c, {bool highContrast = false}) {
   final scheme = ColorScheme(
     brightness: brightness,
     primary: c.primary,
@@ -97,7 +109,7 @@ ThemeData _themeData(Brightness brightness, ColorSource source, ColorRoles c) {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(Radii.card),
         // MR-04: never a shadow-only boundary in dark mode.
-        side: brightness == Brightness.dark ? BorderSide(color: c.outlineVariant) : BorderSide.none,
+        side: brightness == Brightness.dark || highContrast ? BorderSide(color: c.outlineVariant) : BorderSide.none,
       ),
     ),
     dialogTheme: DialogThemeData(
@@ -112,7 +124,15 @@ ThemeData _themeData(Brightness brightness, ColorSource source, ColorRoles c) {
       contentTextStyle: TextStyle(color: c.inverseOnSurface),
       behavior: SnackBarBehavior.floating,
     ),
-    extensions: [NudgioTheme(brightness: brightness, colorSource: source, color: c, status: StatusRoles.of(c))],
+    extensions: [
+      NudgioTheme(
+        brightness: brightness,
+        colorSource: source,
+        color: c,
+        status: StatusRoles.of(c),
+        highContrast: highContrast,
+      ),
+    ],
   );
 }
 
@@ -131,7 +151,8 @@ ThemeData buildTheme({
       ? schemeFromDynamicColor(dynamicColor, brightness)
       : (brightness == Brightness.dark ? darkScheme : lightScheme);
   if (highContrast) color = color.highContrast();
-  return _themeData(brightness, dynamic ? ColorSource.materialYou : ColorSource.brand, color);
+  return _themeData(brightness, dynamic ? ColorSource.materialYou : ColorSource.brand, color,
+      highContrast: highContrast);
 }
 
 /// The alarm theme: always dark brand, never Material You (MR-04).
@@ -139,4 +160,5 @@ ThemeData buildAlarmTheme({bool highContrast = false}) => _themeData(
       Brightness.dark,
       ColorSource.brand,
       highContrast ? alarmScheme.highContrast() : alarmScheme,
+      highContrast: highContrast,
     );

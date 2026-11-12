@@ -199,6 +199,7 @@ Every phase ends with evidence, as AGENTS.md "Completion report" requires. Andro
 ### F3 — Design system and app shell (2–2.5 weeks)
 - Tokens (`palette`, `spacing`, `shape`, `typography`, `motion`, `breakpoints`), theme builder (brand + Material You + contrast checks, porting `contrast.test.ts`), icons, ~30 components, layout primitives, `go_router` shell with 3 tabs and 12 stack routes, l10n ARB, toasts, error boundary, splash and startup gate.
 - **Exit:** golden tests for every component in light/dark and at 200% text scale; `TalkBack` pass on the shell.
+- **Status (12 Nov 2026, DL-123):** in progress on `feat/flutter-f3`. Tokens, color roles, theme builder and contrast/parity tests done; `NButton`, `StatusPill`, `NCard` ported with goldens. Remaining: icon registry, the other ~27 components, layout primitives, `go_router` shell, l10n ARB, toasts, error boundary, splash and startup gate, TalkBack pass.
 
 ### F4 — Feature screens (4–5 weeks)
 - Port in the order of §6 rows 1–14. Each screen ships with widget tests ported from the matching Jest tests, plus at least one golden test.

@@ -3806,3 +3806,16 @@ and share-in are empty by design or later slices.
 - Still needs a real iPhone: G1 (lock-screen alarm, Stop/Snooze/Open with no
   engine, capacity). A device build needs an Apple Developer account for
   signing; see `docs/ios/building-without-a-mac.md`.
+
+## DL-123 — Flutter F3, first slice: tokens, theme and the first components
+
+**Context:** F1/F2 done (DL-121). F3 ports the design system (plan §7).
+
+**Decision:**
+- `lib/design_system/` holds `tokens.dart`, `color_utils.dart`, `color_roles.dart` (brand, alarm and Material You schemes) and `theme.dart`. Roles ride on `ThemeData` as the `NudgioTheme` extension, and the Material `ColorScheme`/`TextTheme` are filled from the same roles so stock widgets look on-brand before each component is ported.
+- Font scale, reduced motion and width class are read from `MediaQuery` at use sites instead of being baked into the theme object as the RN `Theme` did.
+- `test/design_system/fixtures/rn_schemes.json` is the RN `lightScheme`/`darkScheme`, dumped with Node's type stripping; a parity test requires every Flutter role to match it hex for hex.
+- First components: `NButton`, `StatusPill`, `NCard`. The RN `Text` component is not ported: Flutter `Text` with the theme's `TextTheme` covers it. Status icons are Material placeholders until the brand icon registry is ported.
+- Goldens are recorded on Windows and checked on ubuntu CI. `test/flutter_test_config.dart` allows a 0.5% pixel difference for anti-aliasing; text renders in the Ahem test font, so layout is identical.
+
+**Evidence:** `flutter analyze --fatal-infos` clean; `flutter test` 146 passed, including the ACC-005 contrast suite, scheme parity, and light/dark/200% goldens.
