@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "id": "0b7e2d1c-9a8b-4c6d-8e5f-4a3b2c1d0e9f",
+      "kind": "video",
+      "title": "Stretch routine",
+      "durationMs": 61000.0,
+      "sizeBytes": "9007199254740993",
+      "thumbnailToken": null,
+      "sourceToken": "file:///data/user/0/com.aslam.mediareminder/files/media/0b7e.mp4",
+      "widthPx": 1080,
+      "heightPx": 1920,
+      "category": null,
+      "tags": [],
+      "activeReminderCount": 1,
+      "integrity": "healthy",
+      "createdAt": "2026-10-20T08:30:00Z"
+    }
+  ],
+  "total": 1,
+  "offset": 0,
+  "hasMore": false
+}

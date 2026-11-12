@@ -1,8 +1,8 @@
 package com.aslam.mediareminder.data
 
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.WritableArray
-import com.facebook.react.bridge.WritableMap
+import com.aslam.mediareminder.bridge.wire.Arguments
+import com.aslam.mediareminder.bridge.wire.WritableArray
+import com.aslam.mediareminder.bridge.wire.WritableMap
 
 /**
  * The three built-in reminder profiles (ADR-018: "Seed Gentle, Standard and

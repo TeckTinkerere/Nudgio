@@ -1,0 +1,19 @@
+{
+  "contractVersion": 1,
+  "schemaVersion": 9,
+  "appVersion": "2.3.4",
+  "buildVariant": "debug",
+  "mediaCount": 1,
+  "activeReminderCount": 1,
+  "nextOccurrence": null,
+  "capability": {
+    "overall": "ok",
+    "items": [
+      {"kind": "notifications", "status": "ready", "effectKey": "capability.notifications.ready", "action": "none", "observedAt": "2026-10-28T02:00:00Z"}
+    ],
+    "observedAt": "2026-10-28T02:00:00Z"
+  },
+  "repair": {"inProgress": false, "pendingOperations": 0},
+  "activeSession": null,
+  "sequence": "1"
+}

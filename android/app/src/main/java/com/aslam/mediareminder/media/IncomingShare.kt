@@ -18,6 +18,9 @@ import android.os.Build
  * are accepted, and never this app's own FileProvider: a `file://` or
  * self-authority URI is how a hostile sender would get Nudgio to "import" —
  * and then export or back up — its own private database or files.
+ * `ContentResolver` drops a `<userId>@` prefix before resolving an authority,
+ * so the comparison is made on the authority without it, and every authority
+ * in this app's package namespace is refused, not only the FileProvider.
  */
 object IncomingShare {
 
@@ -27,9 +30,9 @@ object IncomingShare {
     private var pending: List<Uri> = emptyList()
 
     /** Called by `MainActivity` for every intent it receives; ignores anything that is not a media share. */
-    fun capture(intent: Intent?, ownAuthority: String) {
+    fun capture(intent: Intent?, ownPackage: String) {
         val uris = extract(intent ?: return)
-            .filter { isAcceptable(it.scheme, it.authority, ownAuthority) }
+            .filter { isAcceptable(it.scheme, it.authority, ownPackage) }
             .distinct()
             .take(MediaPicker.MAX_BATCH_ITEMS)
         if (uris.isNotEmpty()) pending = uris
@@ -44,8 +47,12 @@ object IncomingShare {
     }
 
     /** Pure, so the trust rule is unit-testable without an `Intent`. */
-    fun isAcceptable(scheme: String?, authority: String?, ownAuthority: String): Boolean =
-        scheme == "content" && !authority.isNullOrEmpty() && authority != ownAuthority
+    fun isAcceptable(scheme: String?, authority: String?, ownPackage: String): Boolean {
+        if (scheme != "content" || authority.isNullOrEmpty()) return false
+        val resolved = authority.substringAfterLast('@')
+        if (resolved.isEmpty()) return false
+        return resolved != ownPackage && !resolved.startsWith("$ownPackage.")
+    }
 
     fun isMediaType(type: String?): Boolean =
         type != null && (type == "*/*" || ACCEPTED_TYPE_PREFIXES.any { type.startsWith(it) })

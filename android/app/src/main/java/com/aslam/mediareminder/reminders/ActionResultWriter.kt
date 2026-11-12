@@ -1,8 +1,8 @@
 package com.aslam.mediareminder.reminders
 
 import com.aslam.mediareminder.data.db.entity.OccurrenceEntity
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.WritableMap
+import com.aslam.mediareminder.bridge.wire.Arguments
+import com.aslam.mediareminder.bridge.wire.WritableMap
 import java.time.Instant
 
 /** [com.aslam.mediareminder.alarm.AlarmActionProcessor]'s outcome -> the MR-08 `ActionResult` wire shape. */

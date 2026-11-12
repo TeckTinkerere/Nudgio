@@ -1,0 +1,135 @@
+{
+  "contractVersion": 1,
+  "hostChannel": "nudgio/host",
+  "eventChannel": "nudgio/events",
+  "methods": {
+    "libraryCommand": [
+      "requestJson"
+    ],
+    "getStartupSnapshot": [],
+    "getCapabilitySnapshot": [],
+    "getPreferences": [],
+    "setPreferences": [
+      "patch"
+    ],
+    "getDynamicColorScheme": [],
+    "listMedia": [
+      "query"
+    ],
+    "getMedia": [
+      "id"
+    ],
+    "listProfiles": [],
+    "pickDocument": [
+      "mimeTypes"
+    ],
+    "pickDocuments": [
+      "mimeTypes",
+      "maxItems"
+    ],
+    "pickAlarmRingtone": [
+      "currentUri"
+    ],
+    "previewAlarmRingtone": [
+      "uri"
+    ],
+    "stopAlarmRingtonePreview": [],
+    "listReminders": [],
+    "getReminder": [
+      "id"
+    ],
+    "saveReminder": [
+      "request"
+    ],
+    "setReminderEnabled": [
+      "id",
+      "enabled"
+    ],
+    "skipNextOccurrence": [
+      "id",
+      "skip"
+    ],
+    "setPausedUntil": [
+      "until"
+    ],
+    "takeSharedDocuments": [],
+    "deleteReminder": [
+      "id"
+    ],
+    "scheduleTestReminder": [
+      "request"
+    ],
+    "listRecentlyMissed": [
+      "hours"
+    ],
+    "playDueSession": [
+      "sessionId",
+      "nonce"
+    ],
+    "snoozeDueSession": [
+      "sessionId",
+      "minutes",
+      "nonce"
+    ],
+    "dismissDueSession": [
+      "sessionId",
+      "nonce"
+    ],
+    "beginExport": [
+      "request"
+    ],
+    "shareBackupExport": [
+      "fileName"
+    ],
+    "inspectBackup": [
+      "uriToken"
+    ],
+    "commitImport": [
+      "request"
+    ],
+    "cancelOperation": [
+      "id"
+    ],
+    "beginMediaImport": [
+      "request"
+    ],
+    "updateMedia": [
+      "request"
+    ],
+    "deleteMedia": [
+      "request"
+    ],
+    "exportMediaAssets": [
+      "ids"
+    ],
+    "shareLibrarySelection": [
+      "mediaIds",
+      "folderIds"
+    ],
+    "saveLibrarySelectionToGallery": [
+      "mediaIds",
+      "folderIds"
+    ],
+    "replaceMediaSource": [
+      "request"
+    ],
+    "saveMediaCopyToGallery": [
+      "id"
+    ],
+    "getMediaStorageUsage": [],
+    "requestNotificationPermission": [],
+    "saveProfile": [
+      "request"
+    ],
+    "resetBuiltInProfile": [
+      "id"
+    ],
+    "openCapabilitySettings": [
+      "kind"
+    ],
+    "takePendingMediaOpen": [],
+    "getStatistics": [
+      "rangeDays"
+    ]
+  }
+}

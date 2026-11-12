@@ -1,0 +1,11 @@
+{
+  "themePreference": "system",
+  "useMaterialYou": true,
+  "use24HourTime": null,
+  "languageTag": null,
+  "hasCompletedOnboarding": true,
+  "defaultSnoozeMinutes": 10,
+  "alarmRingtoneUri": null,
+  "alarmRingtoneTitle": "Default alarm",
+  "pausedUntil": "9999-12-31T23:59:59Z"
+}

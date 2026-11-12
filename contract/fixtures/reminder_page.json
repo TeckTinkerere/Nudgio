@@ -1,0 +1,51 @@
+{
+  "items": [
+    {
+      "id": "6f1c0a8e-2b3d-4c5e-8f90-1a2b3c4d5e6f",
+      "label": "Morning stretch",
+      "mediaId": "0b7e2d1c-9a8b-4c6d-8e5f-4a3b2c1d0e9f",
+      "mediaKind": "video",
+      "thumbnailToken": "file:///data/user/0/com.aslam.mediareminder/files/thumbnails/0b7e.webp",
+      "sourceToken": "file:///data/user/0/com.aslam.mediareminder/files/media/0b7e.mp4",
+      "mediaMissing": false,
+      "profileId": "00000000-0000-4000-8000-000000000001",
+      "enabledIntent": true,
+      "effectiveState": "active",
+      "nextOccurrence": {
+        "id": "3c2b1a09-8f7e-4d6c-9b5a-0f1e2d3c4b5a",
+        "reminderId": "6f1c0a8e-2b3d-4c5e-8f90-1a2b3c4d5e6f",
+        "kind": "base",
+        "scheduledAt": "2026-10-29T23:00:00Z",
+        "state": "pending"
+      },
+      "repeatSummary": "Every weekday at 7:00 AM",
+      "schedule": {"type": "weekdays", "localTime": "07:00:00", "isoWeekdays": [1, 2, 3, 4, 5], "zonePolicy": "follow_device"},
+      "action": {"type": "open_link", "uri": "https://youtu.be/x", "label": null},
+      "notes": "Ten minutes, no excuses",
+      "skippedAt": null,
+      "mediaStartMs": 15000.0
+    },
+    {
+      "id": "9a8b7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d",
+      "label": "Take medicine",
+      "mediaId": null,
+      "mediaKind": "video",
+      "thumbnailToken": null,
+      "sourceToken": null,
+      "mediaMissing": false,
+      "profileId": "00000000-0000-4000-8000-000000000002",
+      "enabledIntent": false,
+      "effectiveState": "disabled",
+      "nextOccurrence": null,
+      "repeatSummary": "Once on 1 Nov at 9:00 PM",
+      "schedule": {"type": "once", "instant": "2026-11-01T13:00:00Z", "originZone": "Asia/Singapore"},
+      "action": null,
+      "notes": null,
+      "skippedAt": null,
+      "mediaStartMs": null
+    }
+  ],
+  "total": 2,
+  "offset": 0,
+  "hasMore": false
+}

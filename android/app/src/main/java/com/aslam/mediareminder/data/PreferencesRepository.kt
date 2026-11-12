@@ -9,9 +9,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.ReadableMap
-import com.facebook.react.bridge.WritableMap
+import com.aslam.mediareminder.bridge.wire.Arguments
+import com.aslam.mediareminder.bridge.wire.ReadableMap
+import com.aslam.mediareminder.bridge.wire.WritableMap
 import kotlinx.coroutines.flow.first
 import java.time.Instant
 

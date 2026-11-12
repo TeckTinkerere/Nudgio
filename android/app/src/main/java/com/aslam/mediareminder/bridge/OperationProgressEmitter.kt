@@ -1,9 +1,7 @@
 package com.aslam.mediareminder.bridge
 
 import android.content.Context
-import com.facebook.react.ReactApplication
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.modules.core.DeviceEventManagerModule
+import com.aslam.mediareminder.bridge.wire.Arguments
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -15,14 +13,14 @@ import java.util.concurrent.atomic.AtomicLong
  * (via [BackupOperationEmitter], which adapts its own progress type onto this)
  * and media import. Extracted rather than copied for the media slice because
  * the `sequence` counter has to be monotonic **per operation id**: two emitters
- * with their own counter maps would each start at 1 and the JS side's
+ * with their own counter maps would each start at 1 and the Dart side's
  * event-gap detection (MR-08: `sequence` exists to detect dropped events) would
  * see the sequence jump backwards.
  *
- * A no-op whenever React Native is not running, the same
+ * A no-op whenever no Flutter engine is listening, the same
  * [ReminderEventEmitter] rule: the journal-backed operation is always the
  * source of truth, never this event stream alone. An import that finishes while
- * JS is dead still committed its row.
+ * the engine is gone still committed its row.
  */
 object OperationProgressEmitter {
     private const val EVENT_OPERATION_PROGRESS = "operationProgress"
@@ -46,9 +44,7 @@ object OperationProgressEmitter {
         currentItemIndex: Int? = null,
         totalItems: Int? = null,
     ) {
-        val app = context.applicationContext as? ReactApplication ?: return
-        // `ReactApplication.reactHost` is itself nullable in RN 0.86.
-        val reactContext = app.reactHost?.currentReactContext ?: return
+        if (HostEvents.sink == null) return
 
         val sequence = sequenceCounters.getOrPut(operationId) { AtomicLong(0) }.incrementAndGet()
         val payload = Arguments.createMap().apply {
@@ -65,9 +61,7 @@ object OperationProgressEmitter {
             putString("sequence", sequence.toString())
             putString("correlationId", UUID.randomUUID().toString())
         }
-        reactContext
-            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-            .emit(EVENT_OPERATION_PROGRESS, payload)
+        HostEvents.emit(EVENT_OPERATION_PROGRESS, payload)
     }
 
     fun clear(operationId: String) {

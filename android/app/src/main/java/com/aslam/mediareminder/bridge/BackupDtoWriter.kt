@@ -3,8 +3,8 @@ package com.aslam.mediareminder.bridge
 import com.aslam.mediareminder.backup.BackupCommitResult
 import com.aslam.mediareminder.backup.BackupInspectionResult
 import com.aslam.mediareminder.backup.ExportOutcome
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.WritableMap
+import com.aslam.mediareminder.bridge.wire.Arguments
+import com.aslam.mediareminder.bridge.wire.WritableMap
 
 /** `backup/` domain results -> the MR-08 `ExportResult`/`BackupInspection`/`MutationResult` wire shapes. */
 object BackupDtoWriter {

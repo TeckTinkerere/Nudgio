@@ -1,24 +1,22 @@
 package com.aslam.mediareminder.bridge
 
 import android.content.Context
-import com.facebook.react.ReactApplication
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.modules.core.DeviceEventManagerModule
+import com.aslam.mediareminder.bridge.wire.Arguments
 import java.time.Instant
 
 /**
  * MR-06 "Adaptive presentation decision" rule 4: "If the app is foreground,
  * additionally emit an event to show the in-app strip." The JS side already
- * has the receiving half wired (`src/core/state/sessionStore.ts`'s
- * `InAppDueBanner`/`showDueBanner`) — this is the native emission counterpart,
+ * has the receiving half (`ReminderDueEvent` in `lib/native/types.dart`) —
+ * this is the native emission counterpart,
  * used only by [com.aslam.mediareminder.alarm.AlarmDispatchReceiver] when
  * [com.aslam.mediareminder.alarm.DevicePresentationState.Decision.allowInAppForegroundEvent]
  * is true.
  *
- * A no-op whenever RN is not actually running (`ReactHost.currentReactContext`
- * null — process alive with no JS engine up yet, or the New Architecture
- * host between reloads) or has no attached foreground activity
- * (`hasCurrentActivity()` false — RN alive but backgrounded). Neither case
+ * A no-op whenever no Flutter engine is listening ([HostEvents.sink] null —
+ * process alive with no engine up yet) or the app is not in front
+ * ([HostEvents.hasForegroundActivity] false — engine alive but
+ * backgrounded). Neither case
  * loses the reminder: the notification [com.aslam.mediareminder.notifications.NotificationCoordinator]
  * already posted is, per MR-06, "the fallback" regardless of whether this
  * event ever gets delivered.
@@ -39,11 +37,7 @@ object ReminderEventEmitter {
         mediaTitle: String,
         defaultSnoozeMinutes: Int,
     ) {
-        val app = context.applicationContext as? ReactApplication ?: return
-        // `ReactApplication.reactHost` is itself nullable in RN 0.86 (never
-        // compiled against the real AAR before now — docs/decision-log.md).
-        val reactContext = app.reactHost?.currentReactContext ?: return
-        if (!reactContext.hasCurrentActivity()) return
+        if (HostEvents.sink == null || !HostEvents.hasForegroundActivity) return
 
         val occurrence = Arguments.createMap().apply {
             putString("id", occurrenceId)
@@ -53,7 +47,7 @@ object ReminderEventEmitter {
             putString("state", occurrenceState)
         }
         val payload = Arguments.createMap().apply {
-            // `sessionId`/`nonce`: so the JS card can call the same
+            // `sessionId`/`nonce`: so the in-app card can call the same
             // `playDueSession`/`snoozeDueSession`/`dismissDueSession`
             // bridge methods the notification's own buttons resolve
             // through — this event is otherwise just a display hint.
@@ -64,8 +58,6 @@ object ReminderEventEmitter {
             putString("mediaTitle", mediaTitle)
             putInt("defaultSnoozeMinutes", defaultSnoozeMinutes)
         }
-        reactContext
-            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-            .emit(EVENT_REMINDER_DUE_WHILE_FOREGROUND, payload)
+        HostEvents.emit(EVENT_REMINDER_DUE_WHILE_FOREGROUND, payload)
     }
 }

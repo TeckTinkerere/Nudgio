@@ -11,7 +11,8 @@ import org.junit.Test
  */
 class IncomingShareTest {
 
-    private val own = "com.aslam.mediareminder.fileprovider"
+    private val own = "com.aslam.mediareminder"
+    private val fileProvider = "$own.fileprovider"
 
     @Test
     fun `accepts another app's content uri`() {
@@ -27,7 +28,28 @@ class IncomingShareTest {
 
     @Test
     fun `refuses this app's own file provider`() {
+        assertFalse(IncomingShare.isAcceptable("content", fileProvider, own))
+    }
+
+    @Test
+    fun `refuses this app's file provider behind a user id prefix`() {
+        // ContentResolver strips "<userId>@" and would resolve the own provider.
+        assertFalse(IncomingShare.isAcceptable("content", "0@$fileProvider", own))
+        assertFalse(IncomingShare.isAcceptable("content", "10@$fileProvider", own))
+        assertFalse(IncomingShare.isAcceptable("content", "@", own))
+    }
+
+    @Test
+    fun `refuses every provider in this app's namespace`() {
+        assertFalse(IncomingShare.isAcceptable("content", "$own.androidx-startup", own))
         assertFalse(IncomingShare.isAcceptable("content", own, own))
+        // A lookalike outside the namespace is another app.
+        assertTrue(IncomingShare.isAcceptable("content", "${own}evil", own))
+    }
+
+    @Test
+    fun `accepts another app's provider shared across profiles`() {
+        assertTrue(IncomingShare.isAcceptable("content", "10@media", own))
     }
 
     @Test

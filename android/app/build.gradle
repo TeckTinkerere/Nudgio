@@ -1,14 +1,20 @@
-apply plugin: "com.android.application"
-apply plugin: "org.jetbrains.kotlin.android"
-apply plugin: "com.facebook.react"
-// Room's annotation processor. KSP, not kapt: kapt is in maintenance mode
-// and noticeably slower; Room has shipped first-class KSP support since 2.5.
-apply plugin: "com.google.devtools.ksp"
+plugins {
+    id "com.android.application"
+    id "org.jetbrains.kotlin.android"
+    // Room's annotation processor. KSP, not kapt: kapt is in maintenance mode
+    // and noticeably slower; Room has shipped first-class KSP support since 2.5.
+    id "com.google.devtools.ksp"
+    // ADR-023: the Flutter UI host. Must come after the Android and Kotlin
+    // plugins. Adds the engine, the Dart build per variant and `profile`.
+    id "dev.flutter.flutter-gradle-plugin"
+}
 
 /**
  * Build variants (MR-07 "Build variants"):
  *  - debug:   developer tools, synthetic event injector, verbose local log;
- *  - qa:      release-like signing, test fixtures, controlled diagnostics;
+ *  - qa:      release-like signing, test fixtures, controlled diagnostics.
+ *             Installs beside the production app (`.flutter` suffix) while
+ *             the Flutter UI is being ported (plan phase F2-F5);
  *  - release: no debug menus, no Internet permission, minified.
  *
  * versionCode/versionName (ADR-019) are stamped by `scripts/release/stamp-version.js`
@@ -52,6 +58,9 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode versionProps.getProperty('versionCode', '1').toInteger()
         versionName versionProps.getProperty('versionName', '0.1.0')
+        // The Flutter Gradle plugin adds a `profile` build type (`flutter run
+        // --profile`); it inherits this. debug/qa/release set their own below.
+        buildConfigField "String", "BUILD_VARIANT", '"profile"'
         // Instrumented tests (src/androidTest) run on a device or emulator;
         // they cover what a plain JVM cannot: MediaStore, FileProvider, Room.
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -91,16 +100,19 @@ android {
     }
 
     // `qa`: release-like signing/optimization with controlled diagnostics and
-    // no remote analytics (MR-07). Declared as a build type, not a flavor,
-    // because it does not vary applicationId or resources — only behavior
-    // flags read from `BuildConfig.BUILD_VARIANT` at runtime
-    // (see `core/config/featureFlags.ts` on the JS side, and
-    // `bridge/BuildVariant.kt` on this side).
+    // no remote analytics (MR-07). Declared as a build type, not a flavor:
+    // behavior flags are read from `BuildConfig.BUILD_VARIANT` at runtime
+    // (`bridge/BuildVariant.kt`). The Flutter Gradle plugin builds Dart in
+    // release mode for it, since it is not debuggable.
     buildTypes {
         qa {
             initWith release
             buildConfigField "String", "BUILD_VARIANT", '"qa"'
             matchingFallbacks = ["release"]
+            // Plan F2: the Flutter QA build sits beside the shipped app so the
+            // two can be compared on one phone. Every authority and explicit
+            // intent already derives from the package name at runtime.
+            applicationIdSuffix ".flutter"
         }
     }
 
@@ -111,10 +123,6 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
     }
 
     packagingOptions {
@@ -128,20 +136,16 @@ android {
     }
 }
 
-react {
-    // Standard React Native New Architecture autolinking; no per-project
-    // overrides needed yet. `autolinkLibrariesWithApp()` reads
-    // build/generated/autolinking/autolinking.json and adds the actual
-    // `implementation project(...)` dependencies (react-native-gesture-handler,
-    // react-native-screens, etc.) to :app — required (RN Gradle plugin's own
-    // doc comment on `ReactExtension.autolinkLibrariesWithApp()`: "necessary
-    // for libraries to be linked correctly"), not automatic. Without it,
-    // `settings.gradle`'s `autolinkLibrariesFromCommand()` only makes these
-    // modules includeable as Gradle subprojects — it does not make :app
-    // depend on them, so `PackageList.java` (which does get generated
-    // correctly either way) fails to compile with "package does not exist"
-    // for every autolinked native module.
-    autolinkLibrariesWithApp()
+// Kotlin 2.2 removed the `kotlinOptions` DSL.
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+flutter {
+    // The Flutter project (pubspec.yaml, lib/) is the repository root.
+    source = "../.."
 }
 
 /**
@@ -164,17 +168,21 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
-dependencies {
-    implementation("com.facebook.react:react-android")
-    implementation("com.facebook.react:hermes-android")
+/*
+ * `integration_test` (a Flutter dev dependency, debug builds only) brings
+ * espresso-core 3.3.0 into the debug runtime, and Gradle's consistent
+ * resolution would then pin the instrumented tests to it. Keep 3.6.1.
+ */
+configurations.configureEach {
+    resolutionStrategy.force("androidx.test.espresso:espresso-core:3.6.1")
+}
 
+dependencies {
     // AndroidX baseline the design system and startup snapshot rely on today.
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     // MR-06 presentation slice: `AlarmActivity`'s Material buttons and the
-    // `Theme.Material3.*` parent `styles.xml` already declares. Made
-    // explicit rather than relying on it arriving transitively through
-    // `react-android`.
+    // `Theme.Material3.*` parent `styles.xml` already declares.
     implementation("com.google.android.material:material:1.12.0")
     // MR-07: "Theme and lightweight preferences" -> DataStore, not Room.
     implementation("androidx.datastore:datastore-preferences:1.1.1")

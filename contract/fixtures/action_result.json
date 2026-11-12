@@ -1,0 +1,13 @@
+{
+  "sessionId": "5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a",
+  "outcome": "snoozed",
+  "effectiveAt": "2026-10-28T02:00:00Z",
+  "snoozedUntil": "2026-10-28T02:10:00Z",
+  "nextOccurrence": {
+    "id": "7e6d5c4b-3a29-4180-9f7e-6d5c4b3a2918",
+    "reminderId": "6f1c0a8e-2b3d-4c5e-8f90-1a2b3c4d5e6f",
+    "kind": "snooze",
+    "scheduledAt": "2026-10-28T02:10:00Z",
+    "state": "pending"
+  }
+}
