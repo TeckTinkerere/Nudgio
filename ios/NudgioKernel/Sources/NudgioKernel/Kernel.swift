@@ -450,6 +450,18 @@ public actor NudgioKernel {
         await reconcile()
     }
 
+    /// The system Stop (an App Intent in the Runner, run in the background):
+    /// keep history and re-arm what comes next. Without this a fixed alarm
+    /// (monthly, yearly, custom, or a daily one held by Pause/Skip) would
+    /// ring once and then stay silent until the app was next opened.
+    public func recordStop(alarmId: String) async {
+        await alarms.stop(id: alarmId)
+        guard var state = try? state(), let reminder = state.reminders.first(where: { $0.id == alarmId }) else { return }
+        record(.dismissed, for: reminder, in: &state)
+        try? commit(state)
+        await reconcile()
+    }
+
     func record(_ outcome: OccurrenceRecord.State, for reminder: ReminderRecord, in state: inout KernelState) {
         guard reminder.historyEnabled else { return }
         state.occurrences.append(OccurrenceRecord(id: occurrenceId(reminder.id, now), reminderId: reminder.id,
@@ -484,7 +496,10 @@ public actor NudgioKernel {
         case "snooze":
             await alarms.snooze(id: sessionId)
             record(.snoozed, for: reminder, in: &state)
-            let minutes = snoozeMinutes ?? reminder.snooze.defaultMinutes
+            // AlarmKit's countdown length is fixed when the alarm is
+            // scheduled, so report what will actually happen, not the request.
+            _ = snoozeMinutes
+            let minutes = reminder.snooze.defaultMinutes
             result["outcome"] = "snoozed"
             result["snoozedUntil"] = WireInstant.format(now.addingTimeInterval(TimeInterval(minutes * 60)))
         default:

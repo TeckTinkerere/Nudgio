@@ -25,11 +25,51 @@ class NudgioApp extends StatelessWidget {
       );
 }
 
-class ShellScreen extends ConsumerWidget {
+class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ShellScreen> createState() => _ShellScreenState();
+}
+
+/// Drains the native "an alarm's Open/Play asked to show this" slot at launch
+/// and every time the app returns to the front, so the iPhone alarm's Open
+/// button (which opens the app) lands on its reminder. Media never starts
+/// here: that waits for an explicit Play (AGENTS.md).
+class _ShellScreenState extends ConsumerState<ShellScreen> with WidgetsBindingObserver {
+  PendingReminderOpen? _pending;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _drainPendingOpen();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _drainPendingOpen();
+  }
+
+  Future<void> _drainPendingOpen() async {
+    final result = await ref.read(clientProvider).takePendingMediaOpen();
+    if (!mounted) return;
+    if (result case Ok(:final value?)) {
+      setState(() => _pending = value);
+      ref
+        ..invalidate(startupProvider)
+        ..invalidate(remindersProvider);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final startup = ref.watch(startupProvider);
     final reminders = ref.watch(remindersProvider);
     return Scaffold(
@@ -43,6 +83,18 @@ class ShellScreen extends ConsumerWidget {
         },
         child: ListView(
           children: [
+            if (_pending case final pending?)
+              ListTile(
+                key: const Key('pendingOpen'),
+                leading: const Icon(Icons.alarm_on),
+                title: Text(_pendingLabel(reminders, pending) ?? 'Opened from an alarm'),
+                subtitle: Text(pending.mediaId == null ? 'Opened from an alarm' : 'Opened from an alarm · has media'),
+                trailing: IconButton(
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                  icon: const Icon(Icons.close),
+                  onPressed: () => setState(() => _pending = null),
+                ),
+              ),
             switch (startup) {
               AsyncData(value: Ok(:final value)) => ListTile(
                   key: const Key('startup'),
@@ -72,6 +124,15 @@ class ShellScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+String? _pendingLabel(AsyncValue<Result<WirePage<ReminderSummary>>> reminders, PendingReminderOpen pending) {
+  if (reminders case AsyncData(value: Ok(:final value))) {
+    for (final reminder in value.items) {
+      if (reminder.id == pending.reminderId) return reminder.label;
+    }
+  }
+  return null;
 }
 
 class _ReminderTile extends StatelessWidget {

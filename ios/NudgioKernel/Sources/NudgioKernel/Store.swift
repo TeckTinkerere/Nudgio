@@ -10,7 +10,7 @@ public protocol KernelStore {
 /// One JSON document in Application Support, replaced atomically on every
 /// write (write a temporary file, then rename), so a crash mid-write leaves
 /// the previous state, never a torn one. On iPhone the file is
-/// `NSFileProtectionComplete` (plan §9).
+/// `NSFileProtectionCompleteUntilFirstUserAuthentication` (plan §9; see `save`).
 ///
 /// Why not Core Data: the plan suggested it, but a Codable document builds and
 /// is tested on Linux CI with no Mac, and the data set (reminders, media
@@ -38,7 +38,10 @@ public final class FileKernelStore: KernelStore {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let data = try encoder.encode(state)
         #if os(iOS)
-        try data.write(to: file, options: [.atomic, .completeFileProtection])
+        // Until first unlock, not Complete: the alarm's Stop/Open intents and
+        // re-arming can run while the phone is locked, and a Complete file is
+        // unreadable then, which would silently drop the tap.
+        try data.write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         #else
         try data.write(to: file, options: .atomic)
         #endif

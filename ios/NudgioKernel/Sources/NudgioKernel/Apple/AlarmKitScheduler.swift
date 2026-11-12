@@ -22,9 +22,14 @@ public struct NudgioAlarmMetadata: AlarmMetadata {
 public final class AlarmKitScheduler: AlarmScheduling {
     private let manager = AlarmManager.shared
     private let makeOpenIntent: (String) -> (any LiveActivityIntent)?
+    private let makeStopIntent: (String) -> (any LiveActivityIntent)?
 
-    public init(makeOpenIntent: @escaping (String) -> (any LiveActivityIntent)?) {
+    /// [makeStopIntent] runs (app in background) when the system Stop is
+    /// pressed, so history is kept and one-moment alarms are re-armed.
+    public init(makeOpenIntent: @escaping (String) -> (any LiveActivityIntent)?,
+                makeStopIntent: @escaping (String) -> (any LiveActivityIntent)? = { _ in nil }) {
         self.makeOpenIntent = makeOpenIntent
+        self.makeStopIntent = makeStopIntent
     }
 
     public var authorization: AlarmAuthorization {
@@ -91,7 +96,7 @@ public final class AlarmKitScheduler: AlarmScheduling {
             countdownDuration: snoozeMinutes.map { .init(preAlert: nil, postAlert: TimeInterval($0 * 60)) },
             schedule: schedule,
             attributes: attributes,
-            stopIntent: nil,
+            stopIntent: makeStopIntent(alarm.id),
             secondaryIntent: secondaryIntent
         )
         _ = try await manager.schedule(id: id, configuration: configuration)

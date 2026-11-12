@@ -38,10 +38,30 @@ final class NudgioHost: NSObject, FlutterStreamHandler {
   static let shared = NudgioHost()
 
   private var eventSink: FlutterEventSink?
-  private(set) lazy var kernel: NudgioKernel = makeKernel()
-  private lazy var dispatcher = HostDispatcher(kernel: kernel)
+  // Built eagerly in init (`static let` is thread-safe), never `lazy`: the
+  // Open/Stop intents and didBecomeActive can reach this at the same moment
+  // on a cold launch, and a lazy var could build two kernels whose cached
+  // states overwrite each other.
+  let kernel: NudgioKernel
+  private let dispatcher: HostDispatcher
+  /// The previous host call; each new one awaits it so calls reach the kernel
+  /// in the order Dart sent them. Touched only on the main thread.
+  private var tail: Task<Void, Never>?
 
-  private func makeKernel() -> NudgioKernel {
+  private override init() {
+    let events = EventRelay()
+    kernel = NudgioHost.makeKernel(events: events)
+    dispatcher = HostDispatcher(kernel: kernel)
+    super.init()
+    events.host = self
+  }
+
+  /// Breaks the init cycle: the kernel needs an event sink before `self` exists.
+  private final class EventRelay: @unchecked Sendable {
+    weak var host: NudgioHost?
+  }
+
+  private static func makeKernel(events relay: EventRelay) -> NudgioKernel {
     let fileManager = FileManager.default
     let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
       .appendingPathComponent("Nudgio", isDirectory: true)
@@ -57,14 +77,17 @@ final class NudgioHost: NSObject, FlutterStreamHandler {
     return NudgioKernel(
       store: FileKernelStore(directory: support),
       directories: KernelDirectories(root: support, staging: caches),
-      alarms: AlarmKitScheduler(makeOpenIntent: { OpenReminderIntent(alarmID: $0) }),
+      alarms: AlarmKitScheduler(
+        makeOpenIntent: { OpenReminderIntent(alarmID: $0) },
+        makeStopIntent: { StopReminderIntent(alarmID: $0) }
+      ),
       platform: platform,
       environment: KernelEnvironment(
         appVersion: info?["CFBundleShortVersionString"] as? String ?? "0",
         buildVariant: variant
       ),
-      events: { [weak self] event, payload in
-        DispatchQueue.main.async { self?.eventSink?(["event": event, "payload": payload]) }
+      events: { event, payload in
+        DispatchQueue.main.async { relay.host?.eventSink?(["event": event, "payload": payload]) }
       }
     )
   }
@@ -74,7 +97,9 @@ final class NudgioHost: NSObject, FlutterStreamHandler {
     methods.setMethodCallHandler { [weak self] call, result in
       guard let self else { return result(FlutterMethodNotImplemented) }
       let dispatcher = self.dispatcher
-      Task {
+      let previous = self.tail
+      self.tail = Task {
+        await previous?.value
         do {
           let value = try await dispatcher.handle(method: call.method, arguments: call.arguments)
           await MainActor.run { result(value) }
@@ -116,6 +141,24 @@ struct OpenReminderIntent: LiveActivityIntent {
   func perform() async throws -> some IntentResult {
     guard UUID(uuidString: alarmID) != nil else { return .result() }
     await NudgioHost.shared.kernel.recordOpen(alarmId: alarmID.lowercased())
+    return .result()
+  }
+}
+
+/// The alarm's system Stop: runs in the background (no app launch), records
+/// the dismissal and re-arms the reminder's next moment.
+struct StopReminderIntent: LiveActivityIntent {
+  static var title: LocalizedStringResource = "Stop Nudgio reminder"
+  static var openAppWhenRun: Bool = false
+
+  @Parameter(title: "Alarm identifier") var alarmID: String
+
+  init() { alarmID = "" }
+  init(alarmID: String) { self.alarmID = alarmID }
+
+  func perform() async throws -> some IntentResult {
+    guard UUID(uuidString: alarmID) != nil else { return .result() }
+    await NudgioHost.shared.kernel.recordStop(alarmId: alarmID.lowercased())
     return .result()
   }
 }

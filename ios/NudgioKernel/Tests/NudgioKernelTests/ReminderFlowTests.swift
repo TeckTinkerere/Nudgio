@@ -3,6 +3,25 @@ import XCTest
 @testable import NudgioKernel
 
 final class ReminderFlowTests: XCTestCase {
+    func testTheSystemStopIsRecordedAndReArms() async throws {
+        let h = Harness()
+        let saved = try await h.map("saveReminder", ["request": reminderRequest()])
+        let id = try XCTUnwrap((saved["reminder"] as? WireMap)?["id"] as? String)
+        await h.kernel.recordStop(alarmId: id)
+        let stats = try await h.map("getStatistics", ["rangeDays": 7])
+        XCTAssertEqual(stats["dismissed"] as? Int, 1)
+        XCTAssertEqual(h.platform.applied.map(\.id), [id])
+    }
+
+    func testInAppSnoozeReportsTheAlarmsRealLength() async throws {
+        let h = Harness()
+        let saved = try await h.map("saveReminder", ["request": reminderRequest()])
+        let id = try XCTUnwrap((saved["reminder"] as? WireMap)?["id"] as? String)
+        let result = try await h.map("snoozeDueSession", ["sessionId": id, "minutes": 30, "nonce": "n"])
+        // AlarmKit's countdown is the reminder's 10 minutes, whatever was asked.
+        XCTAssertEqual(result["snoozedUntil"] as? String, "2026-10-28T01:10:00Z")
+    }
+
     func testSaveListAndDeleteAnAlarmWithNoAttachment() async throws {
         let h = Harness()
         let saved = try await h.map("saveReminder", ["request": reminderRequest()])
