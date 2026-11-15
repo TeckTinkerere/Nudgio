@@ -167,6 +167,76 @@ void main() {
     expect(logger.records.where((r) => r.event == 'bridge.eventDropped'), hasLength(1));
   });
 
+  group('alert profiles (DL-123)', () {
+    const profileWire = <String, Object?>{
+      'id': 'custom-1',
+      'nameKey': 'Medication',
+      'isBuiltIn': false,
+      'fullScreenWhenLocked': true,
+      'timeoutSeconds': 120,
+      'retryCount': 2,
+      'graceSeconds': 300,
+      'defaultSnoozeMinutes': 15,
+      'entityVersion': 2,
+      'reminderCount': 3,
+    };
+
+    test('saveProfile sends the request and decodes the saved profile with its use count', () async {
+      host.answer('saveProfile', profileWire);
+      final result = await client.saveProfile(const SaveProfileRequest(
+        id: 'custom-1',
+        expectedEntityVersion: 1,
+        name: 'Medication',
+        fullScreenWhenLocked: true,
+        timeoutSeconds: 120,
+        retryCount: 2,
+        graceSeconds: 300,
+        defaultSnoozeMinutes: 15,
+      ));
+      final saved = (result as Ok<ReminderProfile>).value;
+      expect(saved.entityVersion, 2);
+      expect(saved.reminderCount, 3);
+      expect(host.calls.single.arguments['request'], {
+        'id': 'custom-1',
+        'expectedEntityVersion': 1,
+        'name': 'Medication',
+        'fullScreenWhenLocked': true,
+        'timeoutSeconds': 120,
+        'retryCount': 2,
+        'graceSeconds': 300,
+        'defaultSnoozeMinutes': 15,
+      });
+    });
+
+    test('a profile from a host that reports no use count decodes with zero', () async {
+      host.answer('listProfiles', [
+        {...profileWire}..remove('reminderCount'),
+      ]);
+      final profiles = (await client.listProfiles() as Ok<List<ReminderProfile>>).value;
+      expect(profiles.single.reminderCount, 0);
+    });
+
+    test('resetBuiltInProfile and deleteProfile send the id', () async {
+      host
+        ..answer('resetBuiltInProfile', {...profileWire, 'isBuiltIn': true})
+        ..answer('deleteProfile', {'status': 'ok', 'affectedCount': 1});
+      expect((await client.resetBuiltInProfile('b') as Ok<ReminderProfile>).value.isBuiltIn, isTrue);
+      expect((await client.deleteProfile('custom-1') as Ok<MutationResult>).value.affectedCount, 1);
+      expect(host.calls.map((c) => c.method), ['resetBuiltInProfile', 'deleteProfile']);
+      expect(host.calls.map((c) => c.arguments), [
+        {'id': 'b'},
+        {'id': 'custom-1'},
+      ]);
+    });
+
+    test('deleting a profile a reminder still uses comes back as the inUse field', () async {
+      host.reject('deleteProfile', {...fixtureMap('error_envelope'), 'field': 'inUse'});
+      final error = (await client.deleteProfile('custom-1') as Err).error;
+      expect(error.code, ErrorCode.validationFailed);
+      expect(error.field, 'inUse');
+    });
+  });
+
   test('randomUuidV4 is a fresh RFC 4122 v4 UUID each time', () {
     final ids = {for (var i = 0; i < 50; i++) randomUuidV4()};
     expect(ids, hasLength(50));

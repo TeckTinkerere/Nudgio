@@ -52,6 +52,7 @@ object HostMethods {
         "requestNotificationPermission" to emptyList(),
         "saveProfile" to listOf("request"),
         "resetBuiltInProfile" to listOf("id"),
+        "deleteProfile" to listOf("id"),
         "openCapabilitySettings" to listOf("kind"),
         "takePendingMediaOpen" to emptyList(),
         "getStatistics" to listOf("rangeDays"),

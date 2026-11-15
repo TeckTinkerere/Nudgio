@@ -24,6 +24,13 @@ interface ReminderDao {
     @Query("SELECT * FROM reminders WHERE media_id = :mediaId")
     suspend fun getByMediaId(mediaId: String): List<ReminderEntity>
 
+    /** ADR-018 "Profile edits show affected count", and the guard before deleting a custom profile. */
+    @Query("SELECT COUNT(*) FROM reminders WHERE profile_id = :profileId")
+    suspend fun countByProfile(profileId: String): Int
+
+    @Query("SELECT profile_id AS profileId, COUNT(*) AS reminderCount FROM reminders GROUP BY profile_id")
+    suspend fun countPerProfile(): List<ProfileUsage>
+
     @Query("SELECT COUNT(*) FROM reminders WHERE enabled_intent = 1")
     suspend fun countEnabled(): Int
 
@@ -97,3 +104,6 @@ interface ReminderDao {
     @Query("DELETE FROM reminders")
     suspend fun deleteAll(): Int
 }
+
+/** How many reminders use one profile ([ReminderDao.countPerProfile]). */
+data class ProfileUsage(val profileId: String, val reminderCount: Int)

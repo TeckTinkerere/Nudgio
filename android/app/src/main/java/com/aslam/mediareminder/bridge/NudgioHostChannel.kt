@@ -93,6 +93,7 @@ class NudgioHostChannel(private val module: MediaReminderModule) : MethodChannel
         "requestNotificationPermission" to { _, p -> module.requestNotificationPermission(p) },
         "saveProfile" to { c, p -> module.saveProfile(c.map("request"), p) },
         "resetBuiltInProfile" to { c, p -> module.resetBuiltInProfile(c.string("id"), p) },
+        "deleteProfile" to { c, p -> module.deleteProfile(c.string("id"), p) },
         "openCapabilitySettings" to { c, p -> module.openCapabilitySettings(c.string("kind"), p) },
         "takePendingMediaOpen" to { _, p -> module.takePendingMediaOpen(p) },
         "getStatistics" to { c, p -> module.getStatistics(c.number("rangeDays"), p) },

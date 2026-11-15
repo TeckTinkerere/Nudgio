@@ -66,6 +66,7 @@ const Map<String, List<String>> hostMethods = {
   'requestNotificationPermission': [],
   'saveProfile': ['request'],
   'resetBuiltInProfile': ['id'],
+  'deleteProfile': ['id'],
   'openCapabilitySettings': ['kind'],
   'takePendingMediaOpen': [],
   'getStatistics': ['rangeDays'],

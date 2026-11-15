@@ -27,7 +27,8 @@ public final class HostDispatcher {
         "dismissDueSession", "beginExport", "shareBackupExport", "inspectBackup", "commitImport", "cancelOperation",
         "beginMediaImport", "updateMedia", "deleteMedia", "exportMediaAssets", "shareLibrarySelection",
         "saveLibrarySelectionToGallery", "replaceMediaSource", "saveMediaCopyToGallery", "getMediaStorageUsage",
-        "requestNotificationPermission", "saveProfile", "resetBuiltInProfile", "openCapabilitySettings",
+        "requestNotificationPermission", "saveProfile", "resetBuiltInProfile", "deleteProfile",
+        "openCapabilitySettings",
         "takePendingMediaOpen", "getStatistics",
     ]
 
@@ -111,7 +112,8 @@ public final class HostDispatcher {
         case "stopAlarmRingtonePreview": return ["status": "ok", "affectedCount": 0]
 
         // Backup and Android → iPhone transfer are the next iPhone slice (DL-122).
-        case "beginExport", "shareBackupExport", "inspectBackup", "commitImport", "saveProfile", "resetBuiltInProfile":
+        case "beginExport", "shareBackupExport", "inspectBackup", "commitImport", "saveProfile", "resetBuiltInProfile",
+             "deleteProfile":
             throw HostError.notImplemented(method)
 
         default:

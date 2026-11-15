@@ -29,11 +29,13 @@ object CapabilitySnapshotProvider {
         status: String,
         effectKey: String,
         action: String,
+        guidanceKey: String? = null,
     ): WritableMap = Arguments.createMap().apply {
         putString("kind", kind)
         putString("status", status)
         putString("effectKey", effectKey)
         putString("action", action)
+        if (guidanceKey != null) putString("guidanceKey", guidanceKey)
         putString("observedAt", Instant.now().toString())
     }
 
@@ -145,6 +147,9 @@ object CapabilitySnapshotProvider {
                     status = batteryStatus,
                     effectKey = batteryEffectKey,
                     action = "none",
+                    // DL-124: which maker's own steps Health may show. Text only;
+                    // the action stays `none`, so this is never an exemption prompt.
+                    guidanceKey = DeviceAlarmGuidance.keyFor(Build.MANUFACTURER, Build.BRAND),
                 ),
             )
             pushMap(capabilityItem(

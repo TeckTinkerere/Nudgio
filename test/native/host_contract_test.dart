@@ -27,7 +27,8 @@ void main() {
 
   test('every method the TurboModule spec declared is still in the contract', () {
     // The 46 methods of NativeMediaReminder.ts plus listRecentlyMissed, which
-    // Kotlin exported without a TypeScript declaration.
-    expect(hostMethods, hasLength(47));
+    // Kotlin exported without a TypeScript declaration, plus deleteProfile
+    // (DL-123), which was never in the TurboModule spec.
+    expect(hostMethods, hasLength(48));
   });
 }

@@ -172,6 +172,21 @@ class NudgioClient {
   Future<Result<List<ReminderProfile>>> listProfiles() =>
       _call('listProfiles', const {}, _listOf('ReminderProfile', ReminderProfile.fromWire));
 
+  /// DL-123. A rejection names the field in `AppError.field`: a profile field,
+  /// `limit` (too many custom profiles) or `entityVersion` (edited elsewhere).
+  Future<Result<ReminderProfile>> saveProfile(SaveProfileRequest request) => _call(
+        'saveProfile',
+        {'request': request.toWire()},
+        _object('ReminderProfile', ReminderProfile.fromWire),
+      );
+
+  Future<Result<ReminderProfile>> resetBuiltInProfile(String id) =>
+      _call('resetBuiltInProfile', {'id': id}, _object('ReminderProfile', ReminderProfile.fromWire));
+
+  /// Refused with field `inUse` while any reminder still uses the profile.
+  Future<Result<MutationResult>> deleteProfile(String id) =>
+      _call('deleteProfile', {'id': id}, _object('MutationResult', MutationResult.fromWire));
+
   /// DL-082: moments the user never saw in the last [hours], newest first.
   Future<Result<List<MissedMoment>>> listRecentlyMissed(int hours) =>
       _call('listRecentlyMissed', {'hours': hours}, _listOf('MissedMoment', MissedMoment.fromWire));

@@ -3806,3 +3806,90 @@ and share-in are empty by design or later slices.
 - Still needs a real iPhone: G1 (lock-screen alarm, Stop/Snooze/Open with no
   engine, capacity). A device build needs an Apple Developer account for
   signing; see `docs/ios/building-without-a-mac.md`.
+
+## DL-123 — Custom alert profiles
+
+**Date:** 2026-11-15
+**Context:** Reviews of comparable reminder apps ask most often for control
+over how long an alert rings and how often it comes back. `saveProfile` and
+`resetBuiltInProfile` were declared in the contract and rejected as not
+implemented; custom profiles were on the 1.1 roadmap (MR-16). MR-05 already
+says users can edit safe values, cannot delete a built-in and may reset it.
+
+**Decision.**
+- **Rules in one pure object.** `profiles/ProfileRules.kt` plans every save,
+  reset and delete from plain values; `ProfileService` is the Room half.
+  `lib/features/profiles/profile_rules.dart` mirrors the bounds for the editor.
+- **Bounds, not new behavior.** Timeout 15..600 s and retries 0..3 are the
+  limits `BackupRecords` already clamps to and `AlarmRingingService` already
+  enforces; grace 60..3600 s and snooze 1..120 min are new limits on values
+  that had none. "Repeat until I respond" was asked for by users and is not
+  offered: MR-05 requires retry to be bounded by count and session lifetime,
+  and ADR-021 forbids implying guaranteed delivery.
+- **Built-ins.** Their bounded values can be edited; their name and whether
+  they ring (`fullScreenWhenLocked`, DL-018) cannot, so Gentle stays the
+  profile that does not ring. Reset restores `ReminderProfileSeed`.
+- **Custom profiles.** Up to 20; the name is stored in `name_key` as the
+  entity always intended, may not start with `profile.`, and is unique among
+  custom profiles ignoring case. Deleting one is refused while a reminder uses
+  it; the `ON DELETE RESTRICT` foreign key is the backstop for a race.
+- **`@Update`, not `upsert`.** The existing `upsert` is `INSERT OR REPLACE`,
+  which deletes the old row first and so fails against the same foreign key
+  for any profile in use. Saves use new `insert`/`update` DAO methods.
+- **Contract.** One new method, `deleteProfile(id)` (48 methods), and one
+  additive field, `ReminderProfile.reminderCount` (ADR-018: edits show the
+  affected count). `bridgeContractVersion` stays 1: nothing existing changed
+  meaning. iPhone declares the method and answers not-implemented, as it does
+  for `saveProfile` (DL-122).
+
+**Scope.** No schema change, no migration, no new permission, no new
+background component. Backups already carry custom profiles
+(`BackupRecords`, `deleteAllCustom`). A profile is read when an alarm fires,
+so a save needs no rescheduling.
+
+**Evidence.** `ProfileRulesTest.kt` (14), `profile_rules_test.dart`,
+`nudgio_client_test.dart`, `HostMethodsContractTest`, `flutter analyze`.
+
+**Residual risk.**
+- `ProfileService` and the new DAO queries compile and pass Room's
+  compile-time query verification but have not run against a database: there
+  is no Robolectric or instrumentation suite yet (`IT-PROFILE-001`).
+- An edited built-in does not survive a backup round trip: built-in records
+  in an archive are skipped on import (DL-030), so a restore returns the
+  seeded values.
+- There is no editor screen: the Flutter screens are phase F4, and the React
+  Native editor is not hosted on this branch. The Swift change is two lines
+  and has not been compiled here (no Swift toolchain); Linux CI runs it.
+
+## DL-124 — Phone-maker battery guidance on Health
+
+**Date:** 2026-11-15
+**Context:** The most common complaint about every comparable reminder app
+is an alarm that never fires, usually because the phone maker's own battery
+manager stopped the app. Health reported `battery_environment` and nothing
+else (DL-011). MR-06 allows more: "OEM troubleshooting is optional,
+manufacturer-specific guidance is clearly labeled, and Test reminder is
+preferred over asking for unrestricted background operation."
+
+**Decision.** `DeviceAlarmGuidance.keyFor(Build.MANUFACTURER, Build.BRAND)`
+names the maker family (Xiaomi/Redmi/POCO, Samsung, Huawei, Honor,
+OPPO/realme/OnePlus, vivo/iQOO). The `battery_environment` capability item
+carries it as an optional `guidanceKey`. The steps are text in
+`lib/features/health/device_guidance.dart`, shown under a "send a test
+reminder first" line and above a note that these are the maker's settings.
+
+**What it deliberately does not do.** The item's `action` stays `none` and
+its status and the overall status are unchanged, so DL-011 still holds:
+nothing opens a settings page, and no exemption is requested (AND-017). No
+permission, schema or archive change. The app has no Internet permission, so
+it does not link to an online guide either.
+
+**Evidence.** `DeviceAlarmGuidanceTest.kt` (4), `device_guidance_test.dart`
+(6), including a test that the Dart table has steps for exactly the makers
+Kotlin names.
+
+**Residual risk.** The steps were written from general knowledge of each
+maker's settings layout and have not been checked on a phone of each maker
+(`COPY-AUDIT-003`); menu names change between software versions, which the
+caveat line says. The copy is English only until the app's string resources
+exist (F3/F4). Health does not show it yet for the same reason as DL-123.

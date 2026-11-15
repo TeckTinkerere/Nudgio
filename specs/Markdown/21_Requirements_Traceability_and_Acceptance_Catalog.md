@@ -54,8 +54,8 @@ This catalog is the release-facing index of normative requirements. It does not 
 |---|---:|---:|---:|
 | Product and scope | 39 | 39 | 0 |
 | Experience and design | 14 | 12 | 2 |
-| Functional behavior | 18 | 17 | 1 |
-| Android native and battery | 18 | 18 | 0 |
+| Functional behavior | 19 | 17 | 2 |
+| Android native and battery | 19 | 18 | 1 |
 | Data and storage | 12 | 12 | 0 |
 | Backup and migration | 15 | 14 | 1 |
 | Security and privacy | 12 | 11 | 1 |
@@ -139,7 +139,7 @@ This catalog is the release-facing index of normative requirements. It does not 
 | `FUN-005` | P0 | Missing media disables dependent reminders and offers repair choices. | `E2E-REPAIR-001` |
 | `FUN-006` | P0 | Next occurrence is strictly after cursor and occurrence key is unique. | `PROP-REC-001..002` |
 | `FUN-007` | P0 | Snooze creates a child occurrence and does not mutate base recurrence. | `UT-SNOOZE-001..006` |
-| `FUN-008` | P0 | Profiles hold bounded sound, vibration, timeout, retry and grace values. | `UT-PROFILE-001..010` |
+| `FUN-008` | P0 | Profiles hold bounded sound, vibration, timeout, retry and grace values. | `UT-PROFILE-001..010` (`ProfileRulesTest.kt`, `profile_rules_test.dart`) |
 | `FUN-009` | P0 | Broken custom tone falls back to packaged tone with safe diagnostic. | `IT-AUDIO-004` |
 | `FUN-010` | P0 | Only one active alarm session owns sound/vibration. | `IT-COLLISION-006` |
 | `FUN-011` | P0 | Alarm terminal actions are idempotent for duplicate intents. | `IT-NATIVE-ACTION-010..020` |
@@ -150,6 +150,7 @@ This catalog is the release-facing index of normative requirements. It does not 
 | `FUN-016` | P0 | Notification channels are versioned and never recreated to override user choices. | `IT-CHANNEL-001..006` |
 | `FUN-017` | P0 | Deleting/editing an active reminder resolves or snapshots current session safely. | `IT-CONCURRENT-001..005` |
 | `FUN-018` | P1 | Duplicate media hash flow can reuse existing bytes. | `IT-DEDUP-001` |
+| `FUN-019` | P1 | Users can add, edit and delete custom profiles within the FUN-008 bounds; built-ins keep their name and can be reset; a profile in use cannot be deleted. | `UT-PROFILE-011..024` (`ProfileRulesTest.kt`, `profile_rules_test.dart`, `nudgio_client_test.dart`); `IT-PROFILE-001` (Room save/delete on a device, not yet run) |
 
 ## Android native and battery
 
@@ -173,6 +174,7 @@ This catalog is the release-facing index of normative requirements. It does not 
 | `AND-016` | P0 | Notification visibility defaults private and supports generic secret content. | `IT-LOCKPRIV-001..004` |
 | `AND-017` | P0 | No DND-policy, phone-state or battery-exemption permission is requested. | `SEC-MANIFEST-003` |
 | `AND-018` | P0 | Stop service/audio within one second of terminal action. | `PERF-ACTION-001` |
+| `AND-019` | P1 | Manufacturer battery guidance is labeled text keyed by maker; it never opens settings, requests an exemption or changes capability status. | `UT-OEM-001..004` (`DeviceAlarmGuidanceTest.kt`), `UT-OEM-005..010` (`device_guidance_test.dart`); `COPY-AUDIT-003` (steps checked on each maker's phone, not yet run) |
 
 ## Data and storage
 

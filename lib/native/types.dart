@@ -844,6 +844,7 @@ final class ReminderProfile {
     required this.graceSeconds,
     required this.defaultSnoozeMinutes,
     required this.entityVersion,
+    this.reminderCount = 0,
   });
 
   factory ReminderProfile.fromWire(WireReader r) => ReminderProfile(
@@ -856,6 +857,7 @@ final class ReminderProfile {
         graceSeconds: r.integer('graceSeconds'),
         defaultSnoozeMinutes: r.integer('defaultSnoozeMinutes'),
         entityVersion: r.integer('entityVersion'),
+        reminderCount: r.intOrNull('reminderCount') ?? 0,
       );
 
   final String id;
@@ -869,6 +871,49 @@ final class ReminderProfile {
   final int graceSeconds;
   final int defaultSnoozeMinutes;
   final int entityVersion;
+
+  /// How many reminders use this profile (ADR-018: edits show the affected
+  /// count). Zero from a host that does not report it.
+  final int reminderCount;
+}
+
+/// `saveProfile` (DL-123). A null [id] creates a custom profile. For a
+/// built-in, the host ignores [name] and [fullScreenWhenLocked].
+final class SaveProfileRequest {
+  const SaveProfileRequest({
+    this.id,
+    this.expectedEntityVersion,
+    this.name,
+    this.fullScreenWhenLocked,
+    required this.timeoutSeconds,
+    required this.retryCount,
+    required this.graceSeconds,
+    required this.defaultSnoozeMinutes,
+  });
+
+  final String? id;
+
+  /// The `entityVersion` the editor loaded; a newer stored row is a conflict.
+  final int? expectedEntityVersion;
+  final String? name;
+  final bool? fullScreenWhenLocked;
+  final int timeoutSeconds;
+  final int retryCount;
+  final int graceSeconds;
+  final int defaultSnoozeMinutes;
+
+  Map<String, Object?> toWire() => {
+        ...wireMap({
+          'id': id,
+          'expectedEntityVersion': expectedEntityVersion,
+          'name': name,
+          'fullScreenWhenLocked': fullScreenWhenLocked,
+        }),
+        'timeoutSeconds': timeoutSeconds,
+        'retryCount': retryCount,
+        'graceSeconds': graceSeconds,
+        'defaultSnoozeMinutes': defaultSnoozeMinutes,
+      };
 }
 
 final class DailyOutcomeCount {
@@ -933,6 +978,7 @@ final class CapabilityItem {
     required this.effectKey,
     required this.action,
     required this.observedAt,
+    this.guidanceKey,
   });
 
   factory CapabilityItem.fromWire(WireReader r) => CapabilityItem(
@@ -941,6 +987,7 @@ final class CapabilityItem {
         effectKey: r.string('effectKey'),
         action: r.string('action'),
         observedAt: r.instant('observedAt'),
+        guidanceKey: r.stringOrNull('guidanceKey'),
       );
 
   final String kind;
@@ -948,6 +995,10 @@ final class CapabilityItem {
   final String effectKey;
   final String action;
   final DateTime observedAt;
+
+  /// DL-124: `capability.batteryEnvironment.guidance.<maker>` on a phone whose
+  /// maker adds its own battery rules; see `features/health/device_guidance.dart`.
+  final String? guidanceKey;
 }
 
 final class CapabilitySnapshot {

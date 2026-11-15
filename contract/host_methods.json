@@ -124,6 +124,9 @@
     "resetBuiltInProfile": [
       "id"
     ],
+    "deleteProfile": [
+      "id"
+    ],
     "openCapabilitySettings": [
       "kind"
     ],

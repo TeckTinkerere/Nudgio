@@ -8,7 +8,7 @@ gaps in what already exists. Everything here is a deliberate, documented cut
 
 - **Media import and library persistence.** `listMedia`/`getMedia`/`beginMediaImport`/`updateMedia`/`deleteMedia` are all native no-ops today; `LibraryScreen`/`MediaDetailScreen` are fully built against mock fixtures. This is the largest single gap between what the RN UI already shows and what the app can actually do (DL-012, DL-026).
 - **Backup import file picker.** `BackupImporter.stage()`/`inspect()`/`commit()` are real; nothing yet turns a user's file choice into the `content://`/`file://` URI they need. Likely `ACTION_OPEN_DOCUMENT` via a small native intent, or a picker RN package if one is added deliberately (new dependency — needs the usual ADR per AGENTS.md). Unblocks `ImportScreen` end-to-end (DL-027).
-- **User-defined reminder profiles.** Only the three built-ins (Gentle/Standard/Persistent) exist; `saveProfile`/`resetBuiltInProfile` reject not-implemented.
+- **User-defined reminder profiles.** Native, contract and Dart rules are done (DL-123); the editor screen is part of the Flutter screens (F4), and iPhone still answers not-implemented.
 - **Capability deep-links.** `openCapabilitySettings` rejects not-implemented — Settings/Health's "fix this" actions (e.g. opening the exact-alarm special-access screen) don't work yet.
 - **Onboarding pages 2-3** (adaptive-behavior illustration, permission-by-intent explainer) — page 1 only, deliberately, per the screen's own scope note.
 - **Health screen per-item capability rows + Test reminder wiring** — overall status only today.

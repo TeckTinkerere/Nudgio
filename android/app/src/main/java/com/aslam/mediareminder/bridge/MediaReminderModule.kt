@@ -33,7 +33,6 @@ import com.aslam.mediareminder.backup.BackupOperationRegistry
 import com.aslam.mediareminder.capability.CapabilitySnapshotProvider
 import com.aslam.mediareminder.data.DynamicColorProvider
 import com.aslam.mediareminder.data.PreferencesRepository
-import com.aslam.mediareminder.data.ReminderProfileSeed
 import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.diagnostics.NativeLogger
 import com.aslam.mediareminder.media.LibrarySelectionActions
@@ -47,6 +46,7 @@ import com.aslam.mediareminder.media.MediaStorage
 import com.aslam.mediareminder.media.MediaStoreExporter
 import com.aslam.mediareminder.library.LibraryService
 import com.aslam.mediareminder.notifications.NotificationCoordinator
+import com.aslam.mediareminder.profiles.ProfileService
 import com.aslam.mediareminder.reminders.ActionResultWriter
 import com.aslam.mediareminder.reminders.ReminderDtoWriter
 import com.aslam.mediareminder.reminders.ReminderMutationService
@@ -85,6 +85,7 @@ class MediaReminderModule(
     private val preferences = PreferencesRepository(appContext)
     private val database = MediaReminderDatabase.getInstance(appContext)
     private val reminderMutations = ReminderMutationService(appContext, database)
+    private val profiles = ProfileService(database)
     /** Hoisted so the library service and the startup partial-file sweep share one instance. */
     private val mediaStorage = MediaStorage(appContext)
     private val mediaLibrary = MediaLibraryService(database, mediaStorage)
@@ -333,27 +334,8 @@ class MediaReminderModule(
 
     fun listProfiles(promise: Promise) {
         moduleScope.launch {
-            runCatching {
-                val profiles = database.reminderProfileDao().getAll()
-                // First creation seeds asynchronously; retain the existing defaults
-                // during that one window rather than exposing an empty picker.
-                if (profiles.isEmpty()) return@runCatching ReminderProfileSeed.asWritableArray()
-                Arguments.createArray().apply {
-                    profiles.forEach { profile ->
-                        pushMap(Arguments.createMap().apply {
-                            putString("id", profile.id)
-                            putString("nameKey", profile.nameKey)
-                            putBoolean("isBuiltIn", profile.isBuiltIn)
-                            putBoolean("fullScreenWhenLocked", profile.fullScreenWhenLocked)
-                            putInt("timeoutSeconds", profile.timeoutSeconds)
-                            putInt("retryCount", profile.retryCount)
-                            putInt("graceSeconds", profile.graceSeconds)
-                            putInt("defaultSnoozeMinutes", profile.defaultSnoozeMinutes)
-                            putInt("entityVersion", profile.entityVersion)
-                        })
-                    }
-                }
-            }.onSuccess { promise.resolve(it) }
+            runCatching { profiles.list() }
+                .onSuccess { promise.resolve(it) }
                 .onFailure { failSafe(promise, it, "listProfiles") }
         }
     }
@@ -1128,11 +1110,47 @@ class MediaReminderModule(
         }
     }
 
-    fun saveProfile(request: ReadableMap, promise: Promise) =
-        NativeErrorEnvelope.rejectNotImplemented(promise, "saveProfile")
+    /** DL-123: create a custom alert profile, or edit one (a built-in's name and ringing stay fixed). */
+    fun saveProfile(request: ReadableMap, promise: Promise) {
+        moduleScope.launch {
+            runCatching { profiles.save(request) }
+                .onSuccess { resolveProfileOutcome(promise, it) }
+                .onFailure { failSafe(promise, it, "saveProfile") }
+        }
+    }
 
-    fun resetBuiltInProfile(id: String, promise: Promise) =
-        NativeErrorEnvelope.rejectNotImplemented(promise, "resetBuiltInProfile")
+    fun resetBuiltInProfile(id: String, promise: Promise) {
+        moduleScope.launch {
+            runCatching { profiles.resetBuiltIn(id) }
+                .onSuccess { resolveProfileOutcome(promise, it) }
+                .onFailure { failSafe(promise, it, "resetBuiltInProfile") }
+        }
+    }
+
+    /** Refused with `field = "inUse"` while any reminder still uses the profile. */
+    fun deleteProfile(id: String, promise: Promise) {
+        moduleScope.launch {
+            runCatching { profiles.delete(id) }
+                .onSuccess { resolveProfileOutcome(promise, it) }
+                .onFailure { failSafe(promise, it, "deleteProfile") }
+        }
+    }
+
+    private fun resolveProfileOutcome(promise: Promise, outcome: ProfileService.Outcome) {
+        when (outcome) {
+            is ProfileService.Outcome.Success -> promise.resolve(outcome.result)
+            is ProfileService.Outcome.Invalid ->
+                NativeErrorEnvelope.reject(
+                    promise, "MR_VALIDATION_FAILED", "error.unexpected",
+                    NativeErrorEnvelope.Category.VALIDATION, field = outcome.field,
+                )
+            ProfileService.Outcome.Conflict ->
+                NativeErrorEnvelope.reject(
+                    promise, "MR_VALIDATION_FAILED", "error.unexpected",
+                    NativeErrorEnvelope.Category.VALIDATION, retryable = true, field = "entityVersion",
+                )
+        }
+    }
 
     /**
      * Triggers the real OS "Allow notifications?" dialog (MR-06 capability
