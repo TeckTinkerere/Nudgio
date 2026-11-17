@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.aslam.mediareminder.data.db.entity.ReminderProfileEntity
 
 @Dao
@@ -16,6 +17,21 @@ interface ReminderProfileDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(profile: ReminderProfileEntity)
+
+    /**
+     * Saving an edited profile must not go through [upsert]: `REPLACE` deletes
+     * the old row first, and `reminders.profile_id` is `ON DELETE RESTRICT`, so
+     * replacing a profile that any reminder uses fails.
+     */
+    @Update
+    suspend fun update(profile: ReminderProfileEntity): Int
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(profile: ReminderProfileEntity)
+
+    /** Never removes a built-in, whatever id it is given. */
+    @Query("DELETE FROM reminder_profiles WHERE id = :id AND is_built_in = 0")
+    suspend fun deleteCustomById(id: String): Int
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAllIfAbsent(profiles: List<ReminderProfileEntity>)

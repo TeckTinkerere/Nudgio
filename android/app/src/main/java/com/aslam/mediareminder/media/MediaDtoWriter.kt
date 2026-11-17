@@ -1,8 +1,8 @@
 package com.aslam.mediareminder.media
 
 import com.aslam.mediareminder.data.db.entity.MediaAssetEntity
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.WritableMap
+import com.aslam.mediareminder.bridge.wire.Arguments
+import com.aslam.mediareminder.bridge.wire.WritableMap
 import java.time.Instant
 
 /**

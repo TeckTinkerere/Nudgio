@@ -2,15 +2,16 @@
  * Root Gradle build file.
  *
  * Versions below are the ADR-019 baseline (minSdk 26 / compileSdk 36 /
- * targetSdk 36, React Native 0.86.x). `compileSdkVersion` was originally
+ * targetSdk 36). Plugin versions now live in settings.gradle's `plugins`
+ * block (Flutter host, ADR-023 phase F2). `compileSdkVersion` was originally
  * pinned to 37, but the first real build against a real Android SDK
  * (docs/decision-log.md DL-041) found no resolvable `android-37` platform
  * target — API 36 (Android 16) is the latest normal stable release. AGP was
  * originally pinned to 8.12.0, but the locally installed Android Studio
  * only supports up to AGP 8.10.0 (DL-044) — downgraded so IDE sync works,
  * not just the command-line `./gradlew`. Confirm the exact Android Gradle
- * Plugin / Kotlin / Gradle wrapper trio against the installed
- * `react-native` version and your actual Android Studio install before
+ * Plugin / Kotlin / Gradle wrapper trio against the pinned Flutter SDK
+ * (`.fvmrc`) and your actual Android Studio install before
  * bumping either again — MR-18 requires current platform facts to be
  * refreshed from MR-22, not assumed from this file.
  */
@@ -20,25 +21,8 @@ buildscript {
         minSdkVersion = 26
         compileSdkVersion = 36
         targetSdkVersion = 36
-        kotlinVersion = "2.1.20"
         ndkVersion = "27.1.12297006"
-        // Room's Kotlin symbol processor. Must track `kotlinVersion` — KSP
-        // releases as `<kotlin-version>-<ksp-version>`; confirm the exact pin
-        // against the installed Kotlin plugin before the first build (same
-        // "refresh from MR-22, don't assume" rule as the rest of this file).
-        kspVersion = "2.1.20-2.0.1"
         roomVersion = "2.7.1"
-    }
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath('com.android.tools.build:gradle:8.10.0')
-        classpath("com.facebook.react:react-native-gradle-plugin")
-
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
-        classpath("com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:$kspVersion")
     }
 }
 
@@ -50,19 +34,22 @@ allprojects {
 }
 
 /*
- * `./gradlew lintDebug` runs in every module, including the React Native
- * libraries under node_modules. Those are third-party code we cannot fix:
- * react-native-video fails a WrongThread error in its own Java, and
- * worklets/reanimated crash lint's build-script analysis. They sink the whole
- * build before :app is judged, so only :app, the code this repo owns, is
- * linted (DL-113). :app's lint does not need the libraries' lint output.
+ * The Flutter tool looks for build outputs under the repository's `build/`
+ * directory (`build/app/outputs/flutter-apk/`), so every module builds there,
+ * exactly as the Flutter template sets up. CI's release-manifest check reads
+ * `build/app/intermediates/...` accordingly.
  */
-subprojects { subproject ->
-    if (subproject.path != ':app') {
-        subproject.tasks.configureEach { task ->
-            if (task.name.startsWith('lint')) {
-                task.enabled = false
-            }
-        }
-    }
+def flutterBuildDir = rootProject.layout.buildDirectory.dir("../../build").get()
+rootProject.layout.buildDirectory.value(flutterBuildDir)
+
+subprojects {
+    project.layout.buildDirectory.value(flutterBuildDir.dir(project.name))
+}
+
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.layout.buildDirectory
 }

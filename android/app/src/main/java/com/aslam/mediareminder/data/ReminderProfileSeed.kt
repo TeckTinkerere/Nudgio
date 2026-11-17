@@ -1,8 +1,8 @@
 package com.aslam.mediareminder.data
 
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.WritableArray
-import com.facebook.react.bridge.WritableMap
+import com.aslam.mediareminder.bridge.wire.Arguments
+import com.aslam.mediareminder.bridge.wire.WritableArray
+import com.aslam.mediareminder.bridge.wire.WritableMap
 
 /**
  * The three built-in reminder profiles (ADR-018: "Seed Gentle, Standard and
@@ -17,7 +17,7 @@ import com.facebook.react.bridge.WritableMap
  */
 object ReminderProfileSeed {
 
-    private data class Profile(
+    data class Profile(
         val id: String,
         val nameKey: String,
         val fullScreenWhenLocked: Boolean,
@@ -57,6 +57,9 @@ object ReminderProfileSeed {
         ),
     )
 
+    /** The seeded values of one built-in, for "Reset" (DL-123). Null for any other id. */
+    fun builtIn(id: String): Profile? = profiles.firstOrNull { it.id == id }
+
     fun asWritableArray(): WritableArray = Arguments.createArray().apply {
         profiles.forEach { profile ->
             pushMap(
@@ -70,6 +73,7 @@ object ReminderProfileSeed {
                     putInt("graceSeconds", profile.graceSeconds)
                     putInt("defaultSnoozeMinutes", profile.defaultSnoozeMinutes)
                     putInt("entityVersion", 1)
+                    putInt("reminderCount", 0)
                 } as WritableMap,
             )
         }

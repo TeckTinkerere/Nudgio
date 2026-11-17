@@ -1,8 +1,8 @@
 package com.aslam.mediareminder.bridge
 
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.Promise
-import com.facebook.react.bridge.WritableMap
+import com.aslam.mediareminder.bridge.wire.Arguments
+import com.aslam.mediareminder.bridge.wire.Promise
+import com.aslam.mediareminder.bridge.wire.WritableMap
 import java.util.UUID
 
 /**

@@ -2,8 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'feat/flutter-**']
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -33,33 +34,170 @@ jobs:
         working-directory: web
         run: npm ci && npm audit --audit-level=high
 
+  # ADR-023: the Flutter UI and its host contract. The Flutter version comes
+  # from pubspec.yaml's `environment.flutter`, which matches .fvmrc.
+  flutter:
+    name: Flutter analyze and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --fatal-infos
+      - run: flutter test
+
   android:
-    name: Gradle test, lintDebug, release manifest
+    name: Flutter APK, Gradle test, lintDebug, release manifest
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
       - uses: gradle/actions/setup-gradle@v6
-      - run: npm ci
+      # Writes flutter.sdk into android/local.properties for the Gradle plugin.
+      - run: flutter pub get
+      - name: Build the debug APK (Dart, engine and Kotlin core together)
+        run: flutter build apk --debug
+      # :app only (plugin subprojects ship Flutter's own tests), debug variant
+      # only: `flutter pub get` writes a GeneratedPluginRegistrant that names
+      # dev-only plugins (integration_test), so release/qa compile only through
+      # `flutter build`, which regenerates it. The JVM tests are variant-free.
       - name: Unit tests and lint
         working-directory: android
-        run: ./gradlew test lintDebug --console=plain
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain
       - name: Merge the release manifest
         working-directory: android
         run: ./gradlew :app:processReleaseMainManifest --console=plain
       # No INTERNET, nothing exported but MainActivity (and library receivers
       # behind the DUMP permission), allowBackup off. Runs on the merged
-      # manifest so a library that adds a component or permission is caught.
+      # manifest so a library or the Flutter engine adding a component or
+      # permission is caught. The Flutter template builds into the repository's
+      # `build/`, so the merged manifest lives there.
       - name: Assert release manifest
         run: >
           node scripts/ci/check-manifest.js
           android/app/src/main/AndroidManifest.xml
-          android/app/build/intermediates/merged_manifest/release/processReleaseMainManifest/AndroidManifest.xml
+          build/app/intermediates/merged_manifest/release/processReleaseMainManifest/AndroidManifest.xml
+
+  # The F2 exit check on a real Android runtime: the Flutter app talks to the
+  # Kotlin core through the channel and Room, on an emulator.
+  android-device:
+    name: Android emulator integration test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - run: flutter pub get
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: flutter test integration_test -d emulator-5554
+
+  # The iPhone core's portable logic (store, schedule engine, wire DTOs,
+  # dispatcher) on Linux: fast, and independent of Apple runners.
+  swift-linux:
+    name: NudgioKernel swift test (Linux)
+    runs-on: ubuntu-latest
+    container: swift:6.1-noble
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      # The DST cases need real zone rules (America/New_York, Asia/Singapore).
+      - run: apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tzdata
+      - run: swift test --package-path ios/NudgioKernel
+
+  # The iPhone build without owning a Mac: GitHub's hosted macOS runners are
+  # free for public repositories. Compiles the AlarmKit/UIKit code, runs the
+  # kernel tests on an iOS 26 simulator, builds the Flutter Runner for the
+  # simulator, and runs the integration test there end to end. The simulator
+  # .app is uploaded so it can be opened in a browser simulator service.
+  ios:
+    name: iOS simulator build and tests
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+      - name: Toolchain versions
+        run: xcodebuild -version && swift --version && flutter --version
+      - run: flutter pub get
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available --json | python3 scripts/ci/pick-simulator.py)
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid" || true
+      - name: Kernel tests on the iOS simulator (compiles the AlarmKit code)
+        working-directory: ios/NudgioKernel
+        run: >
+          xcodebuild test -scheme NudgioKernel
+          -destination "id=${{ steps.sim.outputs.udid }}"
+          -skipPackagePluginValidation
+          CODE_SIGNING_ALLOWED=NO
+      - name: Build the Flutter app for the simulator
+        run: flutter build ios --simulator --debug
+      # simctl sometimes hangs installing or launching the app on a hosted
+      # runner (seen once after a clean Xcode build); bound it and retry once
+      # on a freshly booted simulator rather than burn the job's hour.
+      - name: Integration test on the simulator
+        id: itest
+        timeout-minutes: 15
+        continue-on-error: true
+        run: flutter test integration_test -d "${{ steps.sim.outputs.udid }}"
+      - name: Integration test on the simulator (retry)
+        if: steps.itest.outcome == 'failure'
+        timeout-minutes: 15
+        run: |
+          xcrun simctl shutdown all || true
+          xcrun simctl boot "${{ steps.sim.outputs.udid }}"
+          flutter test integration_test -d "${{ steps.sim.outputs.udid }}"
+      - name: Package the simulator app
+        run: cd build/ios/iphonesimulator && zip -qr ../../../Nudgio-simulator.zip Runner.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nudgio-ios-simulator
+          path: Nudgio-simulator.zip
+          retention-days: 14
+      # A device build with no signature, for re-signing with a free Apple ID
+      # on Windows (docs/ios/building-without-a-mac.md, section 3a).
+      - name: Build an unsigned device IPA
+        run: |
+          flutter build ios --release --no-codesign
+          mkdir -p Payload && cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qr Nudgio-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nudgio-ios-unsigned
+          path: Nudgio-unsigned.ipa
+          retention-days: 14

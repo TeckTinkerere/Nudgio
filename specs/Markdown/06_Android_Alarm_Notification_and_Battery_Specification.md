@@ -244,7 +244,7 @@ Wake resources:
 - no wake lock during normal media browsing once activity lifecycle is sufficient;
 - every acquisition is tagged and covered by unit/static tests.
 
-No battery optimization exemption request is part of onboarding. OEM troubleshooting is optional, manufacturer-specific guidance is clearly labeled, and Test reminder is preferred over asking for unrestricted background operation.
+No battery optimization exemption request is part of onboarding. OEM troubleshooting is optional, manufacturer-specific guidance is clearly labeled, and Test reminder is preferred over asking for unrestricted background operation. The guidance is text only (DL-124): the `battery_environment` capability item names the phone maker in an optional `guidanceKey`, its `action` stays `none`, its status does not change, and Health shows the maker's steps below a line that asks the user to run Test reminder first.
 
 # Doze and app standby
 

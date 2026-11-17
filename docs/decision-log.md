@@ -3683,3 +3683,213 @@ description of the bridge; any bridge change lands there first.
 
 **Scope:** docs, `.fvmrc` and `.gitignore` only. No app, schema, permission or
 dependency change.
+
+## DL-121 — Flutter phases F1 and F2: the host contract and the Android host swap
+
+**Date:** 2026-10-28
+**Context:** F0 done (DL-120). This entry covers F1 (contract and Dart
+foundation) and F2 (Android host swap) on branch `feat/flutter-f1-f2`.
+
+**Decision 1 — a method channel with a shared contract file, not Pigeon.**
+The plan (§4, §5) named Pigeon. The bridge is instead one `nudgio/host`
+method channel and one `nudgio/events` event channel carrying
+`StandardMessageCodec` maps, with:
+- `lib/native/host_contract.dart` as the single method table (47 methods: the
+  46 of `NativeMediaReminder.ts` plus `listRecentlyMissed`, which Kotlin
+  already exported without a TypeScript declaration);
+- `contract/host_methods.json` generated from it and checked by the Dart,
+  Kotlin (`HostMethodsContractTest`) and Swift (`ContractTests`) suites;
+- `contract/fixtures/*.json` wire payloads decoded by the Dart tests and
+  checked key-for-key against what the Swift kernel produces;
+- typed Dart DTOs with runtime decoding (`lib/native/types.dart`,
+  `wire.dart`), so screens still only see typed values.
+
+Why: sixteen Kotlin files (DTO writers, request readers, services) build MR-08
+DTOs as React Native `WritableMap`s. With Pigeon each would need rewriting to
+Pigeon classes, which changes the code most likely to regress (plan §12, top
+risk) with no Android SDK on the development machine to compile it. The
+channel carries those maps unchanged. The cost is that Pigeon's compile-time
+typing on the native side is replaced by the contract tests above. Reversible
+per method group: a group can move to Pigeon later without touching the rest.
+
+**Decision 2 — a pure-Kotlin `WritableMap` subset.**
+`bridge/wire/Wire.kt` reproduces the parts of React Native's
+`WritableMap`/`ReadableMap`/`WritableArray`/`ReadableArray`/`Arguments`/
+`Promise` API the core uses, over Kotlin collections. The sixteen files changed
+only their imports, so every DTO is the map it was before. Numeric getters
+accept any `Number`, because the old bridge sent every JS number as a `Double`
+and Dart sends `int`.
+
+**Decision 3 — the host.** `MainActivity` is a `FlutterActivity`;
+`NudgioPlugin` owns both channels and hands `MediaReminderModule` the activity
+(pickers, share sheets) and permission prompts through `ActivityHost`;
+`NudgioHostChannel` decodes arguments into the module's existing signatures and
+answers on the main thread exactly once. `MainApplication` is now empty, so a
+receiver that starts the process for an alarm never starts a Dart VM.
+Receivers, `AlarmActivity` and `AlarmRingingService` are untouched (AND-002).
+
+**Build changes.** React Native Gradle plugin, autolinking and Hermes removed;
+Flutter Gradle plugin added. **AGP 8.10.0 → 8.11.1**, the minimum Flutter 3.47
+accepts (supersedes the DL-044 pin; Kotlin 2.1.20, KSP and Room unchanged).
+Build outputs move to the repository's `build/` as the Flutter tool expects, so
+CI's merged-manifest path changed. The `qa` build type gets
+`applicationIdSuffix ".flutter"` so it installs beside the shipped app.
+
+**Dependencies.** `flutter_riverpod 3.4.3` (pinned; first-party publisher,
+pure Dart, no platform code or network) and the SDK's own `integration_test`.
+
+**Evidence.** `flutter analyze --fatal-infos` clean; `flutter test` 107
+passed. CI on the branch: `flutter build apk --debug`, Gradle `test lintDebug`,
+the release-manifest check (no `INTERNET`), and an Android emulator
+integration test (`integration_test/host_round_trip_test.dart`) that creates,
+lists, disables and deletes an alarm with no attachment through the real
+Kotlin core and Room: 2 passed.
+
+**Not done / residual risk.**
+- F3-F5: design system and the real screens. The UI is a QA shell that lists
+  reminders. **Merging this branch ends React Native on `main`'s Android
+  build.** Cut `release/2.x` from `main` first if a v2.x hotfix may be needed.
+- `scripts/release/*` and `docs/APK_RELEASE_CHECKLIST.md` still describe the
+  React Native release path and `android/app/build/` outputs; they move in F5.
+- No on-device check of pickers, share sheets or the permission prompt
+  through the new `ActivityHost` yet.
+- `src/` stays until F9 and still passes its own CI job; the two UIs share no
+  code.
+
+## DL-122 — The iPhone core in Swift, and building it without a Mac
+
+**Date:** 2026-10-28
+**Context:** The owner asked for the iPhone code now, with no Mac available.
+This moves F6/F7 code ahead of the "Android first" order of DL-120 (the
+owner's call); G1 device evidence is still required before release
+(AGENTS.md).
+
+**Decisions.**
+- **`ios/NudgioKernel`, a Swift package in plain Swift over Foundation**, so
+  its logic is built and tested on Linux with no Apple hardware. AlarmKit,
+  Photos and UIKit adapters are in `Sources/NudgioKernel/Apple/` behind
+  `#if os(iOS)`. The Flutter Runner links it as a local package.
+- **One JSON document, not Core Data** (plan §3 suggested Core Data). Written
+  atomically (temp file + rename) with `NSFileProtectionComplete`, versioned
+  (`schemaVersion`), behind the `KernelStore` protocol so Core Data or SQLite
+  can replace it. Core Data cannot be tested off Apple platforms; the data set
+  (reminders, media metadata, folders) is small.
+- **AlarmKit strategy:** one alarm per enabled reminder (cap 20 until G1-09
+  measures the real limit); daily and weekday rules use AlarmKit's own weekly
+  repeat and keep ringing with the app never opened; once, monthly, yearly,
+  custom, paused and skipped reminders hold their next moment as a fixed alarm
+  and are re-armed whenever the app runs (launch, foreground, Open, any
+  mutation). A monthly reminder whose app is never opened rings once, then
+  waits: residual risk, listed for G1.
+- **Second button:** Open (an App Intent in the Runner that stops the alert,
+  records the reminder and opens the app; Play stays explicit) when the
+  reminder has media, the system countdown Snooze otherwise. AlarmKit allows
+  one secondary button.
+- **The permission prompt** is AlarmKit's, behind the same
+  `requestNotificationPermission` call the Dart primer already makes.
+- **Same validation and field names as Kotlin**, ported tests: schedule engine
+  (java.time DST semantics), action-link rules, folder rules, Android's
+  built-in profile ids.
+
+**Not implemented on iPhone yet (declared, answering `error.notImplemented`):**
+backup export/import and the Android → iPhone transfer (DL-120 decision 5),
+test-alarm preview, custom profiles. Device ringtones, the missed-moments list
+and share-in are empty by design or later slices.
+
+**Testing without a Mac.**
+- Linux CI: `swift test` on the kernel (store, schedules, DTOs, dispatcher,
+  media import, folders, contract).
+- macOS CI (GitHub-hosted, free for this public repository): kernel tests on an
+  iOS 26 simulator (compiles the AlarmKit/UIKit code), `flutter build ios
+  --simulator`, the same integration test as Android on the simulator, and the
+  simulator `.app` uploaded as a build artifact.
+- Still needs a real iPhone: G1 (lock-screen alarm, Stop/Snooze/Open with no
+  engine, capacity). A device build needs an Apple Developer account for
+  signing; see `docs/ios/building-without-a-mac.md`.
+
+## DL-123 — Custom alert profiles
+
+**Date:** 2026-11-15
+**Context:** Reviews of comparable reminder apps ask most often for control
+over how long an alert rings and how often it comes back. `saveProfile` and
+`resetBuiltInProfile` were declared in the contract and rejected as not
+implemented; custom profiles were on the 1.1 roadmap (MR-16). MR-05 already
+says users can edit safe values, cannot delete a built-in and may reset it.
+
+**Decision.**
+- **Rules in one pure object.** `profiles/ProfileRules.kt` plans every save,
+  reset and delete from plain values; `ProfileService` is the Room half.
+  `lib/features/profiles/profile_rules.dart` mirrors the bounds for the editor.
+- **Bounds, not new behavior.** Timeout 15..600 s and retries 0..3 are the
+  limits `BackupRecords` already clamps to and `AlarmRingingService` already
+  enforces; grace 60..3600 s and snooze 1..120 min are new limits on values
+  that had none. "Repeat until I respond" was asked for by users and is not
+  offered: MR-05 requires retry to be bounded by count and session lifetime,
+  and ADR-021 forbids implying guaranteed delivery.
+- **Built-ins.** Their bounded values can be edited; their name and whether
+  they ring (`fullScreenWhenLocked`, DL-018) cannot, so Gentle stays the
+  profile that does not ring. Reset restores `ReminderProfileSeed`.
+- **Custom profiles.** Up to 20; the name is stored in `name_key` as the
+  entity always intended, may not start with `profile.`, and is unique among
+  custom profiles ignoring case. Deleting one is refused while a reminder uses
+  it; the `ON DELETE RESTRICT` foreign key is the backstop for a race.
+- **`@Update`, not `upsert`.** The existing `upsert` is `INSERT OR REPLACE`,
+  which deletes the old row first and so fails against the same foreign key
+  for any profile in use. Saves use new `insert`/`update` DAO methods.
+- **Contract.** One new method, `deleteProfile(id)` (48 methods), and one
+  additive field, `ReminderProfile.reminderCount` (ADR-018: edits show the
+  affected count). `bridgeContractVersion` stays 1: nothing existing changed
+  meaning. iPhone declares the method and answers not-implemented, as it does
+  for `saveProfile` (DL-122).
+
+**Scope.** No schema change, no migration, no new permission, no new
+background component. Backups already carry custom profiles
+(`BackupRecords`, `deleteAllCustom`). A profile is read when an alarm fires,
+so a save needs no rescheduling.
+
+**Evidence.** `ProfileRulesTest.kt` (14), `profile_rules_test.dart`,
+`nudgio_client_test.dart`, `HostMethodsContractTest`, `flutter analyze`.
+
+**Residual risk.**
+- `ProfileService` and the new DAO queries compile and pass Room's
+  compile-time query verification but have not run against a database: there
+  is no Robolectric or instrumentation suite yet (`IT-PROFILE-001`).
+- An edited built-in does not survive a backup round trip: built-in records
+  in an archive are skipped on import (DL-030), so a restore returns the
+  seeded values.
+- There is no editor screen: the Flutter screens are phase F4, and the React
+  Native editor is not hosted on this branch. The Swift change is two lines
+  and has not been compiled here (no Swift toolchain); Linux CI runs it.
+
+## DL-124 — Phone-maker battery guidance on Health
+
+**Date:** 2026-11-15
+**Context:** The most common complaint about every comparable reminder app
+is an alarm that never fires, usually because the phone maker's own battery
+manager stopped the app. Health reported `battery_environment` and nothing
+else (DL-011). MR-06 allows more: "OEM troubleshooting is optional,
+manufacturer-specific guidance is clearly labeled, and Test reminder is
+preferred over asking for unrestricted background operation."
+
+**Decision.** `DeviceAlarmGuidance.keyFor(Build.MANUFACTURER, Build.BRAND)`
+names the maker family (Xiaomi/Redmi/POCO, Samsung, Huawei, Honor,
+OPPO/realme/OnePlus, vivo/iQOO). The `battery_environment` capability item
+carries it as an optional `guidanceKey`. The steps are text in
+`lib/features/health/device_guidance.dart`, shown under a "send a test
+reminder first" line and above a note that these are the maker's settings.
+
+**What it deliberately does not do.** The item's `action` stays `none` and
+its status and the overall status are unchanged, so DL-011 still holds:
+nothing opens a settings page, and no exemption is requested (AND-017). No
+permission, schema or archive change. The app has no Internet permission, so
+it does not link to an online guide either.
+
+**Evidence.** `DeviceAlarmGuidanceTest.kt` (4), `device_guidance_test.dart`
+(6), including a test that the Dart table has steps for exactly the makers
+Kotlin names.
+
+**Residual risk.** The steps were written from general knowledge of each
+maker's settings layout and have not been checked on a phone of each maker
+(`COPY-AUDIT-003`); menu names change between software versions, which the
+caveat line says. The copy is English only until the app's string resources
+exist (F3/F4). Health does not show it yet for the same reason as DL-123.

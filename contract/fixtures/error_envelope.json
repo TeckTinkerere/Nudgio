@@ -1,0 +1,8 @@
+{
+  "code": "MR_VALIDATION_FAILED",
+  "messageKey": "error.validationFailed",
+  "category": "validation",
+  "retryable": false,
+  "correlationId": "1b2c3d4e-5f60-4718-8a9b-0c1d2e3f4a5b",
+  "field": "label"
+}

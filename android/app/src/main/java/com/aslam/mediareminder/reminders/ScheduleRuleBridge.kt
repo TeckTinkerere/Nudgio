@@ -1,9 +1,9 @@
 package com.aslam.mediareminder.reminders
 
 import com.aslam.mediareminder.alarm.ScheduleRule
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.ReadableMap
-import com.facebook.react.bridge.WritableMap
+import com.aslam.mediareminder.bridge.wire.Arguments
+import com.aslam.mediareminder.bridge.wire.ReadableMap
+import com.aslam.mediareminder.bridge.wire.WritableMap
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime

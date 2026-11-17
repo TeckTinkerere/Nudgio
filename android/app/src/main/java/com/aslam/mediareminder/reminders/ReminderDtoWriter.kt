@@ -8,8 +8,8 @@ import com.aslam.mediareminder.data.db.entity.ReminderEntity
 import com.aslam.mediareminder.data.db.entity.ScheduleRuleEntity
 import com.aslam.mediareminder.media.MediaStorage
 import com.aslam.mediareminder.media.MediaThumbnailUri
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.WritableMap
+import com.aslam.mediareminder.bridge.wire.Arguments
+import com.aslam.mediareminder.bridge.wire.WritableMap
 import java.time.Instant
 
 /**

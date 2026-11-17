@@ -70,6 +70,8 @@ export interface Spec extends TurboModule {
   listProfiles(): Promise<ReminderProfile[]>;
   saveProfile(request: SaveProfileRequest): Promise<ReminderProfile>;
   resetBuiltInProfile(id: UUID): Promise<ReminderProfile>;
+  /** DL-123. Rejects with field `inUse` while a reminder uses the profile; never deletes a built-in. */
+  deleteProfile(id: UUID): Promise<MutationResult>;
 
   getCapabilitySnapshot(): Promise<CapabilitySnapshot>;
   openCapabilitySettings(kind: CapabilityKind): Promise<LaunchResult>;
@@ -191,6 +193,8 @@ interface CapabilityItem {
   effectKey: string;
   action: 'none' | 'request_runtime' | 'open_special_access' | 'open_channel' | 'run_test' | 'open_app';
   observedAt: Instant;
+  /** DL-124. Only on `battery_environment`: `capability.batteryEnvironment.guidance.<maker>`. */
+  guidanceKey?: string;
 }
 ```
 

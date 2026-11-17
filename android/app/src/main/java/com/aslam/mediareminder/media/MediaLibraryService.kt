@@ -5,8 +5,8 @@ import com.aslam.mediareminder.data.db.MediaReminderDatabase
 import com.aslam.mediareminder.data.db.entity.MediaAssetEntity
 import com.aslam.mediareminder.data.media.MediaQuerySql
 import com.aslam.mediareminder.data.media.MediaRename
-import com.facebook.react.bridge.ReadableMap
-import com.facebook.react.bridge.WritableMap
+import com.aslam.mediareminder.bridge.wire.ReadableMap
+import com.aslam.mediareminder.bridge.wire.WritableMap
 import java.time.Instant
 
 /**

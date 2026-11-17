@@ -69,7 +69,10 @@ checklist form.
   - [ ] No continuous midnight-rollover timer while the app sits open on Upcoming — the list refreshes on screen focus (`useFocusEffect`) instead, per the feature's own "avoid unnecessary continuous timers" instruction. Revisit if a user leaves the app open on this tab across midnight and expects it to flip over live.
 - [ ] Commit `android/app/schemas/` output as a reviewed artifact and consider a CI check that fails when an entity changes without a matching migration (DL-053 wired `room.schemaLocation`; the schemas are only useful if they are kept and diffed).
 - [ ] Backup-import document picker — `pickDocument` (built for media import, above) is a generic primitive `ImportScreen` could reuse to let the user choose a `.zip` archive, unblocking the already-real `inspectBackup`/`commitImport`. Not wired up in this pass.
-- [ ] User-defined reminder profiles (`saveProfile`/`resetBuiltInProfile`).
+- [x] User-defined reminder profiles (`saveProfile`/`resetBuiltInProfile`/`deleteProfile`): native, contract and Dart rules (DL-123, 2026-11-15). The editor screen arrives with the Flutter screens (F4).
+  - [ ] On a device: create, edit and delete a custom profile; edit a profile a reminder uses and confirm the reminder still rings (`IT-PROFILE-001`).
+- [x] Phone-maker battery guidance (DL-124, 2026-11-15): `guidanceKey` on the `battery_environment` capability and the steps in `lib/features/health/device_guidance.dart`. Health shows them once the Flutter screen exists (F4).
+  - [ ] Check each maker's steps on a real phone of that maker (`COPY-AUDIT-003`).
 - [x] Onboarding pages 2-3 + a real Skip (DL-071, 2026-08-10).
 - [x] `openCapabilitySettings` deep-links + Health screen per-item capability rows (DL-072, 2026-08-10) — `request_runtime`/`open_special_access`/`open_channel`/`open_app` all wired on Health, the only screen that ever needed them directly (Settings only links to Health, it has no capability rows of its own). Test reminder (`run_test`) still deferred, needs a real session/profile choice.
 - [x] Statistics screen backed by real occurrence data (see `b858d52`) — the `mockStatistics` fixture path noted above is stale.

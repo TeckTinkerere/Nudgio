@@ -5,12 +5,12 @@ Read `specs/Markdown/00_Document_Map_and_Executive_Summary.md`, `specs/Markdown/
 ## Hard rules
 
 - Android v1 uses package `com.aslam.mediareminder`. Separately authorized iPhone development follows ADR-022, `docs/ios/ADR-IOS-001.md` and the approved iPhone plan. Android-specific rules below continue to apply to Android; iPhone work must pass G1 before the full product build.
-- React Native handles normal UI; Kotlin owns alarms, actions, Room, scheduling, ringing, boot recovery and resilient due playback.
+- Flutter (`lib/`, ADR-023) handles normal UI on both phones; React Native in `src/` is legacy until plan phase F9. Kotlin owns alarms, actions, Room, scheduling, ringing, boot recovery and resilient due playback on Android; `ios/NudgioKernel` (Swift, AlarmKit) owns them on iPhone. Both answer the one contract in `contract/host_methods.json` (DL-121).
 - No backend, account, analytics, ads or production Internet permission.
 - No overlay, broad gallery permission, battery-exemption request, idle service, clock polling, repeating alarm or WorkManager due delivery.
 - Schedule one globally earliest one-shot alarm.
 - Full-screen only when locked/non-interactive and eligible. Unlocked uses a normal high-importance notification without FSI.
-- Play/Snooze/Dismiss and sound stop must work without React Native. Media starts only after Play.
+- Play/Snooze/Dismiss and sound stop must work without the UI engine (Flutter or React Native). Media starts only after Play.
 - Room/app-owned files are source of truth. Media and archives are streamed, validated, journaled and bounded.
 - Backups are logical versioned ZIPs; never raw DB; validate before mutation and preserve rollback.
 - New permission, schema, archive field, background component or architectural dependency requires specs/tests and usually an ADR.

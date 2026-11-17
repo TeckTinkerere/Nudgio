@@ -131,6 +131,8 @@ Stores a 7-bit weekday mask and local wall-clock time. Locale affects display or
 
 A profile contains notification behavior, sound source reference, vibration pattern, locked-screen full-screen eligibility, timeout, retry policy, grace window and default snooze. Built-in profile identifiers are stable. Users can edit safe values but cannot delete a built-in profile; they may reset it.
 
+A user may add up to 20 custom profiles (DL-123). A custom profile has a name of 1 to 40 characters, unique among custom profiles whatever the case, and may not begin with `profile.`, which is reserved for built-in name keys. Every profile, built-in or custom, keeps its values inside these bounds: timeout 15 to 600 seconds, retries 0 to 3, grace window 60 to 3600 seconds, default snooze 1 to 120 minutes. A built-in keeps its name and its locked-screen full-screen eligibility; only its bounded values may be edited, and reset restores the seeded values. A custom profile can be deleted only while no reminder uses it. A save carrying a stale `entityVersion` is rejected. The longest a single alarm can keep returning is therefore four rings and three waits; no profile rings without end.
+
 Sound sources:
 
 - built-in packaged alarm tone;
